@@ -50,13 +50,13 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 // Database connection with in-memory mock fallback for AI Studio environment
 const MOCK_TABLES: Record<string, any[]> = {
   users: [
-    { id: 'usr-1', name: 'Shalv Sharma', username: 'admin', email: 'admin@coreenact.com', password: 'password123', phone: '9810998290', role: 'Super Admin', department: 'Executive', designation: 'Managing Director / Super Admin', status: 'Active', location: 'New Delhi', created_at: '2026-09-01T09:00:00Z' },
-    { id: 'usr-2', name: 'Priya Nair', username: 'priya', email: 'priya.nair@coreenact.com', password: 'password123', phone: '9810998291', role: 'Sales Manager', department: 'Sales', designation: 'Senior Sales Director', status: 'Active', location: 'Bengaluru', created_at: '2026-09-01T09:05:00Z' },
-    { id: 'usr-3', name: 'Rahul Verma', username: 'rahul', email: 'rahul.verma@coreenact.com', password: 'password123', phone: '9810998292', role: 'Sales Executive', department: 'Sales', designation: 'Enterprise Account Executive', status: 'Active', location: 'Mumbai', created_at: '2026-09-01T09:10:00Z' },
-    { id: 'usr-4', name: 'Sneha Kulkarni', username: 'sneha', email: 'sneha.k@coreenact.com', password: 'password123', phone: '9810998293', role: 'Finance Manager', department: 'Finance', designation: 'Head of Billing & Receivables', status: 'Active', location: 'Bengaluru', created_at: '2026-09-01T09:15:00Z' },
-    { id: 'usr-5', name: 'Amit Patel', username: 'amit', email: 'amit.patel@coreenact.com', password: 'password123', phone: '9810998294', role: 'Finance Executive', department: 'Finance', designation: 'Accounts & GST Officer', status: 'Active', location: 'Ahmedabad', created_at: '2026-09-01T09:20:00Z' },
-    { id: 'usr-6', name: 'Neha Gupta', username: 'neha', email: 'neha.gupta@coreenact.com', password: 'password123', phone: '9810998295', role: 'Management/Viewer', department: 'Executive', designation: 'VP of Strategy (Read-Only)', status: 'Active', location: 'New Delhi', created_at: '2026-09-01T09:25:00Z' },
-    { id: 'usr-7', name: 'Vikram Malhotra', username: 'vikram', email: 'vikram.m@coreenact.com', password: 'password123', phone: '9810998296', role: 'Administrator', department: 'Operations', designation: 'Operations Director', status: 'Active', location: 'Pune', created_at: '2026-09-01T09:30:00Z' },
+    { id: 'usr-1', name: 'Shalv Sharma', username: 'admin', email: 'admin@coreenact.com', password: 'password123', tempPassword: 'password123', phone: '9810998290', role: 'Super Admin', department: 'Executive', designation: 'Managing Director / Super Admin', status: 'Active', location: 'New Delhi', created_at: '2026-09-01T09:00:00Z' },
+    { id: 'usr-2', name: 'Tabassum', username: 'tabassum', email: 'tabassum@coreenact.com', password: 'password123', tempPassword: 'password123', phone: '9810998291', role: 'Sales Manager', department: 'Sales', designation: 'Sales & Support Manager', status: 'Active', location: 'New Delhi', created_at: '2026-09-01T09:05:00Z' },
+    { id: 'usr-3', name: 'Rohan Verma', username: 'rohan', email: 'rohan.verma@coreenact.com', password: 'password123', tempPassword: 'password123', phone: '9810998292', role: 'Sales Executive', department: 'Sales', designation: 'Senior Account Executive', status: 'Active', location: 'Mumbai', created_at: '2026-09-01T09:10:00Z' },
+    { id: 'usr-4', name: 'Priya Nair', username: 'priya', email: 'priya.nair@coreenact.com', password: 'password123', tempPassword: 'password123', phone: '9810998293', role: 'Finance Manager', department: 'Finance', designation: 'Head of Billing & Receivables', status: 'Active', location: 'Bengaluru', created_at: '2026-09-01T09:15:00Z' },
+    { id: 'usr-5', name: 'Amit Patel', username: 'amit', email: 'amit.patel@coreenact.com', password: 'password123', tempPassword: 'password123', phone: '9810998294', role: 'Finance Executive', department: 'Finance', designation: 'Accounts & GST Officer', status: 'Active', location: 'Ahmedabad', created_at: '2026-09-01T09:20:00Z' },
+    { id: 'usr-6', name: 'Neha Gupta', username: 'neha', email: 'neha.gupta@coreenact.com', password: 'password123', tempPassword: 'password123', phone: '9810998295', role: 'Management/Viewer', department: 'Executive', designation: 'VP of Strategy (Read-Only)', status: 'Active', location: 'New Delhi', created_at: '2026-09-01T09:25:00Z' },
+    { id: 'usr-7', name: 'Vikram Malhotra', username: 'vikram', email: 'vikram.m@coreenact.com', password: 'password123', tempPassword: 'password123', phone: '9810998296', role: 'Administrator', department: 'Operations', designation: 'Operations Director', status: 'Active', location: 'Pune', created_at: '2026-09-01T09:30:00Z' },
   ],
   payroll_masters: [],
   leads: [
@@ -158,10 +158,14 @@ const getPersistedStorePath = () =>
     : path.resolve(__dirname, '.crm_persisted_store.json');
 
 function relinkUsersAndPayrollMasters() {
-  // Deduplicate users by ID first, then email
+  // Deduplicate users across both crmSlices.users and MOCK_TABLES.users by ID first, then email
   const usersById = new Map<string, any>();
   const idByEmail = new Map<string, string>();
-  for (const u of MOCK_TABLES.users || []) {
+  const sliceUsers = Array.isArray(PERSISTED_CRM_STATE.crmSlices?.users)
+    ? PERSISTED_CRM_STATE.crmSlices.users
+    : [];
+  const allCandidateUsers = [...sliceUsers, ...(MOCK_TABLES.users || [])];
+  for (const u of allCandidateUsers) {
     if (!u || !u.id) continue;
     const rawId = String(u.id);
     const emailLower = u.email ? String(u.email).trim().toLowerCase() : '';
@@ -169,15 +173,30 @@ function relinkUsersAndPayrollMasters() {
       ? rawId
       : (emailLower && idByEmail.get(emailLower)) || rawId;
     const prev = usersById.get(canonicalId);
+    const pickPassword = (nextPass: any, prevPass: any) => {
+      const n = typeof nextPass === 'string' ? nextPass.trim() : '';
+      const p = typeof prevPass === 'string' ? prevPass.trim() : '';
+      if (n && n !== 'password123') return n;
+      if (p && p !== 'password123') return p;
+      return n || p || 'password123';
+    };
+    const resolvedPass = pickPassword(u.password || u.tempPassword, prev?.password || prev?.tempPassword);
     const merged = prev
       ? {
           ...prev,
           ...u,
           id: canonicalId,
-          password: u.password || prev.password || 'password123',
-          tempPassword: u.tempPassword || prev.tempPassword || u.password || 'password123',
+          password: resolvedPass,
+          tempPassword: pickPassword(u.tempPassword || u.password, prev?.tempPassword || prev?.password),
+          customPermissions: u.customPermissions || u.custom_permissions || prev.customPermissions || prev.custom_permissions,
         }
-      : { ...u, id: canonicalId };
+      : {
+          ...u,
+          id: canonicalId,
+          password: resolvedPass,
+          tempPassword: u.tempPassword || resolvedPass,
+          customPermissions: u.customPermissions || u.custom_permissions,
+        };
     usersById.set(canonicalId, merged);
     if (emailLower) {
       idByEmail.set(emailLower, canonicalId);
@@ -185,7 +204,7 @@ function relinkUsersAndPayrollMasters() {
   }
   MOCK_TABLES.users = Array.from(usersById.values());
 
-  // Re-link payroll masters: match user by ID first, then email
+  // Re-link payroll masters: match user by ID first, then email, and ensure every enrolled payroll employee has a corresponding user entry
   const rawMastersObj = PERSISTED_CRM_STATE.payrollMasters || {};
   const relinkedMasters: Record<string, any> = {};
   for (const m of Object.values(rawMastersObj) as any[]) {
@@ -200,14 +219,60 @@ function relinkUsersAndPayrollMasters() {
           )
         : undefined);
     const targetId = matchedUser ? String(matchedUser.id) : mId;
+    const mPass = m.password || m.tempPassword || matchedUser?.password || 'password123';
     relinkedMasters[targetId] = {
       ...relinkedMasters[targetId],
       ...m,
       userId: targetId,
+      password: mPass,
+      tempPassword: m.tempPassword || mPass,
     };
+    if (matchedUser) {
+      const uIdx = MOCK_TABLES.users.findIndex((u) => String(u.id) === targetId);
+      if (uIdx >= 0) {
+        const currU = MOCK_TABLES.users[uIdx];
+        const syncedPass =
+          m.password && m.password !== 'password123'
+            ? m.password
+            : currU.password && currU.password !== 'password123'
+            ? currU.password
+            : mPass;
+        MOCK_TABLES.users[uIdx] = {
+          ...currU,
+          password: syncedPass,
+          tempPassword: syncedPass,
+          empCode: m.empCode || currU.empCode,
+        };
+        relinkedMasters[targetId].password = syncedPass;
+        relinkedMasters[targetId].tempPassword = syncedPass;
+      }
+    } else if (m.status !== 'Inactive') {
+      MOCK_TABLES.users.push({
+        id: targetId,
+        name: m.name || 'Employee',
+        username: m.email ? String(m.email).split('@')[0] : m.empCode || 'employee',
+        email: m.email || '',
+        password: mPass,
+        tempPassword: mPass,
+        mustChangePasswordOnFirstLogin: Boolean(m.mustChangePasswordOnFirstLogin),
+        accessScope: m.accessType === 'payroll_only' ? 'payroll_only' : 'all',
+        accessType: m.accessType || 'payroll_only',
+        empCode: m.empCode,
+        phone: m.phone || '',
+        role: m.role || 'Sales Executive',
+        department: m.department || 'Operations',
+        designation: m.designation || m.role || 'Employee',
+        status: m.status || 'Active',
+        location: m.location || 'Mumbai HQ',
+        created_at: new Date().toISOString(),
+      });
+    }
   }
   PERSISTED_CRM_STATE.payrollMasters = relinkedMasters;
   MOCK_TABLES.payroll_masters = Object.values(relinkedMasters);
+  if (PERSISTED_CRM_STATE.crmSlices && typeof PERSISTED_CRM_STATE.crmSlices === 'object') {
+    PERSISTED_CRM_STATE.crmSlices.users = MOCK_TABLES.users;
+  }
 }
 
 function syncMockTablesFromState() {
@@ -820,12 +885,10 @@ app.post('/api/database/query', async (req: Request, res: Response) => {
 });
 
 function getCurrentSnapshot(): Snapshot {
+  relinkUsersAndPayrollMasters();
   const slices = PERSISTED_CRM_STATE.crmSlices || {};
   return {
-    users:
-      Array.isArray(slices.users) && slices.users.length > 0
-        ? slices.users
-        : MOCK_TABLES.users,
+    users: MOCK_TABLES.users,
     customers: Array.isArray(slices.customers) ? slices.customers : [],
     contacts: Array.isArray(slices.contacts) ? slices.contacts : [],
     leads: Array.isArray(slices.leads) ? slices.leads : [],
@@ -849,6 +912,7 @@ function getCurrentSnapshot(): Snapshot {
     licenseTypes: Array.isArray(slices.licenseTypes) ? slices.licenseTypes : [],
     ledgerEntries: Array.isArray(slices.ledgerEntries) ? slices.ledgerEntries : [],
     ...slices,
+    users: MOCK_TABLES.users,
   };
 }
 
@@ -860,9 +924,10 @@ function getCurrentSnapshot(): Snapshot {
 app.post('/api/auth/verify', async (req: Request, res: Response) => {
   try {
     // Another serverless instance may have saved newer credentials: reload first.
-    if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || isDatabaseActive()) {
       await hydrateStoreFromDatabase();
     }
+    relinkUsersAndPayrollMasters();
     const identifier = String(req.body?.identifier ?? '').trim().toLowerCase();
     const password = String(req.body?.password ?? '').trim();
     if (!identifier || !password) {
@@ -884,13 +949,32 @@ app.post('/api/auth/verify', async (req: Request, res: Response) => {
 
     let master: any =
       masters.find((m) => norm(m.email) === identifier) ||
-      masters.find((m) => m.empCode && normCode(String(m.empCode)) === wantedCode) ||
+      masters.find((m) => m.empCode && (norm(m.empCode) === identifier || normCode(String(m.empCode)) === wantedCode)) ||
+      masters.find((m) => norm(m.userId) === identifier) ||
       null;
     let user: any =
       users.find((u) => norm(u.email) === identifier) ||
       users.find((u) => norm(u.id) === identifier) ||
       users.find((u) => norm(u.username) === identifier) ||
+      users.find((u) => u.empCode && (norm(u.empCode) === identifier || normCode(String(u.empCode)) === wantedCode)) ||
       null;
+
+    // Fallback to unambiguous email prefix or full name match
+    if (!user && !master) {
+      const weakUsers = users.filter((u) => {
+        const em = norm(u.email);
+        const prefix = em ? em.split('@')[0] : '';
+        return (prefix && prefix === identifier) || norm(u.name) === identifier;
+      });
+      const weakMasters = masters.filter((m) => {
+        const em = norm(m.email);
+        const prefix = em ? em.split('@')[0] : '';
+        return (prefix && prefix === identifier) || norm(m.name) === identifier;
+      });
+      if (weakUsers.length === 1) user = weakUsers[0];
+      if (weakMasters.length === 1) master = weakMasters[0];
+    }
+
     if (master && !user) {
       user = users.find((u) => String(u.id) === String(master.userId)) ||
         users.find((u) => master.email && norm(u.email) === norm(master.email)) || null;
@@ -916,7 +1000,24 @@ app.post('/api/auth/verify', async (req: Request, res: Response) => {
     if (valid.size > 0 && !valid.has(password)) {
       return res.status(401).json({ success: false, message: 'Invalid password.' });
     }
-    return res.json({ success: true, user: user || null, payrollMaster: master || null });
+    const resolvedUser = user || (master ? {
+      id: master.userId,
+      name: master.name || 'Employee',
+      username: master.email ? String(master.email).split('@')[0] : master.empCode || 'employee',
+      email: master.email || '',
+      password: master.password || master.tempPassword || password,
+      tempPassword: master.tempPassword || master.password || password,
+      mustChangePasswordOnFirstLogin: Boolean(master.mustChangePasswordOnFirstLogin),
+      accessScope: master.accessType === 'payroll_only' ? 'payroll_only' : 'all',
+      accessType: master.accessType || 'payroll_only',
+      phone: master.phone || '',
+      role: master.role || 'Sales Executive',
+      department: master.department || 'Operations',
+      designation: master.designation || master.role || 'Employee',
+      status: master.status || 'Active',
+      location: master.location || 'Mumbai HQ',
+    } : null);
+    return res.json({ success: true, user: resolvedUser, payrollMaster: master || null });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err?.message || 'Verification failed.' });
   }
@@ -969,31 +1070,71 @@ app.post('/api/state', async (req: Request, res: Response) => {
     });
   }
 
-  PERSISTED_CRM_STATE.documentCounters = countersCopy;
-  PERSISTED_CRM_STATE.crmSlices = {
-    ...PERSISTED_CRM_STATE.crmSlices,
-    ...canonical,
-  };
+  // Merge canonical.users with existing MOCK_TABLES.users (unless force is true or a user was explicitly deleted from base)
+  const baseUserIds = new Set<string>(
+    Array.isArray(base?.users) ? base.users.map((u: any) => String(u?.id || '')) : []
+  );
+  const canonicalUserIds = new Set<string>(
+    Array.isArray(canonical.users) ? canonical.users.map((u: any) => String(u?.id || '')) : []
+  );
+  const deletedFromBaseIds = new Set<string>();
+  for (const bid of baseUserIds) {
+    if (bid && !canonicalUserIds.has(bid)) deletedFromBaseIds.add(bid);
+  }
+
   if (Array.isArray(canonical.users) && canonical.users.length > 0) {
     const prevById = new Map<string, any>(
       MOCK_TABLES.users.map((u: any) => [String(u.id), u])
     );
-    MOCK_TABLES.users = canonical.users.map((u: any) => {
+    const updatedUsers = canonical.users.map((u: any) => {
       const prev = prevById.get(String(u.id));
+      const pickPass = (nextP: any, prevP: any) => {
+        const n = typeof nextP === 'string' ? nextP.trim() : '';
+        const p = typeof prevP === 'string' ? prevP.trim() : '';
+        if (n && n !== 'password123') return n;
+        if (p && p !== 'password123') return p;
+        return n || p || 'password123';
+      };
+      const pass = pickPass(u.password || u.tempPassword, prev?.password || prev?.tempPassword);
       return {
         ...prev,
         ...u,
-        password: u.password || prev?.password || 'password123',
-        tempPassword: u.tempPassword || prev?.tempPassword || u.password || 'password123',
+        password: pass,
+        tempPassword: pickPass(u.tempPassword || u.password, prev?.tempPassword || prev?.password),
       };
     });
+    if (!force) {
+      for (const existingU of MOCK_TABLES.users) {
+        if (!existingU || !existingU.id) continue;
+        const eid = String(existingU.id);
+        if (deletedFromBaseIds.has(eid)) continue;
+        const eEmail = existingU.email ? String(existingU.email).trim().toLowerCase() : '';
+        const alreadyIn = updatedUsers.some(
+          (u: any) =>
+            String(u.id) === eid ||
+            (eEmail && u.email && String(u.email).trim().toLowerCase() === eEmail)
+        );
+        if (!alreadyIn) {
+          updatedUsers.push(existingU);
+        }
+      }
+    }
+    MOCK_TABLES.users = updatedUsers;
+    canonical.users = updatedUsers;
   }
+
+  PERSISTED_CRM_STATE.documentCounters = countersCopy;
+  PERSISTED_CRM_STATE.crmSlices = {
+    ...PERSISTED_CRM_STATE.crmSlices,
+    ...canonical,
+    users: MOCK_TABLES.users,
+  };
   PERSISTED_CRM_STATE.stateInitialized = true;
   savePersistedStore();
   return res.json({
     success: true,
     initialized: true,
-    snapshot: canonical,
+    snapshot: { ...canonical, users: MOCK_TABLES.users },
     issues: [],
   });
 });
