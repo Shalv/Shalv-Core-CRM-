@@ -1,0 +1,2651 @@
+import express, { Request, Response, NextFunction } from 'express';
+import dotenv from 'dotenv';
+import { Pool } from 'pg';
+import nodemailer from 'nodemailer';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import {
+  assignDocumentNumbers,
+  auditSnapshot,
+  mergeSnapshots,
+  reconcileSnapshot,
+  same,
+  type Snapshot,
+} from './src/shared/integrity';
+
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+const port = parseInt(process.env.PORT || '3000', 10);
+
+// Honor X-Forwarded-* headers set by Vercel's proxy so req.protocol/req.get('host')
+// resolve to the real custom-domain origin (https://enact360.coreenact.com)
+// instead of http://localhost inside the serverless function.
+app.set('trust proxy', 1);
+
+// Parse JSON and URL-encoded bodies
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+
+// Durable writes: any mutating request that changed the store (users, passwords,
+// payroll masters, ...) is committed to Postgres BEFORE the response is sent, so a
+// later cold start / another serverless instance cannot revert it (e.g. back to the
+// default password).
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+  const originalEnd = res.end.bind(res) as (...args: any[]) => Response;
+  (res as any).end = (...args: any[]) => {
+    if (!stateDirty || !isDatabaseActive()) return originalEnd(...args);
+    stateDirty = false;
+    flushStateToDatabase().finally(() => originalEnd(...args));
+    return res;
+  };
+  next();
+});
+
+// Database connection with in-memory mock fallback for AI Studio environment
+const MOCK_TABLES: Record<string, any[]> = {
+  users: [
+    { id: 'usr-1', name: 'Shalv Sharma', username: 'admin', email: 'admin@coreenact.com', password: 'password123', phone: '9810998290', role: 'Super Admin', department: 'Executive', designation: 'Managing Director / Super Admin', status: 'Active', location: 'New Delhi', created_at: '2026-09-01T09:00:00Z' },
+    { id: 'usr-2', name: 'Priya Nair', username: 'priya', email: 'priya.nair@coreenact.com', password: 'password123', phone: '9810998291', role: 'Sales Manager', department: 'Sales', designation: 'Senior Sales Director', status: 'Active', location: 'Bengaluru', created_at: '2026-09-01T09:05:00Z' },
+    { id: 'usr-3', name: 'Rahul Verma', username: 'rahul', email: 'rahul.verma@coreenact.com', password: 'password123', phone: '9810998292', role: 'Sales Executive', department: 'Sales', designation: 'Enterprise Account Executive', status: 'Active', location: 'Mumbai', created_at: '2026-09-01T09:10:00Z' },
+    { id: 'usr-4', name: 'Sneha Kulkarni', username: 'sneha', email: 'sneha.k@coreenact.com', password: 'password123', phone: '9810998293', role: 'Finance Manager', department: 'Finance', designation: 'Head of Billing & Receivables', status: 'Active', location: 'Bengaluru', created_at: '2026-09-01T09:15:00Z' },
+    { id: 'usr-5', name: 'Amit Patel', username: 'amit', email: 'amit.patel@coreenact.com', password: 'password123', phone: '9810998294', role: 'Finance Executive', department: 'Finance', designation: 'Accounts & GST Officer', status: 'Active', location: 'Ahmedabad', created_at: '2026-09-01T09:20:00Z' },
+    { id: 'usr-6', name: 'Neha Gupta', username: 'neha', email: 'neha.gupta@coreenact.com', password: 'password123', phone: '9810998295', role: 'Management/Viewer', department: 'Executive', designation: 'VP of Strategy (Read-Only)', status: 'Active', location: 'New Delhi', created_at: '2026-09-01T09:25:00Z' },
+    { id: 'usr-7', name: 'Vikram Malhotra', username: 'vikram', email: 'vikram.m@coreenact.com', password: 'password123', phone: '9810998296', role: 'Administrator', department: 'Operations', designation: 'Operations Director', status: 'Active', location: 'Pune', created_at: '2026-09-01T09:30:00Z' },
+  ],
+  payroll_masters: [],
+  leads: [
+    { id: 'lead-1', lead_number: 'LEAD-2026-00001', company_name: 'Taj computer Solutions Pvt Ltd', contact_person: 'Sawan Pathak', mobile: '+91 72909 96601', email: 'sawankumar@tajcomputersolutions.com', status: 'Won', estimated_value: 1700000, created_at: '2026-09-01T10:00:00Z' },
+    { id: 'lead-2', lead_number: 'LEAD-2026-00002', company_name: 'incite Gravity Pvt Ltd', contact_person: 'Srikant Jena', mobile: '8290090611', email: 'srikant@incitegravity.com', status: 'Won', estimated_value: 295000, created_at: '2026-09-05T10:00:00Z' },
+    { id: 'lead-3', lead_number: 'LEAD-2026-00003', company_name: 'Build Storys Pvt Ltd', contact_person: 'Shruthi', mobile: '97403 82382', email: 'shruthi@buildstorys.com', status: 'Won', estimated_value: 1800000, created_at: '2026-09-12T10:00:00Z' },
+    { id: 'lead-4', lead_number: 'LEAD-2026-00004', company_name: 'Eduvrse Pvt ltd', contact_person: 'Eshant Sharma', mobile: '9999100186', email: 'eshant.sharma@eduvrse.com', status: 'Won', estimated_value: 1200000, created_at: '2026-09-18T10:00:00Z' },
+    { id: 'lead-5', lead_number: 'LEAD-2026-00005', company_name: 'DHIMAN IRON AND STEEL INDUSTRIES PVT LTD', contact_person: 'Jiten', mobile: '9878681000', email: 'jitengoyal@rrgg.in', status: 'Won', estimated_value: 1650000, created_at: '2026-09-22T10:00:00Z' },
+  ],
+  customers: [
+    { id: 1, customer_code: 'CUST-2026-001', company_name: 'Taj computer Solutions Pvt Ltd', contact_name: 'Sawan Pathak', email: 'sawankumar@tajcomputersolutions.com', phone: '+91 72909 96601', state: 'Delhi', gstin: '07AAACT2727Q1ZW', status: 'Active' },
+    { id: 2, customer_code: 'CUST-2026-002', company_name: 'incite Gravity Pvt Ltd', contact_name: 'Srikant Jena', email: 'srikant@incitegravity.com', phone: '8290090611', state: 'Haryana', gstin: '06AABCI1234F1Z5', status: 'Active' },
+    { id: 3, customer_code: 'CUST-2026-003', company_name: 'Build Storys Pvt Ltd', contact_name: 'Shruthi', email: 'shruthi@buildstorys.com', phone: '97403 82382', state: 'Karnataka', gstin: '29AABCB5678G1Z2', status: 'Active' },
+  ],
+  customer_contacts: [],
+  products: [
+    { id: 'prod-1', code: 'D365-BC-ESS', name: 'MS D365 Business Central Essential', type: 'Service', uom: 'License', hsn_sac: '997331', gst_rate: 18, cost_price: 6655, selling_price: 79860 },
+    { id: 'prod-2', code: 'D365-BC-DEV', name: 'MS D365 Business Central Device', type: 'Service', uom: 'License', hsn_sac: '997331', gst_rate: 18, cost_price: 3780, selling_price: 45360 },
+    { id: 'prod-3', code: 'D365-BC-TEAM', name: 'MS D365 Business Central Team Member', type: 'Service', uom: 'License', hsn_sac: '997331', gst_rate: 18, cost_price: 665, selling_price: 7980 },
+    { id: 'prod-5', code: 'SRV-ERP-IMP', name: 'Enterprise ERP Implementation Service', type: 'Service', uom: 'Mandays', hsn_sac: '998313', gst_rate: 18, cost_price: 1200000, selling_price: 1500000 },
+  ],
+  finance_invoices: [
+    { id: 1, invoice_no: 'INV/2026-27/001', invoice_type: 'Tax Invoice', customer_name: 'Taj computer Solutions Pvt Ltd', invoice_date: '2026-09-05', due_date: '2026-10-05', subtotal: 1440678, grand_total: 1700000, amount_paid: 1700000, status: 'Paid' },
+    { id: 2, invoice_no: 'INV/2026-27/002', invoice_type: 'Tax Invoice', customer_name: 'incite Gravity Pvt Ltd', invoice_date: '2026-09-10', due_date: '2026-10-10', subtotal: 250000, grand_total: 295000, amount_paid: 150000, status: 'Partially Paid' },
+  ],
+  finance_invoice_items: [],
+  finance_payments: [
+    { id: 1, invoice_id: 1, payment_date: '2026-09-15', amount: 1700000, payment_stage: 'Full Payment', payment_mode: 'NEFT', reference_no: 'UTR9988776655' },
+  ],
+  sales_orders: [
+    { id: 1, order_no: 'SO-2026-0001', order_date: '2026-09-02', customer_name: 'Taj computer Solutions Pvt Ltd', currency: 'INR', status: 'Completed', subtotal: 1440678, grand_total: 1700000 },
+  ],
+  opportunities: [
+    { id: 1, opportunity_no: 'OPP-2026-0001', customer_id: 1, title: 'Taj Computer Solutions - D365 Renewal', stage: 'Closed Won', status: 'Won', probability: 100, estimated_deal_value: 1700000 },
+  ],
+  opportunity_payment_milestones: [
+    { id: 1, customer_id: 1, milestone_name: '100% Advance on Order', percentage: 100, milestone_amount: 1700000, status: 'Paid' },
+  ],
+  activities: [
+    { id: 1, customer_id: 1, type: 'Meeting', subject: 'Kickoff & License Provisioning', due_at: '2026-09-03', status: 'Completed', priority: 'High' },
+  ],
+  company_setup: [
+    { id: 1, name: 'Coreenact Solutions', legal_name: 'Coreenact Solutions', gstin: '07FRWPS7255E1Z3', pan: 'FRWPS7255E', city: 'New Delhi', state: 'Delhi', state_code: '07', logo_url: '', bank_name: 'Bank of Baroda', bank_account_no: '71000200001745', bank_ifsc: 'BARB0VJOKHL', bank_branch: 'Okhla Phase-3, New Delhi' },
+  ],
+  outlook_app_config: [
+    {
+      id: 1,
+      display_name: process.env.OUTLOOK_APP_DISPLAY_NAME || 'Enact360',
+      client_id: process.env.OUTLOOK_CLIENT_ID || 'af71a4c3-ed1d-45cd-9969-62f8ae0b510a',
+      object_id: process.env.OUTLOOK_OBJECT_ID || 'f39ca6c9-66d2-4bbe-aa2b-53c68637e00f',
+      tenant_id: process.env.OUTLOOK_TENANT_ID || 'd74b8bb7-09a3-4a3c-9ca7-49b9a9dea733',
+      supported_account_types: 'My organization only',
+      redirect_uris: '1 web, 0 spa, 0 public client',
+      managed_application: 'Enact360',
+      state: 'Activated',
+      smtp_host: process.env.OUTLOOK_SMTP_HOST || 'smtp.office365.com',
+      smtp_port: Number(process.env.OUTLOOK_SMTP_PORT || 587),
+      updated_at: new Date().toISOString(),
+    },
+  ],
+  audit_logs: [],
+  email_notifications: [],
+  payroll_loans: [],
+  payroll_policy: [],
+  payroll_org_masters: [],
+  payroll_attendance: [],
+  payroll_leaves: [],
+  payroll_claims: [],
+  payroll_statutory: [],
+  purchase_orders: [],
+  amc_contracts: [],
+  support_tickets: [],
+  change_requests: [],
+  license_types: [],
+  customer_ledger: [],
+};
+
+// Comprehensive backend state store for all CRM, Masters, Payroll & ESS slices
+const PERSISTED_CRM_STATE: Record<string, any> = {
+  stateInitialized: false,
+  documentCounters: {},
+  payrollMasters: {},
+  deletedPayrollMasterIds: [],
+  payrollLoans: [],
+  deletedLoanIds: [],
+  payrollPolicy: null,
+  payrollOrgMasters: null,
+  payrollAttendance: {},
+  payrollLeaves: {},
+  payrollClaims: {},
+  payrollStatutory: {},
+  payrollIntegrationConfig: null,
+  crmSlices: {},
+};
+
+const getPersistedStorePath = () =>
+  process.env.CRM_STORE_PATH
+    ? path.resolve(process.env.CRM_STORE_PATH)
+    : path.resolve(__dirname, '.crm_persisted_store.json');
+
+function relinkUsersAndPayrollMasters() {
+  // Deduplicate users by ID first, then email
+  const usersById = new Map<string, any>();
+  const idByEmail = new Map<string, string>();
+  for (const u of MOCK_TABLES.users || []) {
+    if (!u || !u.id) continue;
+    const rawId = String(u.id);
+    const emailLower = u.email ? String(u.email).trim().toLowerCase() : '';
+    const canonicalId = usersById.has(rawId)
+      ? rawId
+      : (emailLower && idByEmail.get(emailLower)) || rawId;
+    const prev = usersById.get(canonicalId);
+    const merged = prev
+      ? {
+          ...prev,
+          ...u,
+          id: canonicalId,
+          password: u.password || prev.password || 'password123',
+          tempPassword: u.tempPassword || prev.tempPassword || u.password || 'password123',
+        }
+      : { ...u, id: canonicalId };
+    usersById.set(canonicalId, merged);
+    if (emailLower) {
+      idByEmail.set(emailLower, canonicalId);
+    }
+  }
+  MOCK_TABLES.users = Array.from(usersById.values());
+
+  // Re-link payroll masters: match user by ID first, then email
+  const rawMastersObj = PERSISTED_CRM_STATE.payrollMasters || {};
+  const relinkedMasters: Record<string, any> = {};
+  for (const m of Object.values(rawMastersObj) as any[]) {
+    if (!m || !m.userId) continue;
+    const mId = String(m.userId);
+    const mEmail = m.email ? String(m.email).trim().toLowerCase() : '';
+    const matchedUser =
+      MOCK_TABLES.users.find((u) => String(u.id) === mId) ||
+      (mEmail
+        ? MOCK_TABLES.users.find(
+            (u) => u.email && String(u.email).trim().toLowerCase() === mEmail
+          )
+        : undefined);
+    const targetId = matchedUser ? String(matchedUser.id) : mId;
+    relinkedMasters[targetId] = {
+      ...relinkedMasters[targetId],
+      ...m,
+      userId: targetId,
+    };
+  }
+  PERSISTED_CRM_STATE.payrollMasters = relinkedMasters;
+  MOCK_TABLES.payroll_masters = Object.values(relinkedMasters);
+}
+
+function syncMockTablesFromState() {
+  // Mirror payroll slices into MOCK_TABLES for SQL Explorer & /api/database/status visibility
+  if (PERSISTED_CRM_STATE.payrollMasters && typeof PERSISTED_CRM_STATE.payrollMasters === 'object') {
+    MOCK_TABLES.payroll_masters = Object.values(PERSISTED_CRM_STATE.payrollMasters).filter(Boolean);
+  }
+  if (Array.isArray(PERSISTED_CRM_STATE.payrollLoans)) {
+    MOCK_TABLES.payroll_loans = PERSISTED_CRM_STATE.payrollLoans;
+  }
+  if (PERSISTED_CRM_STATE.payrollPolicy) {
+    MOCK_TABLES.payroll_policy = [PERSISTED_CRM_STATE.payrollPolicy];
+  }
+  if (PERSISTED_CRM_STATE.payrollOrgMasters) {
+    MOCK_TABLES.payroll_org_masters = [PERSISTED_CRM_STATE.payrollOrgMasters];
+  }
+  if (PERSISTED_CRM_STATE.payrollAttendance && typeof PERSISTED_CRM_STATE.payrollAttendance === 'object') {
+    MOCK_TABLES.payroll_attendance = Object.entries(PERSISTED_CRM_STATE.payrollAttendance).map(
+      ([empId, att]: [string, any]) => ({ employee_id: empId, ...(att || {}) })
+    );
+  }
+  if (PERSISTED_CRM_STATE.payrollLeaves && typeof PERSISTED_CRM_STATE.payrollLeaves === 'object') {
+    const allLeaves: any[] = [];
+    for (const [empId, list] of Object.entries(PERSISTED_CRM_STATE.payrollLeaves)) {
+      if (Array.isArray(list)) {
+        for (const item of list) {
+          allLeaves.push({ employee_id: empId, ...item });
+        }
+      }
+    }
+    MOCK_TABLES.payroll_leaves = allLeaves;
+  }
+  if (PERSISTED_CRM_STATE.payrollClaims && typeof PERSISTED_CRM_STATE.payrollClaims === 'object') {
+    const allClaims: any[] = [];
+    for (const [empId, list] of Object.entries(PERSISTED_CRM_STATE.payrollClaims)) {
+      if (Array.isArray(list)) {
+        for (const item of list) {
+          allClaims.push({ employee_id: empId, ...item });
+        }
+      }
+    }
+    MOCK_TABLES.payroll_claims = allClaims;
+  }
+  if (PERSISTED_CRM_STATE.payrollStatutory && typeof PERSISTED_CRM_STATE.payrollStatutory === 'object') {
+    MOCK_TABLES.payroll_statutory = Object.entries(PERSISTED_CRM_STATE.payrollStatutory).map(
+      ([empId, stat]: [string, any]) => ({ employee_id: empId, ...(stat || {}) })
+    );
+  }
+
+  // Mirror CRM slices into MOCK_TABLES so every entry added/updated in UI is reflected in backend tables
+  const slices = PERSISTED_CRM_STATE.crmSlices || {};
+  if (Array.isArray(slices.leads)) {
+    MOCK_TABLES.leads = slices.leads.map((l: any) => ({
+      id: l.id,
+      lead_number: l.leadNumber || l.lead_number || l.id,
+      company_name: l.companyName || l.company_name || '',
+      contact_person: l.contactPerson || l.contact_person || '',
+      mobile: l.mobile || l.phone || '',
+      email: l.email || '',
+      status: l.status || 'New',
+      estimated_value: l.estimatedValue ?? l.estimated_value ?? 0,
+      created_at: l.createdAt || l.leadDate || l.created_at || new Date().toISOString(),
+      ...l,
+    }));
+  }
+  if (Array.isArray(slices.customers)) {
+    MOCK_TABLES.customers = slices.customers.map((c: any) => ({
+      id: c.id,
+      customer_code: c.customerCode || c.customer_code || c.id,
+      company_name: c.name || c.companyName || c.company_name || '',
+      contact_name: c.contactPerson || c.contact_name || '',
+      email: c.email || '',
+      phone: c.phone || c.mobile || '',
+      state: c.state || '',
+      gstin: c.gstin || '',
+      status: c.status || 'Active',
+      ...c,
+    }));
+  }
+  if (Array.isArray(slices.contacts)) {
+    MOCK_TABLES.customer_contacts = slices.contacts;
+  }
+  if (Array.isArray(slices.products)) {
+    MOCK_TABLES.products = slices.products.map((p: any) => ({
+      id: p.id,
+      code: p.code || p.sku || p.id,
+      name: p.name || '',
+      type: p.type || p.category || 'Service',
+      uom: p.uom || p.unit || 'License',
+      hsn_sac: p.hsnSac || p.hsn_sac || '',
+      gst_rate: p.gstRate ?? p.taxRate ?? p.gst_rate ?? 18,
+      cost_price: p.costPrice ?? p.cost_price ?? 0,
+      selling_price: p.sellingPrice ?? p.price ?? p.selling_price ?? 0,
+      ...p,
+    }));
+  }
+  if (Array.isArray(slices.invoices)) {
+    MOCK_TABLES.finance_invoices = slices.invoices.map((inv: any) => ({
+      id: inv.id,
+      invoice_no: inv.invoiceNumber || inv.invoice_no || inv.id,
+      invoice_type: inv.type || inv.invoice_type || 'Tax Invoice',
+      customer_name: inv.customerName || inv.customer_name || '',
+      invoice_date: inv.date || inv.invoiceDate || inv.invoice_date || '',
+      due_date: inv.dueDate || inv.due_date || '',
+      subtotal: inv.subtotal ?? 0,
+      grand_total: inv.totalAmount ?? inv.grandTotal ?? inv.grand_total ?? 0,
+      amount_paid: inv.paidAmount ?? inv.amount_paid ?? 0,
+      status: inv.status || 'Draft',
+      ...inv,
+    }));
+  }
+  if (Array.isArray(slices.payments)) {
+    MOCK_TABLES.finance_payments = slices.payments.map((pay: any) => ({
+      id: pay.id,
+      invoice_id: pay.invoiceId || pay.invoice_id || '',
+      payment_date: pay.date || pay.paymentDate || pay.payment_date || '',
+      amount: pay.amount ?? 0,
+      payment_stage: pay.stage || pay.payment_stage || 'Payment',
+      payment_mode: pay.mode || pay.paymentMode || pay.payment_mode || 'NEFT',
+      reference_no: pay.referenceNumber || pay.reference_no || '',
+      ...pay,
+    }));
+  }
+  if (Array.isArray(slices.orders)) {
+    MOCK_TABLES.sales_orders = slices.orders.map((ord: any) => ({
+      id: ord.id,
+      order_no: ord.orderNumber || ord.order_no || ord.id,
+      order_date: ord.date || ord.orderDate || ord.order_date || '',
+      customer_name: ord.customerName || ord.customer_name || '',
+      currency: ord.currency || 'INR',
+      status: ord.status || 'Confirmed',
+      subtotal: ord.subtotal ?? 0,
+      grand_total: ord.totalAmount ?? ord.grand_total ?? 0,
+      ...ord,
+    }));
+  }
+  if (Array.isArray(slices.opportunities)) {
+    MOCK_TABLES.opportunities = slices.opportunities.map((opp: any) => ({
+      id: opp.id,
+      opportunity_no: opp.opportunityNumber || opp.opportunity_no || opp.id,
+      customer_id: opp.customerId || opp.customer_id || '',
+      title: opp.title || opp.companyName || '',
+      stage: opp.stage || 'Qualification',
+      status: opp.status || 'Open',
+      probability: opp.probability ?? 50,
+      estimated_deal_value: opp.value ?? opp.estimatedValue ?? opp.estimated_deal_value ?? 0,
+      ...opp,
+    }));
+  }
+  if (Array.isArray(slices.milestones)) {
+    MOCK_TABLES.opportunity_payment_milestones = slices.milestones;
+  }
+  if (Array.isArray(slices.activities)) {
+    MOCK_TABLES.activities = slices.activities;
+  }
+  if (Array.isArray(slices.purchaseOrders)) {
+    MOCK_TABLES.purchase_orders = slices.purchaseOrders;
+  }
+  if (Array.isArray(slices.amcContracts)) {
+    MOCK_TABLES.amc_contracts = slices.amcContracts;
+  }
+  if (Array.isArray(slices.supportTickets)) {
+    MOCK_TABLES.support_tickets = slices.supportTickets;
+  }
+  if (Array.isArray(slices.changeRequests)) {
+    MOCK_TABLES.change_requests = slices.changeRequests;
+  }
+  if (Array.isArray(slices.licenseTypes)) {
+    MOCK_TABLES.license_types = slices.licenseTypes;
+  }
+  if (Array.isArray(slices.ledgerEntries)) {
+    MOCK_TABLES.customer_ledger = slices.ledgerEntries;
+  }
+  if (Array.isArray(slices.auditLogs)) {
+    MOCK_TABLES.audit_logs = slices.auditLogs;
+  }
+}
+
+function applyParsedStore(parsed: any) {
+  if (!parsed || typeof parsed !== 'object') return;
+  {
+      if (typeof parsed?.stateInitialized === 'boolean') {
+        PERSISTED_CRM_STATE.stateInitialized = parsed.stateInitialized;
+      }
+      if (parsed?.documentCounters && typeof parsed.documentCounters === 'object') {
+        PERSISTED_CRM_STATE.documentCounters = parsed.documentCounters;
+      }
+      if (Array.isArray(parsed?.users) && parsed.users.length > 0) {
+        const merged = new Map<string, any>();
+        for (const u of MOCK_TABLES.users) {
+          if (u && u.id) merged.set(String(u.id), u);
+        }
+        for (const u of parsed.users) {
+          if (u && u.id) merged.set(String(u.id), { ...merged.get(String(u.id)), ...u });
+        }
+        MOCK_TABLES.users = Array.from(merged.values());
+      }
+      if (Array.isArray(parsed?.payroll_masters)) {
+        MOCK_TABLES.payroll_masters = parsed.payroll_masters;
+        for (const m of parsed.payroll_masters) {
+          if (m && m.userId) {
+            PERSISTED_CRM_STATE.payrollMasters[m.userId] = m;
+          }
+        }
+      }
+      if (parsed?.payrollMasters && typeof parsed.payrollMasters === 'object') {
+        PERSISTED_CRM_STATE.payrollMasters = {
+          ...PERSISTED_CRM_STATE.payrollMasters,
+          ...parsed.payrollMasters,
+        };
+      }
+      if (Array.isArray(parsed?.deletedPayrollMasterIds)) {
+        PERSISTED_CRM_STATE.deletedPayrollMasterIds = parsed.deletedPayrollMasterIds;
+        for (const id of parsed.deletedPayrollMasterIds) {
+          delete PERSISTED_CRM_STATE.payrollMasters[id];
+        }
+      }
+      if (Array.isArray(parsed?.deletedLoanIds)) {
+        PERSISTED_CRM_STATE.deletedLoanIds = parsed.deletedLoanIds;
+      }
+      if (Array.isArray(parsed?.payrollLoans)) {
+        const delSet = new Set(PERSISTED_CRM_STATE.deletedLoanIds || []);
+        PERSISTED_CRM_STATE.payrollLoans = parsed.payrollLoans.filter(
+          (l: any) => l && l.id && !delSet.has(l.id)
+        );
+      }
+      if (parsed?.payrollPolicy) {
+        PERSISTED_CRM_STATE.payrollPolicy = parsed.payrollPolicy;
+      }
+      if (parsed?.payrollOrgMasters) {
+        PERSISTED_CRM_STATE.payrollOrgMasters = parsed.payrollOrgMasters;
+      }
+      if (parsed?.payrollAttendance && typeof parsed.payrollAttendance === 'object') {
+        PERSISTED_CRM_STATE.payrollAttendance = parsed.payrollAttendance;
+      }
+      if (parsed?.payrollLeaves && typeof parsed.payrollLeaves === 'object') {
+        PERSISTED_CRM_STATE.payrollLeaves = parsed.payrollLeaves;
+      }
+      if (parsed?.payrollClaims && typeof parsed.payrollClaims === 'object') {
+        PERSISTED_CRM_STATE.payrollClaims = parsed.payrollClaims;
+      }
+      if (parsed?.payrollStatutory && typeof parsed.payrollStatutory === 'object') {
+        PERSISTED_CRM_STATE.payrollStatutory = parsed.payrollStatutory;
+      }
+      if (parsed?.payrollIntegrationConfig) {
+        PERSISTED_CRM_STATE.payrollIntegrationConfig = parsed.payrollIntegrationConfig;
+      }
+      if (parsed?.crmSlices && typeof parsed.crmSlices === 'object') {
+        PERSISTED_CRM_STATE.crmSlices = parsed.crmSlices;
+      }
+      if (Array.isArray(parsed?.company_setup) && parsed.company_setup.length > 0) {
+        MOCK_TABLES.company_setup = parsed.company_setup;
+      }
+      if (Array.isArray(parsed?.outlook_app_config) && parsed.outlook_app_config.length > 0) {
+        MOCK_TABLES.outlook_app_config = parsed.outlook_app_config;
+      }
+      relinkUsersAndPayrollMasters();
+      syncMockTablesFromState();
+    }
+}
+
+function loadPersistedStore() {
+  try {
+    const storePath = getPersistedStorePath();
+    if (fs.existsSync(storePath)) {
+      const raw = fs.readFileSync(storePath, 'utf-8');
+      applyParsedStore(JSON.parse(raw));
+    }
+  } catch {
+    // ignore
+  }
+}
+
+// Set whenever the in-memory store changes; the response hook below flushes it to
+// Postgres before the HTTP response is finished (required on Vercel, where the
+// filesystem is read-only/ephemeral and a function may freeze right after replying).
+let stateDirty = false;
+
+function savePersistedStore() {
+  stateDirty = true;
+  try {
+    relinkUsersAndPayrollMasters();
+    syncMockTablesFromState();
+    const storePath = getPersistedStorePath();
+    fs.writeFileSync(
+      storePath,
+      JSON.stringify(
+        {
+          stateInitialized: Boolean(PERSISTED_CRM_STATE.stateInitialized),
+          documentCounters: PERSISTED_CRM_STATE.documentCounters || {},
+          users: MOCK_TABLES.users,
+          payroll_masters: MOCK_TABLES.payroll_masters,
+          payrollMasters: PERSISTED_CRM_STATE.payrollMasters,
+          deletedPayrollMasterIds: PERSISTED_CRM_STATE.deletedPayrollMasterIds || [],
+          payrollLoans: PERSISTED_CRM_STATE.payrollLoans,
+          deletedLoanIds: PERSISTED_CRM_STATE.deletedLoanIds || [],
+          payrollPolicy: PERSISTED_CRM_STATE.payrollPolicy,
+          payrollOrgMasters: PERSISTED_CRM_STATE.payrollOrgMasters,
+          payrollAttendance: PERSISTED_CRM_STATE.payrollAttendance,
+          payrollLeaves: PERSISTED_CRM_STATE.payrollLeaves,
+          payrollClaims: PERSISTED_CRM_STATE.payrollClaims,
+          payrollStatutory: PERSISTED_CRM_STATE.payrollStatutory,
+          payrollIntegrationConfig: PERSISTED_CRM_STATE.payrollIntegrationConfig,
+          crmSlices: PERSISTED_CRM_STATE.crmSlices,
+          company_setup: MOCK_TABLES.company_setup,
+          outlook_app_config: MOCK_TABLES.outlook_app_config,
+          updatedAt: new Date().toISOString(),
+        },
+        null,
+        2
+      ),
+      'utf-8'
+    );
+  } catch {
+    // ignore
+  }
+}
+
+loadPersistedStore();
+
+function runMockQuery(sql: string, _params: any[] = []) {
+  const normalized = sql.trim().replace(/\s+/g, ' ');
+  const upper = normalized.toUpperCase();
+
+  if (upper.includes('SELECT NOW()')) {
+    return {
+      rows: [{ current_time: new Date().toISOString(), db: 'postgresqlcrm_go7i', usr: 'postgresqlcrm_go7i_user' }],
+      rowCount: 1,
+      fields: [{ name: 'current_time', dataTypeID: 1184 }, { name: 'db', dataTypeID: 25 }, { name: 'usr', dataTypeID: 25 }],
+    };
+  }
+
+  if (upper.includes('INFORMATION_SCHEMA.TABLES')) {
+    const rows = Object.keys(MOCK_TABLES).sort().map((table_name) => ({ table_name }));
+    return { rows, rowCount: rows.length, fields: [{ name: 'table_name', dataTypeID: 25 }] };
+  }
+
+  const countMatch = normalized.match(/SELECT\s+COUNT\(\*\)\s+as\s+cnt\s+FROM\s+"?([a-zA-Z0-9_]+)"?/i);
+  if (countMatch) {
+    const tbl = countMatch[1].toLowerCase();
+    const cnt = MOCK_TABLES[tbl]?.length ?? 0;
+    return { rows: [{ cnt: String(cnt) }], rowCount: 1, fields: [{ name: 'cnt', dataTypeID: 20 }] };
+  }
+
+  const selectMatch = normalized.match(/SELECT\s+\*\s+FROM\s+"?([a-zA-Z0-9_]+)"?/i);
+  if (selectMatch) {
+    const tbl = selectMatch[1].toLowerCase();
+    const rows = MOCK_TABLES[tbl] ? [...MOCK_TABLES[tbl]] : [];
+    const fields = rows.length > 0 ? Object.keys(rows[0]).map((name) => ({ name, dataTypeID: 25 })) : [];
+    return { rows, rowCount: rows.length, fields };
+  }
+
+  return { rows: [], rowCount: 0, fields: [] };
+}
+
+let db: { query: (sql: string, params?: any[]) => Promise<any>; connect: () => Promise<any> };
+try {
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL not set');
+  }
+  const pgPool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 3000,
+  });
+  pgPool.on('error', (err) => {
+    console.warn('PostgreSQL client error (falling back to mock):', err.message);
+  });
+  pgPool.query('ALTER TABLE users ALTER COLUMN avatar TYPE TEXT;').catch(() => {});
+  db = {
+    query: async (sql: string, params: any[] = []) => {
+      try {
+        return await pgPool.query(sql, params);
+      } catch {
+        return runMockQuery(sql, params);
+      }
+    },
+    connect: async () => {
+      try {
+        return await pgPool.connect();
+      } catch {
+        return { query: async (sql: string, params: any[] = []) => runMockQuery(sql, params), release: () => {} };
+      }
+    },
+  };
+} catch {
+  console.warn('DB not connected — mock active');
+  db = {
+    query: async (sql: string, params: any[] = []) => runMockQuery(sql, params),
+    connect: async () => ({
+      query: async (sql: string, params: any[] = []) => runMockQuery(sql, params),
+      release: () => {},
+    }),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Durable store mirror: the whole CRM/Payroll store (incl. ESS payroll masters
+// and admin-set passwords) is persisted as a single JSON blob in Postgres so it
+// survives Vercel's ephemeral filesystem / cold starts. Falls back to the local
+// JSON file when no DATABASE_URL is configured (development).
+// ---------------------------------------------------------------------------
+const STATE_TABLE = 'crm_state_store';
+const isDatabaseActive = () => Boolean(process.env.DATABASE_URL);
+
+function buildPersistedStoreObject() {
+  relinkUsersAndPayrollMasters();
+  syncMockTablesFromState();
+  return {
+    stateInitialized: Boolean(PERSISTED_CRM_STATE.stateInitialized),
+    documentCounters: PERSISTED_CRM_STATE.documentCounters || {},
+    users: MOCK_TABLES.users,
+    payroll_masters: MOCK_TABLES.payroll_masters,
+    payrollMasters: PERSISTED_CRM_STATE.payrollMasters,
+    deletedPayrollMasterIds: PERSISTED_CRM_STATE.deletedPayrollMasterIds || [],
+    payrollLoans: PERSISTED_CRM_STATE.payrollLoans,
+    deletedLoanIds: PERSISTED_CRM_STATE.deletedLoanIds || [],
+    payrollPolicy: PERSISTED_CRM_STATE.payrollPolicy,
+    payrollOrgMasters: PERSISTED_CRM_STATE.payrollOrgMasters,
+    payrollAttendance: PERSISTED_CRM_STATE.payrollAttendance,
+    payrollLeaves: PERSISTED_CRM_STATE.payrollLeaves,
+    payrollClaims: PERSISTED_CRM_STATE.payrollClaims,
+    payrollStatutory: PERSISTED_CRM_STATE.payrollStatutory,
+    payrollIntegrationConfig: PERSISTED_CRM_STATE.payrollIntegrationConfig,
+    crmSlices: PERSISTED_CRM_STATE.crmSlices,
+    company_setup: MOCK_TABLES.company_setup,
+    outlook_app_config: MOCK_TABLES.outlook_app_config,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+async function ensureStateTable() {
+  try {
+    await db.query(
+      `CREATE TABLE IF NOT EXISTS ${STATE_TABLE} (id text PRIMARY KEY, payload text, updated_at timestamp DEFAULT CURRENT_TIMESTAMP)`
+    );
+  } catch {
+    // ignore
+  }
+}
+
+async function flushStateToDatabase() {
+  if (!isDatabaseActive()) return;
+  try {
+    const payload = JSON.stringify(buildPersistedStoreObject());
+    await db.query(
+      `INSERT INTO ${STATE_TABLE} (id, payload, updated_at) VALUES ('app', $1, CURRENT_TIMESTAMP)
+       ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload, updated_at = CURRENT_TIMESTAMP`,
+      [payload]
+    );
+  } catch {
+    // ignore
+  }
+}
+
+async function hydrateStoreFromDatabase() {
+  if (!isDatabaseActive()) return false;
+  try {
+    await ensureStateTable();
+    const res = await db.query(`SELECT payload FROM ${STATE_TABLE} WHERE id = 'app' LIMIT 1`);
+    const blob = res?.rows?.[0]?.payload;
+    if (blob) {
+      const parsed = typeof blob === 'string' ? JSON.parse(blob) : blob;
+      applyParsedStore(parsed);
+      console.log('Store hydrated from crm_state_store (database)');
+      return true;
+    }
+  } catch {
+    // ignore
+  }
+  return false;
+}
+
+const pool = db;
+export { app, db };
+export default app;
+
+// Helper: safe query
+async function query(sql: string, params: any[] = []) {
+  const start = Date.now();
+  const res = await pool.query(sql, params);
+  const duration = Date.now() - start;
+  return { ...res, duration };
+}
+
+// ============================================================================
+// Database & Health APIs
+// ============================================================================
+
+// 1. Health check & live database stats
+app.get('/api/health', async (_req: Request, res: Response) => {
+  try {
+    const start = Date.now();
+    const dbRes = await pool.query('SELECT NOW() as current_time, current_database() as db, current_user as usr;');
+    const latency = Date.now() - start;
+
+    const tablesRes = await pool.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      ORDER BY table_name;
+    `);
+
+    res.json({
+      status: 'healthy',
+      database: 'connected',
+      target: 'Render PostgreSQL',
+      host: 'dpg-db2iikpsrm7s73bhre6g-a.oregon-postgres.render.com',
+      databaseName: dbRes.rows[0]?.db || 'postgresqlcrm_go7i',
+      databaseUser: dbRes.rows[0]?.usr || 'postgresqlcrm_go7i_user',
+      serverTime: dbRes.rows[0]?.current_time,
+      latencyMs: latency,
+      tableCount: tablesRes.rows.length,
+      tables: tablesRes.rows.map((r: any) => r.table_name),
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      status: 'error',
+      database: 'disconnected',
+      error: err.message || 'Failed to connect to database',
+    });
+  }
+});
+
+// 2. Database status & table row counts
+app.get('/api/database/status', async (_req: Request, res: Response) => {
+  try {
+    const tablesRes = await pool.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      ORDER BY table_name;
+    `);
+
+    const tableStats: Array<{ tableName: string; rowCount: number }> = [];
+    for (const row of tablesRes.rows) {
+      try {
+        const countRes = await pool.query(`SELECT COUNT(*) as cnt FROM "${row.table_name}"`);
+        tableStats.push({
+          tableName: row.table_name,
+          rowCount: parseInt(countRes.rows[0]?.cnt || '0', 10),
+        });
+      } catch {
+        tableStats.push({ tableName: row.table_name, rowCount: 0 });
+      }
+    }
+
+    res.json({
+      connected: true,
+      database: 'postgresqlcrm_go7i',
+      host: 'dpg-db2iikpsrm7s73bhre6g-a.oregon-postgres.render.com',
+      tables: tableStats,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. Raw SQL Query runner (for PostgresDatabaseView)
+app.post('/api/database/query', async (req: Request, res: Response) => {
+  const { sql } = req.body;
+  if (!sql || typeof sql !== 'string') {
+    return res.status(400).json({ error: 'SQL string is required' });
+  }
+
+  const stripped = sql
+    .replace(/--.*$/gm, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .trim();
+  const statements = stripped
+    .split(';')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (statements.length !== 1) {
+    return res.status(400).json({
+      success: false,
+      error: 'Only a single read-only SQL statement is allowed.',
+    });
+  }
+
+  const singleStmt = statements[0];
+  if (
+    !/^(SELECT|WITH|SHOW|EXPLAIN)\b/i.test(singleStmt) ||
+    /\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|CREATE|GRANT|REVOKE|COPY)\b/i.test(singleStmt)
+  ) {
+    return res.status(400).json({
+      success: false,
+      error: 'SQL mutations are not allowed; use application APIs so relationship integrity is enforced.',
+    });
+  }
+
+  try {
+    const result = await query(sql);
+    res.json({
+      success: true,
+      rowCount: result.rowCount,
+      durationMs: result.duration,
+      fields: result.fields?.map((f: any) => ({ name: f.name, dataTypeID: f.dataTypeID })) || [],
+      rows: result.rows,
+    });
+  } catch (err: any) {
+    res.status(400).json({
+      success: false,
+      error: err.message,
+    });
+  }
+});
+
+function getCurrentSnapshot(): Snapshot {
+  const slices = PERSISTED_CRM_STATE.crmSlices || {};
+  return {
+    users:
+      Array.isArray(slices.users) && slices.users.length > 0
+        ? slices.users
+        : MOCK_TABLES.users,
+    customers: Array.isArray(slices.customers) ? slices.customers : [],
+    contacts: Array.isArray(slices.contacts) ? slices.contacts : [],
+    leads: Array.isArray(slices.leads) ? slices.leads : [],
+    opportunities: Array.isArray(slices.opportunities) ? slices.opportunities : [],
+    orders: Array.isArray(slices.orders) ? slices.orders : [],
+    milestones: Array.isArray(slices.milestones) ? slices.milestones : [],
+    invoices: Array.isArray(slices.invoices) ? slices.invoices : [],
+    payments: Array.isArray(slices.payments) ? slices.payments : [],
+    purchaseOrders: Array.isArray(slices.purchaseOrders) ? slices.purchaseOrders : [],
+    products: Array.isArray(slices.products) ? slices.products : [],
+    taxRates: Array.isArray(slices.taxRates) ? slices.taxRates : [],
+    states: Array.isArray(slices.states) ? slices.states : [],
+    paymentTerms: Array.isArray(slices.paymentTerms) ? slices.paymentTerms : [],
+    milestoneTemplates: Array.isArray(slices.milestoneTemplates) ? slices.milestoneTemplates : [],
+    activities: Array.isArray(slices.activities) ? slices.activities : [],
+    auditLogs: Array.isArray(slices.auditLogs) ? slices.auditLogs : [],
+    notifications: Array.isArray(slices.notifications) ? slices.notifications : [],
+    supportTickets: Array.isArray(slices.supportTickets) ? slices.supportTickets : [],
+    amcContracts: Array.isArray(slices.amcContracts) ? slices.amcContracts : [],
+    changeRequests: Array.isArray(slices.changeRequests) ? slices.changeRequests : [],
+    licenseTypes: Array.isArray(slices.licenseTypes) ? slices.licenseTypes : [],
+    ledgerEntries: Array.isArray(slices.ledgerEntries) ? slices.ledgerEntries : [],
+    ...slices,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Authoritative credential check. The browser only knows the users it has cached, so
+// on a fresh domain/device (or after a password was changed elsewhere) its local list
+// can be stale. This validates against the server's durable store instead.
+// ---------------------------------------------------------------------------
+app.post('/api/auth/verify', async (req: Request, res: Response) => {
+  try {
+    // Another serverless instance may have saved newer credentials: reload first.
+    if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+      await hydrateStoreFromDatabase();
+    }
+    const identifier = String(req.body?.identifier ?? '').trim().toLowerCase();
+    const password = String(req.body?.password ?? '').trim();
+    if (!identifier || !password) {
+      return res.status(400).json({ success: false, message: 'Identifier and password are required.' });
+    }
+
+    const norm = (v: any) => String(v ?? '').trim().toLowerCase();
+    const normCode = (v: string) => {
+      const m = v.trim().match(/^emp[-_\s]*(\d+)$/i);
+      return m ? `emp-${m[1].padStart(3, '0')}` : v.trim().toLowerCase();
+    };
+    const wantedCode = normCode(identifier);
+
+    const users: any[] = MOCK_TABLES.users || [];
+    const masters: any[] = [
+      ...Object.values(PERSISTED_CRM_STATE.payrollMasters || {}),
+      ...(MOCK_TABLES.payroll_masters || []),
+    ].filter(Boolean);
+
+    let master: any =
+      masters.find((m) => norm(m.email) === identifier) ||
+      masters.find((m) => m.empCode && normCode(String(m.empCode)) === wantedCode) ||
+      null;
+    let user: any =
+      users.find((u) => norm(u.email) === identifier) ||
+      users.find((u) => norm(u.id) === identifier) ||
+      users.find((u) => norm(u.username) === identifier) ||
+      null;
+    if (master && !user) {
+      user = users.find((u) => String(u.id) === String(master.userId)) ||
+        users.find((u) => master.email && norm(u.email) === norm(master.email)) || null;
+    }
+    if (user && !master) {
+      master = masters.find((m) => String(m.userId) === String(user.id)) ||
+        masters.find((m) => user.email && norm(m.email) === norm(user.email)) || null;
+    }
+    if (!user && !master) {
+      return res.status(404).json({ success: false, message: 'No user account found.' });
+    }
+
+    const valid = new Set<string>(
+      [master?.password, master?.tempPassword, user?.password, user?.tempPassword]
+        .filter((p) => typeof p === 'string' && p.trim().length > 0)
+        .map((p) => String(p).trim())
+    );
+    if (valid.size > 0 && !valid.has(password)) {
+      return res.status(401).json({ success: false, message: 'Invalid password.' });
+    }
+    return res.json({ success: true, user: user || null, payrollMaster: master || null });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err?.message || 'Verification failed.' });
+  }
+});
+
+app.get('/api/state', (_req: Request, res: Response) => {
+  res.json({
+    success: true,
+    initialized: Boolean(PERSISTED_CRM_STATE.stateInitialized),
+    snapshot: getCurrentSnapshot(),
+  });
+});
+
+app.post('/api/state', async (req: Request, res: Response) => {
+  const { base, snapshot: incoming, force } = req.body || {};
+  if (!incoming || typeof incoming !== 'object') {
+    return res.status(400).json({ error: 'snapshot is required' });
+  }
+  const current = getCurrentSnapshot();
+  let candidate: Snapshot = incoming;
+  if (PERSISTED_CRM_STATE.stateInitialized && base && !force) {
+    const merged = mergeSnapshots(base, incoming, current);
+    if (merged.conflicts.length > 0) {
+      return res.status(409).json({
+        error: 'Conflict detected while merging state',
+        conflicts: merged.conflicts,
+        snapshot: current,
+      });
+    }
+    candidate = merged.snapshot;
+  }
+
+  if (!PERSISTED_CRM_STATE.documentCounters || typeof PERSISTED_CRM_STATE.documentCounters !== 'object') {
+    PERSISTED_CRM_STATE.documentCounters = {};
+  }
+  const countersCopy = { ...PERSISTED_CRM_STATE.documentCounters };
+  const numbered = assignDocumentNumbers(
+    PERSISTED_CRM_STATE.stateInitialized ? current : candidate,
+    candidate,
+    countersCopy
+  );
+  const canonical = reconcileSnapshot(numbered);
+  const issues = auditSnapshot(canonical);
+
+  if (issues.length > 0) {
+    return res.status(422).json({
+      error: issues[0]?.message || 'Validation failed',
+      issues,
+      snapshot: current,
+    });
+  }
+
+  PERSISTED_CRM_STATE.documentCounters = countersCopy;
+  PERSISTED_CRM_STATE.crmSlices = {
+    ...PERSISTED_CRM_STATE.crmSlices,
+    ...canonical,
+  };
+  if (Array.isArray(canonical.users) && canonical.users.length > 0) {
+    const prevById = new Map<string, any>(
+      MOCK_TABLES.users.map((u: any) => [String(u.id), u])
+    );
+    MOCK_TABLES.users = canonical.users.map((u: any) => {
+      const prev = prevById.get(String(u.id));
+      return {
+        ...prev,
+        ...u,
+        password: u.password || prev?.password || 'password123',
+        tempPassword: u.tempPassword || prev?.tempPassword || u.password || 'password123',
+      };
+    });
+  }
+  PERSISTED_CRM_STATE.stateInitialized = true;
+  savePersistedStore();
+  return res.json({
+    success: true,
+    initialized: true,
+    snapshot: canonical,
+    issues: [],
+  });
+});
+
+// ============================================================================
+// Entity CRUD Routes (Users, Leads, Customers, etc.)
+// ============================================================================
+
+// Helper to merge DB users with in-memory MOCK_TABLES.users so newly created users & passwords never get lost
+function mergeUsersWithMemory(dbRows: any[]): any[] {
+  const mergedMap = new Map<string, any>();
+  const idByEmail = new Map<string, string>();
+  for (const row of dbRows || []) {
+    if (!row || !row.id) continue;
+    const id = String(row.id);
+    mergedMap.set(id, { ...row, id });
+    if (row.email) {
+      idByEmail.set(String(row.email).trim().toLowerCase(), id);
+    }
+  }
+  for (const memRow of MOCK_TABLES.users || []) {
+    if (!memRow || !memRow.id) continue;
+    const rawId = String(memRow.id);
+    const emailLower = memRow.email ? String(memRow.email).trim().toLowerCase() : '';
+    const targetId = mergedMap.has(rawId)
+      ? rawId
+      : (emailLower && idByEmail.get(emailLower)) || rawId;
+    const existing = mergedMap.get(targetId);
+    if (existing) {
+      mergedMap.set(targetId, {
+        ...existing,
+        ...memRow,
+        id: targetId,
+        password: memRow.password || existing.password || 'password123',
+      });
+    } else {
+      mergedMap.set(targetId, { ...memRow, id: targetId });
+    }
+    if (emailLower) {
+      idByEmail.set(emailLower, targetId);
+    }
+  }
+  return Array.from(mergedMap.values());
+}
+
+// USERS
+app.get('/api/users', async (_req: Request, res: Response) => {
+  try {
+    const result = await query('SELECT * FROM users ORDER BY created_at ASC;');
+    res.json({ users: mergeUsersWithMemory(result.rows) });
+  } catch (err: any) {
+    res.json({ users: MOCK_TABLES.users });
+  }
+});
+
+app.post('/api/users', async (req: Request, res: Response) => {
+  const u = req.body;
+  const cleanEmail = u.email ? String(u.email).trim().toLowerCase() : '';
+  const existingByIdIdx = u.id
+    ? MOCK_TABLES.users.findIndex((row) => String(row.id) === String(u.id))
+    : -1;
+  const existingByEmailIdx =
+    existingByIdIdx < 0 && cleanEmail
+      ? MOCK_TABLES.users.findIndex(
+          (row) => row.email && String(row.email).trim().toLowerCase() === cleanEmail
+        )
+      : -1;
+  const existingIdx = existingByIdIdx >= 0 ? existingByIdIdx : existingByEmailIdx;
+  const id =
+    existingIdx >= 0
+      ? String(MOCK_TABLES.users[existingIdx].id)
+      : u.id || `usr-${Date.now()}`;
+
+  const newUserRow = {
+    id,
+    name: u.name || 'New User',
+    username: u.username || u.email?.split('@')[0] || 'user',
+    email: u.email,
+    password: u.password || u.tempPassword || 'password123',
+    tempPassword: u.tempPassword || u.password || 'password123',
+    mustChangePasswordOnFirstLogin: Boolean(u.mustChangePasswordOnFirstLogin),
+    accessScope: u.accessScope || (u.accessType === 'payroll_only' ? 'payroll_only' : 'all'),
+    accessType: u.accessType || 'crm_and_payroll',
+    phone: u.phone || '',
+    role: u.role || 'Sales Executive',
+    department: u.department || 'Sales',
+    designation: u.designation || '',
+    status: u.status || 'Active',
+    avatar: u.avatar || '',
+    location: u.location || '',
+    reportingManager: u.reportingManager || '',
+    assignedTerritory: u.assignedTerritory || '',
+    custom_permissions: u.customPermissions || {},
+    created_at: new Date().toISOString(),
+  };
+  if (existingIdx >= 0) {
+    MOCK_TABLES.users[existingIdx] = {
+      ...MOCK_TABLES.users[existingIdx],
+      ...newUserRow,
+      id,
+    };
+  } else {
+    MOCK_TABLES.users.push(newUserRow);
+  }
+  savePersistedStore();
+  try {
+    let dbId = id;
+    if (cleanEmail) {
+      const existingEmailRes = await query(
+        'SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+        [u.email]
+      );
+      if (existingEmailRes.rows?.[0]?.id) {
+        dbId = String(existingEmailRes.rows[0].id);
+      }
+    }
+    await query(
+      `INSERT INTO users (id, name, username, email, phone, role, department, designation, status, avatar, location, custom_permissions)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       ON CONFLICT (id) DO UPDATE SET
+         name = EXCLUDED.name,
+         username = EXCLUDED.username,
+         email = EXCLUDED.email,
+         phone = EXCLUDED.phone,
+         role = EXCLUDED.role,
+         department = EXCLUDED.department,
+         designation = EXCLUDED.designation,
+         status = EXCLUDED.status,
+         avatar = EXCLUDED.avatar,
+         location = EXCLUDED.location,
+         custom_permissions = EXCLUDED.custom_permissions,
+         updated_at = CURRENT_TIMESTAMP`,
+      [
+        dbId,
+        newUserRow.name,
+        newUserRow.username,
+        newUserRow.email,
+        newUserRow.phone,
+        newUserRow.role,
+        newUserRow.department,
+        newUserRow.designation,
+        newUserRow.status,
+        newUserRow.avatar,
+        newUserRow.location,
+        JSON.stringify(u.customPermissions || {}),
+      ]
+    );
+  } catch {
+    // Kept safely in MOCK_TABLES.users
+  }
+  await flushStateToDatabase();
+  res.json({ success: true, id, user: newUserRow });
+});
+
+app.put('/api/users/:id', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const u = req.body;
+  const cleanEmail = u.email ? String(u.email).trim().toLowerCase() : '';
+  const byIdIdx = MOCK_TABLES.users.findIndex((row) => String(row.id) === String(id));
+  const byEmailIdx =
+    byIdIdx < 0 && cleanEmail
+      ? MOCK_TABLES.users.findIndex(
+          (row) => row.email && String(row.email).trim().toLowerCase() === cleanEmail
+        )
+      : -1;
+  const existingIdx = byIdIdx >= 0 ? byIdIdx : byEmailIdx;
+  if (existingIdx >= 0) {
+    const curr = MOCK_TABLES.users[existingIdx];
+    MOCK_TABLES.users[existingIdx] = {
+      ...curr,
+      name: u.name ?? curr.name,
+      username: u.username ?? curr.username,
+      email: u.email ?? curr.email,
+      password: u.password ?? curr.password,
+      tempPassword: u.tempPassword ?? u.password ?? curr.tempPassword,
+      mustChangePasswordOnFirstLogin:
+        u.mustChangePasswordOnFirstLogin !== undefined
+          ? u.mustChangePasswordOnFirstLogin
+          : curr.mustChangePasswordOnFirstLogin,
+      accessScope: u.accessScope ?? curr.accessScope,
+      accessType: u.accessType ?? curr.accessType,
+      phone: u.phone ?? curr.phone,
+      role: u.role ?? curr.role,
+      department: u.department ?? curr.department,
+      designation: u.designation ?? curr.designation,
+      status: u.status ?? curr.status,
+      avatar: u.avatar !== undefined ? u.avatar : curr.avatar,
+      location: u.location ?? curr.location,
+      reportingManager: u.reportingManager ?? curr.reportingManager,
+      assignedTerritory: u.assignedTerritory ?? curr.assignedTerritory,
+      custom_permissions: u.customPermissions !== undefined ? u.customPermissions : curr.custom_permissions,
+    };
+  } else {
+    MOCK_TABLES.users.push({
+      id,
+      name: u.name || 'User',
+      username: u.username || u.email?.split('@')[0] || 'user',
+      email: u.email || '',
+      password: u.password || 'password123',
+      tempPassword: u.tempPassword || u.password || 'password123',
+      mustChangePasswordOnFirstLogin: Boolean(u.mustChangePasswordOnFirstLogin),
+      accessScope: u.accessScope || 'all',
+      accessType: u.accessType || 'crm_and_payroll',
+      phone: u.phone || '',
+      role: u.role || 'Sales Executive',
+      department: u.department || 'Sales',
+      designation: u.designation || '',
+      status: u.status || 'Active',
+      avatar: u.avatar || '',
+      location: u.location || '',
+      custom_permissions: u.customPermissions || {},
+      created_at: new Date().toISOString(),
+    });
+  }
+  savePersistedStore();
+  try {
+    await query(
+      `UPDATE users SET
+         name = COALESCE($1, name),
+         username = COALESCE($2, username),
+         email = COALESCE($3, email),
+         phone = COALESCE($4, phone),
+         role = COALESCE($5, role),
+         department = COALESCE($6, department),
+         designation = COALESCE($7, designation),
+         status = COALESCE($8, status),
+         avatar = COALESCE($9, avatar),
+         location = COALESCE($10, location),
+         custom_permissions = COALESCE($11, custom_permissions),
+         updated_at = CURRENT_TIMESTAMP
+       WHERE id = $12`,
+      [
+        u.name,
+        u.username,
+        u.email,
+        u.phone,
+        u.role,
+        u.department,
+        u.designation,
+        u.status,
+        u.avatar,
+        u.location,
+        u.customPermissions ? JSON.stringify(u.customPermissions) : null,
+        id,
+      ]
+    );
+  } catch {
+    // Kept safely in MOCK_TABLES.users
+  }
+  await flushStateToDatabase();
+  res.json({ success: true, id });
+});
+
+// PAYROLL EMPLOYEE MASTERS & ESS BACKEND SYNC ROUTES
+app.get('/api/payroll/masters', (_req: Request, res: Response) => {
+  const map: Record<string, any> = { ...(PERSISTED_CRM_STATE.payrollMasters || {}) };
+  for (const item of MOCK_TABLES.payroll_masters) {
+    if (item && item.userId) {
+      map[item.userId] = item;
+    }
+  }
+  res.json({ success: true, masters: map });
+});
+
+app.post('/api/payroll/masters', async (req: Request, res: Response) => {
+  const masters = req.body?.masters;
+  const deletedUserIds = Array.isArray(req.body?.deletedUserIds)
+    ? (req.body.deletedUserIds as any[]).filter((id) => typeof id === 'string' && id)
+    : [];
+  const clearedUserIds = Array.isArray(req.body?.clearedUserIds)
+    ? (req.body.clearedUserIds as any[]).filter((id) => typeof id === 'string' && id)
+    : [];
+  if (masters && typeof masters === 'object') {
+    if (!Array.isArray(PERSISTED_CRM_STATE.deletedPayrollMasterIds)) {
+      PERSISTED_CRM_STATE.deletedPayrollMasterIds = [];
+    }
+    // Explicit re-enroll (create / promote flows) un-archives that employee's tombstone
+    for (const id of clearedUserIds) {
+      PERSISTED_CRM_STATE.deletedPayrollMasterIds = (
+        PERSISTED_CRM_STATE.deletedPayrollMasterIds as string[]
+      ).filter((t) => t !== id);
+    }
+    const currentMasters: Record<string, any> = {
+      ...(PERSISTED_CRM_STATE.payrollMasters || {}),
+    };
+    const isPatch = Boolean(req.body?.patch);
+    const baseMasters = req.body?.baseMasters;
+
+    if (baseMasters && typeof baseMasters === 'object') {
+      for (const [k, nextVal] of Object.entries(masters)) {
+        const baseVal = baseMasters[k];
+        const currVal = currentMasters[k];
+        if (!same(baseVal, nextVal) && currVal !== undefined && !same(currVal, baseVal) && !same(currVal, nextVal)) {
+          return res.status(409).json({
+            success: false,
+            message: `Concurrent change detected for payroll master ${k}`,
+          });
+        }
+      }
+    }
+
+    // Upsert per userId (patch) or full snapshot; a stale snapshot from another tab
+    // must never silently wipe employees it does not know about, so tombstones below
+    // are the only sanctioned way a record is removed.
+    const combined: Record<string, any> = isPatch
+      ? { ...currentMasters, ...masters }
+      : { ...masters };
+
+    // Tombstone handling: honor explicit deletes and block stale re-pushes from
+    // resurrecting an employee deleted on another device/tab.
+    const tombstones = new Set<string>([
+      ...(PERSISTED_CRM_STATE.deletedPayrollMasterIds as string[]),
+      ...deletedUserIds,
+    ]);
+    for (const id of clearedUserIds) tombstones.delete(id);
+    for (const id of deletedUserIds) delete combined[id];
+    for (const key of Object.keys(combined)) {
+      const uid = String((combined[key] && combined[key].userId) || key);
+      if (tombstones.has(uid)) delete combined[key];
+    }
+    PERSISTED_CRM_STATE.deletedPayrollMasterIds = Array.from(tombstones);
+
+    // Validate employee codes and emails are unique across combined masters
+    const seenCodes = new Map<string, string>();
+    const seenEmails = new Map<string, string>();
+    for (const m of Object.values(combined) as any[]) {
+      if (!m || !m.userId) continue;
+      const uid = String(m.userId);
+      const rawCode = String(m.empCode || '').trim().toUpperCase();
+      const numMatch = rawCode.match(/^EMP[-_\s]*(\d+)$/i);
+      const normCode = numMatch ? `EMP-${numMatch[1].padStart(3, '0')}` : rawCode;
+      if (normCode) {
+        const existingOwner = seenCodes.get(normCode);
+        if (existingOwner && existingOwner !== uid) {
+          return res.status(400).json({
+            success: false,
+            message: `Duplicate Employee Code ${normCode}`,
+          });
+        }
+        seenCodes.set(normCode, uid);
+      }
+      const normEmail = String(m.email || '').trim().toLowerCase();
+      if (normEmail) {
+        const existingEmailOwner = seenEmails.get(normEmail);
+        if (existingEmailOwner && existingEmailOwner !== uid) {
+          return res.status(400).json({
+            success: false,
+            message: `Duplicate Employee Email ${normEmail}`,
+          });
+        }
+        seenEmails.set(normEmail, uid);
+      }
+    }
+
+    const entries = Object.values(combined) as any[];
+    const relinkedMap: Record<string, any> = {};
+
+    // Match user by ID first, then email; if payroll record points at wrong ID, re-link it to the right user
+    for (const m of entries) {
+      if (!m || !m.userId) continue;
+      const byIdIdx = MOCK_TABLES.users.findIndex((u) => String(u.id) === String(m.userId));
+      const byEmailIdx =
+        byIdIdx < 0 && m.email
+          ? MOCK_TABLES.users.findIndex(
+              (u) => u.email && u.email.toLowerCase() === String(m.email).toLowerCase()
+            )
+          : -1;
+      const existingIdx = byIdIdx >= 0 ? byIdIdx : byEmailIdx;
+      const canonicalUserId =
+        existingIdx >= 0 ? String(MOCK_TABLES.users[existingIdx].id) : String(m.userId);
+      const pwd = m.password || m.tempPassword || 'password123';
+      const normalizedMaster = {
+        ...m,
+        userId: canonicalUserId,
+      };
+      relinkedMap[canonicalUserId] = normalizedMaster;
+
+      if (existingIdx >= 0) {
+        MOCK_TABLES.users[existingIdx] = {
+          ...MOCK_TABLES.users[existingIdx],
+          name: m.name || MOCK_TABLES.users[existingIdx].name,
+          email: m.email || MOCK_TABLES.users[existingIdx].email,
+          password: pwd,
+          tempPassword: pwd,
+          mustChangePasswordOnFirstLogin: Boolean(m.mustChangePasswordOnFirstLogin),
+          empCode: normalizedMaster.empCode,
+        };
+      } else {
+        MOCK_TABLES.users.push({
+          id: canonicalUserId,
+          name: m.name || 'Employee',
+          username: m.email ? m.email.split('@')[0] : normalizedMaster.empCode || 'employee',
+          email: m.email || '',
+          password: pwd,
+          tempPassword: pwd,
+          mustChangePasswordOnFirstLogin: Boolean(m.mustChangePasswordOnFirstLogin),
+          accessScope: m.accessType === 'payroll_only' ? 'payroll_only' : 'all',
+          accessType: m.accessType || 'payroll_only',
+          empCode: normalizedMaster.empCode,
+          phone: m.phone || '',
+          role: m.role || 'Sales Executive',
+          department: m.department || 'Operations',
+          designation: m.designation || m.role || 'Employee',
+          status: m.status || 'Active',
+          location: m.location || 'Mumbai HQ',
+          created_at: new Date().toISOString(),
+        });
+      }
+    }
+    PERSISTED_CRM_STATE.payrollMasters = relinkedMap;
+    MOCK_TABLES.payroll_masters = Object.values(relinkedMap);
+    savePersistedStore();
+  }
+  await flushStateToDatabase();
+  res.json({
+    success: true,
+    count: MOCK_TABLES.payroll_masters.length,
+    masters: PERSISTED_CRM_STATE.payrollMasters,
+  });
+});
+
+// Remove one employee's payroll master (with tombstone) so syncs never resurrect it
+app.delete('/api/payroll/masters/:id', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  if (id) {
+    delete PERSISTED_CRM_STATE.payrollMasters[id];
+    if (!Array.isArray(PERSISTED_CRM_STATE.deletedPayrollMasterIds)) {
+      PERSISTED_CRM_STATE.deletedPayrollMasterIds = [];
+    }
+    if (!PERSISTED_CRM_STATE.deletedPayrollMasterIds.includes(id)) {
+      PERSISTED_CRM_STATE.deletedPayrollMasterIds.push(id);
+    }
+    MOCK_TABLES.payroll_masters = Object.values(PERSISTED_CRM_STATE.payrollMasters).filter(
+      Boolean
+    ) as any[];
+    savePersistedStore();
+  }
+  await flushStateToDatabase();
+  res.json({ success: true, id });
+});
+
+app.get('/api/payroll/loans', (_req: Request, res: Response) => {
+  const delSet = new Set(PERSISTED_CRM_STATE.deletedLoanIds || []);
+  const loans = (PERSISTED_CRM_STATE.payrollLoans || []).filter(
+    (l: any) => l && l.id && !delSet.has(l.id)
+  );
+  res.json({
+    success: true,
+    loans,
+    deletedLoanIds: PERSISTED_CRM_STATE.deletedLoanIds || [],
+  });
+});
+
+app.post('/api/payroll/loans', (req: Request, res: Response) => {
+  const deletedLoanId = req.body?.deletedLoanId;
+  if (deletedLoanId && typeof deletedLoanId === 'string') {
+    if (!Array.isArray(PERSISTED_CRM_STATE.deletedLoanIds)) {
+      PERSISTED_CRM_STATE.deletedLoanIds = [];
+    }
+    if (!PERSISTED_CRM_STATE.deletedLoanIds.includes(deletedLoanId)) {
+      PERSISTED_CRM_STATE.deletedLoanIds.push(deletedLoanId);
+    }
+  }
+  const delSet = new Set(PERSISTED_CRM_STATE.deletedLoanIds || []);
+  if (Array.isArray(req.body?.loans)) {
+    PERSISTED_CRM_STATE.payrollLoans = req.body.loans.filter(
+      (l: any) => l && l.id && !delSet.has(l.id)
+    );
+    savePersistedStore();
+  }
+  res.json({
+    success: true,
+    loans: PERSISTED_CRM_STATE.payrollLoans || [],
+    deletedLoanIds: PERSISTED_CRM_STATE.deletedLoanIds || [],
+  });
+});
+
+app.delete('/api/payroll/loans/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  if (id) {
+    if (!Array.isArray(PERSISTED_CRM_STATE.deletedLoanIds)) {
+      PERSISTED_CRM_STATE.deletedLoanIds = [];
+    }
+    if (!PERSISTED_CRM_STATE.deletedLoanIds.includes(id)) {
+      PERSISTED_CRM_STATE.deletedLoanIds.push(id);
+    }
+    PERSISTED_CRM_STATE.payrollLoans = (PERSISTED_CRM_STATE.payrollLoans || []).filter(
+      (l: any) => l && l.id !== id
+    );
+    savePersistedStore();
+  }
+  res.json({
+    success: true,
+    id,
+    loans: PERSISTED_CRM_STATE.payrollLoans || [],
+    deletedLoanIds: PERSISTED_CRM_STATE.deletedLoanIds || [],
+  });
+});
+
+app.get('/api/payroll/policy', (_req: Request, res: Response) => {
+  res.json({ success: true, policy: PERSISTED_CRM_STATE.payrollPolicy || null });
+});
+
+app.post('/api/payroll/policy', (req: Request, res: Response) => {
+  if (req.body?.policy && typeof req.body.policy === 'object') {
+    PERSISTED_CRM_STATE.payrollPolicy = req.body.policy;
+    savePersistedStore();
+  }
+  res.json({ success: true, policy: PERSISTED_CRM_STATE.payrollPolicy });
+});
+
+app.get('/api/payroll/org-masters', (_req: Request, res: Response) => {
+  res.json({ success: true, orgMasters: PERSISTED_CRM_STATE.payrollOrgMasters || null });
+});
+
+app.post('/api/payroll/org-masters', (req: Request, res: Response) => {
+  if (req.body?.orgMasters && typeof req.body.orgMasters === 'object') {
+    PERSISTED_CRM_STATE.payrollOrgMasters = req.body.orgMasters;
+    savePersistedStore();
+  }
+  res.json({ success: true, orgMasters: PERSISTED_CRM_STATE.payrollOrgMasters });
+});
+
+app.post('/api/payroll/ess/:empId', (req: Request, res: Response) => {
+  const { empId } = req.params;
+  if (!empId) {
+    return res.status(400).json({ success: false, error: 'empId is required' });
+  }
+  const { attendance, leaves, claims, statutory, base } = req.body || {};
+
+  // Verify employee identity on submitted leaves and claims
+  if (Array.isArray(leaves)) {
+    for (const lv of leaves) {
+      if (lv && lv.employeeId && String(lv.employeeId) !== String(empId)) {
+        return res.status(400).json({
+          success: false,
+          message: `Leave record employeeId ${lv.employeeId} does not match ${empId}`,
+        });
+      }
+    }
+    if (Array.isArray(base?.leaves)) {
+      const currentLeaves: any[] = PERSISTED_CRM_STATE.payrollLeaves[empId] || [];
+      const baseById = new Map(base.leaves.map((l: any) => [String(l.id), l]));
+      const currById = new Map(currentLeaves.map((l: any) => [String(l.id), l]));
+      for (const lv of leaves) {
+        const id = String(lv.id);
+        const b = baseById.get(id);
+        const c = currById.get(id);
+        if (!same(b, lv) && !same(c, b) && !same(c, lv)) {
+          return res.status(409).json({
+            success: false,
+            message: `Concurrent leave modification detected for ${id}`,
+          });
+        }
+      }
+    }
+  }
+
+  if (Array.isArray(claims)) {
+    for (const cl of claims) {
+      if (cl && cl.employeeId && String(cl.employeeId) !== String(empId)) {
+        return res.status(400).json({
+          success: false,
+          message: `Claim record employeeId ${cl.employeeId} does not match ${empId}`,
+        });
+      }
+    }
+    if (Array.isArray(base?.claims)) {
+      const currentClaims: any[] = PERSISTED_CRM_STATE.payrollClaims[empId] || [];
+      const baseById = new Map(base.claims.map((c: any) => [String(c.id), c]));
+      const currById = new Map(currentClaims.map((c: any) => [String(c.id), c]));
+      for (const cl of claims) {
+        const id = String(cl.id);
+        const b = baseById.get(id);
+        const c = currById.get(id);
+        if (!same(b, cl) && !same(c, b) && !same(c, cl)) {
+          return res.status(409).json({
+            success: false,
+            message: `Concurrent claim modification detected for ${id}`,
+          });
+        }
+      }
+    }
+  }
+
+  if (attendance !== undefined) {
+    PERSISTED_CRM_STATE.payrollAttendance[empId] = attendance;
+  }
+  if (leaves !== undefined) {
+    PERSISTED_CRM_STATE.payrollLeaves[empId] = leaves;
+  }
+  if (claims !== undefined) {
+    PERSISTED_CRM_STATE.payrollClaims[empId] = claims;
+  }
+  if (statutory !== undefined) {
+    PERSISTED_CRM_STATE.payrollStatutory[empId] = statutory;
+  }
+  savePersistedStore();
+  res.json({ success: true, empId });
+});
+
+app.post('/api/sync/push', async (req: Request, res: Response) => {
+  const {
+    users: pushedUsers,
+    payrollMasters: pushedMasters,
+    payrollLoans: pushedLoans,
+    payrollPolicy: pushedPolicy,
+    payrollOrgMasters: pushedOrgMasters,
+    payrollAttendance: pushedAttendance,
+    payrollLeaves: pushedLeaves,
+    payrollClaims: pushedClaims,
+    payrollStatutory: pushedStatutory,
+    payrollIntegrationConfig: pushedIntegrationConfig,
+    crmSlices: pushedCrmSlices,
+    sliceKey,
+    sliceValue,
+    replaceUsers,
+    replacePayrollMasters,
+    deletedMasterUserIds,
+  } = req.body || {};
+
+  if (Array.isArray(pushedUsers)) {
+    if (replaceUsers) {
+      MOCK_TABLES.users = pushedUsers.map((u: any) => ({
+        ...u,
+        password: u.password || u.tempPassword || 'password123',
+      }));
+    } else {
+      for (const u of pushedUsers) {
+        if (!u || !u.id) continue;
+        const byIdIdx = MOCK_TABLES.users.findIndex((row) => String(row.id) === String(u.id));
+        const byEmailIdx =
+          byIdIdx < 0 && u.email
+            ? MOCK_TABLES.users.findIndex(
+                (row) => row.email && row.email.toLowerCase() === String(u.email).toLowerCase()
+              )
+            : -1;
+        const idx = byIdIdx >= 0 ? byIdIdx : byEmailIdx;
+        if (idx >= 0) {
+          MOCK_TABLES.users[idx] = {
+            ...MOCK_TABLES.users[idx],
+            ...u,
+            id: MOCK_TABLES.users[idx].id,
+            password: u.password || MOCK_TABLES.users[idx].password || 'password123',
+            tempPassword: u.tempPassword || u.password || MOCK_TABLES.users[idx].tempPassword,
+          };
+        } else {
+          MOCK_TABLES.users.push({
+            ...u,
+            password: u.password || u.tempPassword || 'password123',
+          });
+        }
+      }
+    }
+  }
+
+  if (pushedMasters && typeof pushedMasters === 'object') {
+    if (replacePayrollMasters) {
+      // Explicit full replace (Clear All payroll data): reset tombstones too
+      PERSISTED_CRM_STATE.deletedPayrollMasterIds = Array.isArray(deletedMasterUserIds)
+        ? deletedMasterUserIds.filter((id: any) => typeof id === 'string' && id)
+        : Object.keys(PERSISTED_CRM_STATE.payrollMasters || {});
+      PERSISTED_CRM_STATE.payrollMasters = {};
+      MOCK_TABLES.payroll_masters = [];
+    }
+    const existingMap = new Map<string, any>();
+    if (!replacePayrollMasters) {
+      for (const item of MOCK_TABLES.payroll_masters) {
+        if (item && item.userId) existingMap.set(item.userId, item);
+      }
+    }
+    const tombstones = new Set<string>([
+      ...(PERSISTED_CRM_STATE.deletedPayrollMasterIds || []),
+      ...(Array.isArray(deletedMasterUserIds) ? deletedMasterUserIds : []),
+    ]);
+    if (Array.isArray(deletedMasterUserIds)) {
+      PERSISTED_CRM_STATE.deletedPayrollMasterIds = Array.from(tombstones);
+    }
+    for (const m of Object.values(pushedMasters) as any[]) {
+      if (!m || !m.userId || tombstones.has(m.userId)) continue;
+      const byIdIdx = MOCK_TABLES.users.findIndex((u) => String(u.id) === String(m.userId));
+      const byEmailIdx =
+        byIdIdx < 0 && m.email
+          ? MOCK_TABLES.users.findIndex(
+              (u) => u.email && u.email.toLowerCase() === String(m.email).toLowerCase()
+            )
+          : -1;
+      const uIdx = byIdIdx >= 0 ? byIdIdx : byEmailIdx;
+      const canonicalId = uIdx >= 0 ? String(MOCK_TABLES.users[uIdx].id) : String(m.userId);
+      if (canonicalId !== String(m.userId)) {
+        existingMap.delete(String(m.userId));
+      }
+      existingMap.set(canonicalId, {
+        ...existingMap.get(canonicalId),
+        ...m,
+        userId: canonicalId,
+      });
+      const pwd = m.password || m.tempPassword || 'password123';
+      if (uIdx >= 0) {
+        MOCK_TABLES.users[uIdx] = {
+          ...MOCK_TABLES.users[uIdx],
+          name: m.name || MOCK_TABLES.users[uIdx].name,
+          email: m.email || MOCK_TABLES.users[uIdx].email,
+          password: pwd,
+          tempPassword: pwd,
+          empCode: m.empCode,
+        };
+      } else {
+        MOCK_TABLES.users.push({
+          id: canonicalId,
+          name: m.name || 'Employee',
+          username: m.email ? m.email.split('@')[0] : m.empCode || 'employee',
+          email: m.email || '',
+          password: pwd,
+          tempPassword: pwd,
+          mustChangePasswordOnFirstLogin: Boolean(m.mustChangePasswordOnFirstLogin),
+          accessScope: m.accessType === 'payroll_only' ? 'payroll_only' : 'all',
+          accessType: m.accessType || 'payroll_only',
+          empCode: m.empCode,
+          phone: m.phone || '',
+          role: m.role || 'Sales Executive',
+          department: m.department || 'Operations',
+          designation: m.designation || m.role || 'Employee',
+          status: m.status || 'Active',
+          location: m.location || 'Mumbai HQ',
+          created_at: new Date().toISOString(),
+        });
+      }
+    }
+    MOCK_TABLES.payroll_masters = Array.from(existingMap.values());
+    const nextMastersObj: Record<string, any> = {};
+    for (const item of MOCK_TABLES.payroll_masters) {
+      if (item && item.userId) nextMastersObj[item.userId] = item;
+    }
+    PERSISTED_CRM_STATE.payrollMasters = nextMastersObj;
+  }
+
+  if (Array.isArray(pushedLoans)) {
+    const delSet = new Set(PERSISTED_CRM_STATE.deletedLoanIds || []);
+    const existingMap = new Map<string, any>();
+    for (const ln of PERSISTED_CRM_STATE.payrollLoans || []) {
+      if (ln && ln.id && !delSet.has(ln.id)) {
+        existingMap.set(ln.id, ln);
+      }
+    }
+    for (const ln of pushedLoans) {
+      if (!ln || !ln.id || delSet.has(ln.id)) continue;
+      const prev = existingMap.get(ln.id);
+      if (!prev) {
+        existingMap.set(ln.id, ln);
+      } else {
+        const prevAuditLen = Array.isArray(prev.auditTrail) ? prev.auditTrail.length : 0;
+        const nextAuditLen = Array.isArray(ln.auditTrail) ? ln.auditTrail.length : 0;
+        const prevUpdated = Number(prev.updatedAt || 0);
+        const nextUpdated = Number(ln.updatedAt || 0);
+        if (nextUpdated >= prevUpdated && nextAuditLen >= prevAuditLen) {
+          existingMap.set(ln.id, ln);
+        }
+      }
+    }
+    PERSISTED_CRM_STATE.payrollLoans = Array.from(existingMap.values());
+  }
+  if (pushedPolicy && typeof pushedPolicy === 'object') {
+    PERSISTED_CRM_STATE.payrollPolicy = pushedPolicy;
+  }
+  if (pushedOrgMasters && typeof pushedOrgMasters === 'object') {
+    PERSISTED_CRM_STATE.payrollOrgMasters = pushedOrgMasters;
+  }
+  if (pushedAttendance && typeof pushedAttendance === 'object') {
+    PERSISTED_CRM_STATE.payrollAttendance = {
+      ...PERSISTED_CRM_STATE.payrollAttendance,
+      ...pushedAttendance,
+    };
+  }
+  if (pushedLeaves && typeof pushedLeaves === 'object') {
+    PERSISTED_CRM_STATE.payrollLeaves = {
+      ...PERSISTED_CRM_STATE.payrollLeaves,
+      ...pushedLeaves,
+    };
+  }
+  if (pushedClaims && typeof pushedClaims === 'object') {
+    PERSISTED_CRM_STATE.payrollClaims = {
+      ...PERSISTED_CRM_STATE.payrollClaims,
+      ...pushedClaims,
+    };
+  }
+  if (pushedStatutory && typeof pushedStatutory === 'object') {
+    PERSISTED_CRM_STATE.payrollStatutory = {
+      ...PERSISTED_CRM_STATE.payrollStatutory,
+      ...pushedStatutory,
+    };
+  }
+  if (pushedIntegrationConfig && typeof pushedIntegrationConfig === 'object') {
+    PERSISTED_CRM_STATE.payrollIntegrationConfig = pushedIntegrationConfig;
+  }
+  if (pushedCrmSlices && typeof pushedCrmSlices === 'object') {
+    PERSISTED_CRM_STATE.crmSlices = {
+      ...PERSISTED_CRM_STATE.crmSlices,
+      ...pushedCrmSlices,
+    };
+  }
+  if (typeof sliceKey === 'string' && sliceValue !== undefined) {
+    PERSISTED_CRM_STATE.crmSlices[sliceKey] = sliceValue;
+  }
+
+  savePersistedStore();
+  await flushStateToDatabase();
+  const map: Record<string, any> = {};
+  for (const item of MOCK_TABLES.payroll_masters) {
+    if (item && item.userId) map[item.userId] = item;
+  }
+  res.json({
+    success: true,
+    users: MOCK_TABLES.users,
+    payrollMasters: map,
+    deletedPayrollMasterIds: PERSISTED_CRM_STATE.deletedPayrollMasterIds || [],
+  });
+});
+
+app.delete('/api/users/:id', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const deletedUser = MOCK_TABLES.users.find((row) => String(row.id) === String(id));
+  MOCK_TABLES.users = MOCK_TABLES.users.filter((row) => String(row.id) !== String(id));
+
+  // Deactivate payroll login for the deleted CRM user rather than leaving it active
+  if (PERSISTED_CRM_STATE.payrollMasters && typeof PERSISTED_CRM_STATE.payrollMasters === 'object') {
+    for (const [k, m] of Object.entries(PERSISTED_CRM_STATE.payrollMasters) as Array<[string, any]>) {
+      if (
+        m &&
+        (k === id ||
+          m.userId === id ||
+          (deletedUser?.email &&
+            m.email &&
+            String(m.email).toLowerCase() === String(deletedUser.email).toLowerCase()))
+      ) {
+        PERSISTED_CRM_STATE.payrollMasters[k] = {
+          ...m,
+          status: 'Inactive',
+          syncedWithCrm: false,
+        };
+      }
+    }
+  }
+  MOCK_TABLES.payroll_masters = Object.values(PERSISTED_CRM_STATE.payrollMasters || {});
+  savePersistedStore();
+  try {
+    await query('DELETE FROM users WHERE id = $1', [id]);
+  } catch {
+    // Already removed from in-memory store
+  }
+  res.json({ success: true, id });
+});
+
+// COMPANY SETUP & BACKEND BRAND LOGO API
+app.get('/api/company', async (_req: Request, res: Response) => {
+  try {
+    const result = await query('SELECT * FROM company_setup LIMIT 1;');
+    res.json({ company: result.rows[0] || MOCK_TABLES.company_setup[0] || null });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/company', async (req: Request, res: Response) => {
+  const c = req.body;
+  const current = MOCK_TABLES.company_setup[0] || { id: 1 };
+  MOCK_TABLES.company_setup[0] = {
+    ...current,
+    name: c.name !== undefined ? c.name : current.name,
+    legal_name: c.legalName !== undefined ? c.legalName : current.legal_name,
+    gstin: c.gstin !== undefined ? c.gstin : current.gstin,
+    pan: c.pan !== undefined ? c.pan : current.pan,
+    city: c.city !== undefined ? c.city : current.city,
+    state: c.state !== undefined ? c.state : current.state,
+    state_code: c.stateCode !== undefined ? c.stateCode : current.state_code,
+    address: c.address !== undefined ? c.address : current.address,
+    pincode: c.pincode !== undefined ? c.pincode : current.pincode,
+    phone: c.phone !== undefined ? c.phone : current.phone,
+    email: c.email !== undefined ? c.email : current.email,
+    website: c.website !== undefined ? c.website : current.website,
+    logo_url: c.logoUrl !== undefined ? c.logoUrl : current.logo_url,
+    bank_name: c.bankDetails?.bankName || c.bankName || current.bank_name,
+    bank_account_no: c.bankDetails?.accountNumber || c.accountNumber || current.bank_account_no,
+    bank_ifsc: c.bankDetails?.ifscCode || c.ifscCode || current.bank_ifsc,
+    bank_branch: c.bankDetails?.branch || c.branch || current.bank_branch,
+  };
+  savePersistedStore();
+  res.json({ success: true, company: MOCK_TABLES.company_setup[0] });
+});
+
+app.put('/api/company', async (req: Request, res: Response) => {
+  const c = req.body;
+  const current = MOCK_TABLES.company_setup[0] || { id: 1 };
+  MOCK_TABLES.company_setup[0] = {
+    ...current,
+    name: c.name !== undefined ? c.name : current.name,
+    legal_name: c.legalName !== undefined ? c.legalName : current.legal_name,
+    gstin: c.gstin !== undefined ? c.gstin : current.gstin,
+    pan: c.pan !== undefined ? c.pan : current.pan,
+    city: c.city !== undefined ? c.city : current.city,
+    state: c.state !== undefined ? c.state : current.state,
+    state_code: c.stateCode !== undefined ? c.stateCode : current.state_code,
+    address: c.address !== undefined ? c.address : current.address,
+    pincode: c.pincode !== undefined ? c.pincode : current.pincode,
+    phone: c.phone !== undefined ? c.phone : current.phone,
+    email: c.email !== undefined ? c.email : current.email,
+    website: c.website !== undefined ? c.website : current.website,
+    logo_url: c.logoUrl !== undefined ? c.logoUrl : current.logo_url,
+    bank_name: c.bankDetails?.bankName || c.bankName || current.bank_name,
+    bank_account_no: c.bankDetails?.accountNumber || c.accountNumber || current.bank_account_no,
+    bank_ifsc: c.bankDetails?.ifscCode || c.ifscCode || current.bank_ifsc,
+    bank_branch: c.bankDetails?.branch || c.branch || current.bank_branch,
+  };
+  savePersistedStore();
+  res.json({ success: true, company: MOCK_TABLES.company_setup[0] });
+});
+
+// LEADS
+app.get('/api/leads', async (_req: Request, res: Response) => {
+  try {
+    const result = await query('SELECT * FROM leads ORDER BY created_at DESC;');
+    res.json({ leads: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/leads', async (req: Request, res: Response) => {
+  const l = req.body;
+  const id = l.id || `lead-${Date.now()}`;
+  try {
+    await query(
+      `INSERT INTO leads (
+         id, lead_number, lead_date, company_name, contact_person, designation, mobile, email,
+         website, address, city, state, state_code, country, pincode, lead_source, lead_type,
+         industry, requirement, estimated_value, budget, expected_closing_date, rating, score,
+         priority, status, lead_owner_id, lead_owner_name, is_converted, raw_data
+       ) VALUES (
+         $1, $2, $3, $4, $5, $6, $7, $8,
+         $9, $10, $11, $12, $13, $14, $15, $16, $17,
+         $18, $19, $20, $21, $22, $23, $24,
+         $25, $26, $27, $28, $29, $30
+       ) ON CONFLICT (id) DO UPDATE SET
+         company_name = EXCLUDED.company_name,
+         contact_person = EXCLUDED.contact_person,
+         mobile = EXCLUDED.mobile,
+         email = EXCLUDED.email,
+         status = EXCLUDED.status,
+         estimated_value = EXCLUDED.estimated_value,
+         updated_at = CURRENT_TIMESTAMP`,
+      [
+        id,
+        l.leadNumber || `LEAD-${Date.now()}`,
+        l.leadDate || null,
+        l.companyName,
+        l.contactPerson,
+        l.designation || null,
+        l.mobile,
+        l.email || null,
+        l.website || null,
+        l.address || null,
+        l.city || null,
+        l.state || null,
+        l.stateCode || null,
+        l.country || 'India',
+        l.pincode || null,
+        l.leadSource || 'Website',
+        l.leadType || 'Inbound',
+        l.industry || null,
+        l.requirement || null,
+        l.estimatedValue || 0,
+        l.budget || 0,
+        l.expectedClosingDate || null,
+        l.rating || 'Warm',
+        l.score || 50,
+        l.priority || 'Medium',
+        l.status || 'New',
+        l.leadOwnerId || null,
+        l.leadOwnerName || null,
+        Boolean(l.isConverted),
+        JSON.stringify(l),
+      ]
+    );
+    res.json({ success: true, id });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/leads/:id', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    await query('DELETE FROM leads WHERE id = $1', [id]);
+    res.json({ success: true, id });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// CUSTOMERS
+app.get('/api/customers', async (_req: Request, res: Response) => {
+  try {
+    const custRes = await query('SELECT * FROM customers ORDER BY id ASC;');
+    const contactsRes = await query('SELECT * FROM customer_contacts ORDER BY id ASC;');
+    res.json({
+      customers: custRes.rows,
+      contacts: contactsRes.rows,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PRODUCTS
+app.get('/api/products', async (_req: Request, res: Response) => {
+  try {
+    const result = await query('SELECT * FROM products ORDER BY code ASC;');
+    res.json({ products: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// INVOICES & PAYMENTS
+app.get('/api/invoices', async (_req: Request, res: Response) => {
+  try {
+    const invRes = await query('SELECT * FROM finance_invoices ORDER BY id DESC;');
+    const itemsRes = await query('SELECT * FROM finance_invoice_items ORDER BY id ASC;');
+    res.json({
+      invoices: invRes.rows,
+      items: itemsRes.rows,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/payments', async (_req: Request, res: Response) => {
+  try {
+    const result = await query('SELECT * FROM finance_payments ORDER BY payment_date DESC;');
+    res.json({ payments: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ORDERS & OPPORTUNITIES
+app.get('/api/orders', async (_req: Request, res: Response) => {
+  try {
+    const result = await query('SELECT * FROM sales_orders ORDER BY id DESC;');
+    res.json({ orders: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/opportunities', async (_req: Request, res: Response) => {
+  try {
+    const oppRes = await query('SELECT * FROM opportunities ORDER BY id DESC;');
+    const milRes = await query('SELECT * FROM opportunity_payment_milestones ORDER BY id ASC;');
+    res.json({
+      opportunities: oppRes.rows,
+      milestones: milRes.rows,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ACTIVITIES
+app.get('/api/activities', async (_req: Request, res: Response) => {
+  try {
+    const result = await query('SELECT * FROM activities ORDER BY id DESC;');
+    res.json({ activities: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// AUDIT LOGS
+app.get('/api/audit-logs', async (_req: Request, res: Response) => {
+  try {
+    const result = await query('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 100;');
+    res.json({ logs: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/audit-logs', async (req: Request, res: Response) => {
+  const { action, entityType, entityId, details, userName, userId } = req.body;
+  try {
+    const id = `aud-${Date.now()}`;
+    await query(
+      `INSERT INTO audit_logs (id, action, entity_type, entity_id, details, user_name, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [id, action, entityType, entityId || null, details || '', userName || null, userId || null]
+    );
+    res.json({ success: true, id });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// OUTLOOK EMAIL NOTIFICATIONS RELAY (Microsoft Entra ID Enact360 + Office 365 SMTP)
+app.get('/api/notifications/email-config', (_req: Request, res: Response) => {
+  res.json({
+    success: true,
+    config: MOCK_TABLES.outlook_app_config[0],
+  });
+});
+
+app.post('/api/notifications/email-config', (req: Request, res: Response) => {
+  const body = req.body || {};
+  const current = MOCK_TABLES.outlook_app_config[0] || {};
+  const updated = {
+    ...current,
+    display_name: body.appDisplayName || body.display_name || current.display_name || 'Enact360',
+    client_id:
+      body.clientId ||
+      body.client_id ||
+      current.client_id ||
+      'af71a4c3-ed1d-45cd-9969-62f8ae0b510a',
+    object_id:
+      body.objectId ||
+      body.object_id ||
+      current.object_id ||
+      'f39ca6c9-66d2-4bbe-aa2b-53c68637e00f',
+    tenant_id:
+      body.tenantId ||
+      body.tenant_id ||
+      current.tenant_id ||
+      'd74b8bb7-09a3-4a3c-9ca7-49b9a9dea733',
+    supported_account_types:
+      body.supportedAccountTypes ||
+      body.supported_account_types ||
+      current.supported_account_types ||
+      'My organization only',
+    redirect_uris:
+      body.redirectUriConfig ||
+      body.redirect_uris ||
+      current.redirect_uris ||
+      '1 web, 0 spa, 0 public client',
+    managed_application:
+      body.managedApplication ||
+      body.managed_application ||
+      current.managed_application ||
+      'Enact360',
+    state: body.appState || body.state || current.state || 'Activated',
+    outlook_email: body.outlookEmail || current.outlook_email || 'shalv.sharma@coreenact.com',
+    cc_emails: body.ccEmails ?? current.cc_emails ?? '',
+    smtp_host: body.smtpHost || current.smtp_host || 'smtp.office365.com',
+    smtp_port: Number(body.smtpPort || current.smtp_port || 587),
+    updated_at: new Date().toISOString(),
+  };
+  MOCK_TABLES.outlook_app_config[0] = updated;
+  savePersistedStore();
+  res.json({ success: true, config: updated });
+});
+
+app.get('/api/auth/outlook/url', (req: Request, res: Response) => {
+  const clientId = (process.env.OUTLOOK_CLIENT_ID || '').trim();
+  const tenantId = (process.env.OUTLOOK_TENANT_ID || '').trim();
+  const clientSecret = (process.env.OUTLOOK_CLIENT_SECRET || '').trim();
+  if (!clientId || !tenantId || !clientSecret) {
+    return res.status(503).json({
+      error: 'Microsoft Entra OAuth is not configured on the server.',
+    });
+  }
+  const cfg = MOCK_TABLES.outlook_app_config[0] || {};
+  const origin =
+    (req.query.origin as string) ||
+    process.env.APP_URL ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : `${req.protocol}://${req.get('host')}`);
+  const redirectUri = `${origin.replace(/\/$/, '')}/auth/callback`;
+  const params = new URLSearchParams({
+    client_id: clientId,
+    response_type: 'code',
+    redirect_uri: redirectUri,
+    response_mode: 'query',
+    scope: 'openid profile email offline_access https://graph.microsoft.com/Mail.Send',
+  });
+  const url = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/authorize?${params.toString()}`;
+  res.json({
+    url,
+    clientId,
+    tenantId,
+    objectId: cfg.object_id || 'f39ca6c9-66d2-4bbe-aa2b-53c68637e00f',
+    displayName: cfg.display_name || 'Enact360',
+    redirectUri,
+  });
+});
+
+app.get(['/auth/callback', '/auth/callback/'], (req: Request, res: Response) => {
+  const code = String(req.query?.code || '').trim();
+  const clientSecret = (process.env.OUTLOOK_CLIENT_SECRET || '').trim();
+  if (!clientSecret || !code || code === 'invalid') {
+    return res.status(400).json({
+      success: false,
+      error: 'Unverified OAuth callback or missing server OAuth configuration.',
+    });
+  }
+  res.send(`
+    <html>
+      <body style="font-family: sans-serif; padding: 24px; text-align: center;">
+        <script>
+          if (window.opener) {
+            window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', provider: 'microsoft_entra_enact360' }, '*');
+            window.close();
+          } else {
+            window.location.href = '/';
+          }
+        </script>
+        <p>Enact360 Microsoft Outlook authentication completed. Closing window...</p>
+      </body>
+    </html>
+  `);
+});
+
+app.get('/api/notifications/email-log', (_req: Request, res: Response) => {
+  res.json({
+    success: true,
+    smtpConfigured: Boolean(process.env.OUTLOOK_EMAIL_USER && process.env.OUTLOOK_EMAIL_PASS),
+    smtpHost: process.env.OUTLOOK_SMTP_HOST || 'smtp.office365.com',
+    smtpPort: Number(process.env.OUTLOOK_SMTP_PORT || 587),
+    appConfig: MOCK_TABLES.outlook_app_config[0],
+    logs: MOCK_TABLES.email_notifications.slice(0, 100),
+  });
+});
+
+app.post('/api/notifications/email', async (req: Request, res: Response) => {
+  const {
+    to,
+    cc,
+    subject,
+    title,
+    message,
+    type = 'SYSTEM',
+    senderName = process.env.OUTLOOK_FROM_NAME || 'Enact360 CRM',
+    smtpHost = process.env.OUTLOOK_SMTP_HOST || 'smtp.office365.com',
+    smtpPort = Number(process.env.OUTLOOK_SMTP_PORT || 587),
+    appDisplayName = 'Enact360',
+    clientId = 'af71a4c3-ed1d-45cd-9969-62f8ae0b510a',
+    objectId = 'f39ca6c9-66d2-4bbe-aa2b-53c68637e00f',
+    tenantId = 'd74b8bb7-09a3-4a3c-9ca7-49b9a9dea733',
+  } = req.body || {};
+
+  const recipient = (to || process.env.OUTLOOK_EMAIL_USER || 'shalv.sharma@coreenact.com').trim();
+  const emailSubject = subject || `[${appDisplayName} CRM · ${type}] ${title || 'System Notification'}`;
+  const sentAt = new Date().toISOString();
+
+  const htmlBody = `
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 620px; margin: 0 auto; border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; background: #ffffff;">
+      <div style="background: linear-gradient(90deg, #0f172a 0%, #1f7e9e 100%); padding: 16px 22px; color: #ffffff;">
+        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #bae6fd; font-weight: 700;">
+          ${appDisplayName} • Microsoft Outlook Notification • ${type}
+        </div>
+        <h2 style="margin: 4px 0 0 0; font-size: 18px; font-weight: 800;">${title || emailSubject}</h2>
+      </div>
+      <div style="padding: 20px 22px; color: #1e293b; font-size: 14px; line-height: 1.6;">
+        <p style="margin: 0 0 14px 0;">${message || ''}</p>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; font-size: 12px; color: #475569;">
+          <div><strong>Recipient (Outlook):</strong> ${recipient}</div>
+          ${cc ? `<div><strong>CC:</strong> ${cc}</div>` : ''}
+          <div><strong>Entra App (Client ID):</strong> ${appDisplayName} (${clientId})</div>
+          <div><strong>Directory (Tenant ID):</strong> ${tenantId}</div>
+          <div><strong>Dispatched Via:</strong> ${smtpHost}:${smtpPort} (STARTTLS)</div>
+          <div><strong>Timestamp:</strong> ${new Date(sentAt).toLocaleString('en-IN')}</div>
+        </div>
+      </div>
+      <div style="background: #f1f5f9; padding: 12px 22px; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0;">
+        Automated CRM Notification from <strong>${senderName}</strong> • Object ID: ${objectId}
+      </div>
+    </div>
+  `;
+
+  let deliveryMode: 'smtp' | 'unconfigured' = 'unconfigured';
+  let smtpError: string | null = null;
+  let sentSuccess = false;
+
+  if (process.env.OUTLOOK_EMAIL_USER && process.env.OUTLOOK_EMAIL_PASS) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: Number(smtpPort) || 587,
+        secure: Number(smtpPort) === 465,
+        requireTLS: true,
+        auth: {
+          user: process.env.OUTLOOK_EMAIL_USER,
+          pass: process.env.OUTLOOK_EMAIL_PASS,
+        },
+        tls: {
+          ciphers: 'SSLv3',
+          rejectUnauthorized: false,
+        },
+      });
+
+      await transporter.sendMail({
+        from: `"${senderName}" <${process.env.OUTLOOK_EMAIL_USER}>`,
+        to: recipient,
+        cc: cc || undefined,
+        subject: emailSubject,
+        text: `${title || emailSubject}\n\n${message || ''}`,
+        html: htmlBody,
+      });
+      deliveryMode = 'smtp';
+      sentSuccess = true;
+    } catch (err: any) {
+      smtpError = err?.message || 'SMTP connection failed';
+    }
+  } else {
+    smtpError = 'OUTLOOK_EMAIL_USER and OUTLOOK_EMAIL_PASS are not configured on the server.';
+  }
+
+  const logEntry = {
+    id: `eml-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    to: recipient,
+    cc: cc || '',
+    subject: emailSubject,
+    title: title || emailSubject,
+    message: message || '',
+    type,
+    smtpHost,
+    smtpPort,
+    deliveryMode,
+    status: sentSuccess ? 'Sent via Outlook' : 'Failed',
+    smtpError,
+    sentAt,
+  };
+
+  MOCK_TABLES.email_notifications.unshift(logEntry);
+
+  res.status(sentSuccess ? 200 : 503).json({
+    success: sentSuccess,
+    emailLog: logEntry,
+  });
+});
+
+// ============================================================================
+// Google Maps Platform Server-Side Geocoding & Reverse Geocoding Proxy Routes
+// ============================================================================
+
+const getGoogleMapsApiKey = (): string => {
+  return (
+    process.env.VITE_GOOGLE_MAPS_API_KEY ||
+    process.env.GOOGLE_MAPS_API_KEY ||
+    ''
+  ).trim();
+};
+
+async function fetchWithRetry(url: string, maxAttempts = 3): Promise<globalThis.Response> {
+  let lastRes: globalThis.Response | null = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const res = await fetch(url);
+    lastRes = res;
+    if (res.status !== 500 && res.status !== 503 && res.status !== 504) {
+      return res;
+    }
+    const baseDelayMs = 500 * Math.pow(1.5, attempt - 1);
+    const jitteredDelayMs = baseDelayMs * (Math.random() + 0.5);
+    await new Promise((r) => setTimeout(r, jitteredDelayMs));
+  }
+  return lastRes!;
+}
+
+app.get('/api/maps/config', (_req: Request, res: Response) => {
+  const apiKey = getGoogleMapsApiKey();
+  res.json({
+    apiKey,
+    configured: Boolean(apiKey),
+  });
+});
+
+app.get('/api/maps/reverse-geocode', async (req: Request, res: Response) => {
+  const lat = parseFloat(String(req.query.lat ?? ''));
+  const lng = parseFloat(String(req.query.lng ?? ''));
+  const apiKey = getGoogleMapsApiKey();
+
+  if (Number.isNaN(lat) || Number.isNaN(lng)) {
+    return res.status(400).json({
+      status: 'INVALID_REQUEST',
+      error: 'Valid lat and lng query parameters are required.',
+    });
+  }
+
+  if (!apiKey) {
+    return res.status(500).json({
+      status: 'REQUEST_DENIED',
+      error: 'Google Maps Platform API key is not configured on the server.',
+    });
+  }
+
+  try {
+    // Strictly format latlng with no spaces and append mandatory solution_id attribution
+    const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${encodeURIComponent(
+      apiKey
+    )}&solution_id=gmp_mcp_codeassist_v1_aistudio`;
+
+    const response = await fetchWithRetry(geocodeUrl, 3);
+    if (response.status === 429) {
+      return res.status(429).json({
+        status: 'OVER_QUERY_LIMIT',
+        quotaExceeded: true,
+        error: 'Google Maps Platform quota exceeded.',
+      });
+    }
+
+    const data: any = await response.json();
+
+    if (data.status === 'OVER_QUERY_LIMIT' || data?.error?.status === 'RESOURCE_EXHAUSTED') {
+      return res.status(429).json({
+        status: 'OVER_QUERY_LIMIT',
+        quotaExceeded: true,
+        error: data.error_message || 'Google Maps Platform quota exceeded.',
+      });
+    }
+
+    if (data.status === 'OK' && Array.isArray(data.results) && data.results.length > 0) {
+      const topResult = data.results[0];
+      return res.json({
+        status: 'OK',
+        lat,
+        lng,
+        formattedAddress: topResult.formatted_address,
+        placeId: topResult.place_id || '',
+        plusCode:
+          topResult.plus_code?.compound_code ||
+          data.plus_code?.compound_code ||
+          topResult.plus_code?.global_code ||
+          data.plus_code?.global_code ||
+          '',
+        types: topResult.types || [],
+      });
+    }
+
+    return res.json({
+      status: data.status || 'ZERO_RESULTS',
+      lat,
+      lng,
+      formattedAddress: `Lat ${lat.toFixed(5)}, Lng ${lng.toFixed(5)}`,
+      placeId: '',
+      plusCode: data.plus_code?.compound_code || data.plus_code?.global_code || '',
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      status: 'UNKNOWN_ERROR',
+      error: err?.message || 'Reverse geocoding request failed.',
+    });
+  }
+});
+
+app.get('/api/maps/geocode', async (req: Request, res: Response) => {
+  const address = String(req.query.address ?? '').trim();
+  const apiKey = getGoogleMapsApiKey();
+
+  if (!address) {
+    return res.status(400).json({
+      status: 'INVALID_REQUEST',
+      error: 'Address query parameter is required.',
+    });
+  }
+
+  if (!apiKey) {
+    return res.status(500).json({
+      status: 'REQUEST_DENIED',
+      error: 'Google Maps Platform API key is not configured on the server.',
+    });
+  }
+
+  try {
+    const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
+      address
+    )}&key=${encodeURIComponent(apiKey)}&solution_id=gmp_mcp_codeassist_v1_aistudio`;
+
+    const response = await fetchWithRetry(geocodeUrl, 3);
+    if (response.status === 429) {
+      return res.status(429).json({
+        status: 'OVER_QUERY_LIMIT',
+        quotaExceeded: true,
+        error: 'Google Maps Platform quota exceeded.',
+      });
+    }
+
+    const data: any = await response.json();
+
+    if (data.status === 'OVER_QUERY_LIMIT' || data?.error?.status === 'RESOURCE_EXHAUSTED') {
+      return res.status(429).json({
+        status: 'OVER_QUERY_LIMIT',
+        quotaExceeded: true,
+        error: data.error_message || 'Google Maps Platform quota exceeded.',
+      });
+    }
+
+    if (data.status === 'OK' && Array.isArray(data.results) && data.results.length > 0) {
+      const topResult = data.results[0];
+      const loc = topResult.geometry?.location || { lat: 28.6139, lng: 77.209 };
+      return res.json({
+        status: 'OK',
+        lat: loc.lat,
+        lng: loc.lng,
+        formattedAddress: topResult.formatted_address,
+        placeId: topResult.place_id || '',
+        plusCode:
+          topResult.plus_code?.compound_code ||
+          data.plus_code?.compound_code ||
+          topResult.plus_code?.global_code ||
+          data.plus_code?.global_code ||
+          '',
+      });
+    }
+
+    return res.json({
+      status: data.status || 'ZERO_RESULTS',
+      error: 'No matching location found.',
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      status: 'UNKNOWN_ERROR',
+      error: err?.message || 'Geocoding request failed.',
+    });
+  }
+});
+
+// FULL STATE SYNC PULL
+app.get('/api/sync/pull', async (_req: Request, res: Response) => {
+  try {
+    const [
+      usersRes,
+      leadsRes,
+      custRes,
+      contactsRes,
+      prodRes,
+      invRes,
+      invItemsRes,
+      payRes,
+      orderRes,
+      oppRes,
+      milestoneRes,
+      actRes,
+      companyRes,
+    ] = await Promise.all([
+      query('SELECT * FROM users ORDER BY created_at ASC;'),
+      query('SELECT * FROM leads ORDER BY created_at DESC;'),
+      query('SELECT * FROM customers ORDER BY id ASC;'),
+      query('SELECT * FROM customer_contacts ORDER BY id ASC;'),
+      query('SELECT * FROM products ORDER BY code ASC;'),
+      query('SELECT * FROM finance_invoices ORDER BY id DESC;'),
+      query('SELECT * FROM finance_invoice_items ORDER BY id ASC;'),
+      query('SELECT * FROM finance_payments ORDER BY payment_date DESC;'),
+      query('SELECT * FROM sales_orders ORDER BY id DESC;'),
+      query('SELECT * FROM opportunities ORDER BY id DESC;'),
+      query('SELECT * FROM opportunity_payment_milestones ORDER BY id ASC;'),
+      query('SELECT * FROM activities ORDER BY id DESC;'),
+      query('SELECT * FROM company_setup LIMIT 1;'),
+    ]);
+
+    const payrollMastersMap: Record<string, any> = {
+      ...(PERSISTED_CRM_STATE.payrollMasters || {}),
+    };
+    for (const item of MOCK_TABLES.payroll_masters) {
+      if (item && item.userId) {
+        payrollMastersMap[item.userId] = item;
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        users: mergeUsersWithMemory(usersRes.rows),
+        payrollMasters: payrollMastersMap,
+        deletedPayrollMasterIds: PERSISTED_CRM_STATE.deletedPayrollMasterIds || [],
+        payrollLoans: PERSISTED_CRM_STATE.payrollLoans || [],
+        deletedLoanIds: PERSISTED_CRM_STATE.deletedLoanIds || [],
+        payrollPolicy: PERSISTED_CRM_STATE.payrollPolicy || null,
+        payrollOrgMasters: PERSISTED_CRM_STATE.payrollOrgMasters || null,
+        payrollAttendance: PERSISTED_CRM_STATE.payrollAttendance || {},
+        payrollLeaves: PERSISTED_CRM_STATE.payrollLeaves || {},
+        payrollClaims: PERSISTED_CRM_STATE.payrollClaims || {},
+        payrollStatutory: PERSISTED_CRM_STATE.payrollStatutory || {},
+        payrollIntegrationConfig: PERSISTED_CRM_STATE.payrollIntegrationConfig || null,
+        crmSlices: PERSISTED_CRM_STATE.crmSlices || {},
+        leads: leadsRes.rows,
+        customers: custRes.rows,
+        contacts: contactsRes.rows,
+        products: prodRes.rows,
+        invoices: invRes.rows,
+        invoiceItems: invItemsRes.rows,
+        payments: payRes.rows,
+        orders: orderRes.rows,
+        opportunities: oppRes.rows,
+        milestones: milestoneRes.rows,
+        activities: actRes.rows,
+        companySetup: companyRes.rows[0] || null,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ============================================================================
+// Frontend Integration (Vite Middleware in Dev, Static in Production)
+// ============================================================================
+
+async function startServer() {
+  if (isDatabaseActive()) {
+    const hydrated = await hydrateStoreFromDatabase();
+    if (!hydrated) {
+      // First boot against an empty table: seed it from current in-memory/file state
+      await flushStateToDatabase();
+    }
+  }
+
+  // On serverless (Vercel/Lambda) we must never bind a port or serve statics:
+  // the platform routes requests straight into the exported Express app handler
+  // and serves the Vite build from its own CDN. Binding a port crashes the
+  // function with FUNCTION_INVOCATION_FAILED.
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return;
+  }
+
+  const isProd = process.env.NODE_ENV === 'production' || process.argv.includes('--production');
+
+  if (!isProd) {
+    const { createServer } = await import('vite');
+    const vite = await createServer({
+      server: { middlewareMode: true, host: '0.0.0.0', port },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.resolve(__dirname, 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (_req: Request, res: Response) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
+
+  app.listen(port, '0.0.0.0', () => {
+    console.log(`Enact360 Full-Stack Server running on http://0.0.0.0:${port}`);
+    console.log(`Live PostgreSQL Target: Render (postgresqlcrm_go7i)`);
+  });
+}
+
+// Resolves once the durable store has been hydrated from Postgres (or immediately
+// in test mode). Serverless handlers await this so the first request never reads
+// a half-loaded store.
+export const serverReady: Promise<void> =
+  process.env.CRM_TEST_MODE !== 'true'
+    ? startServer().catch((err) => {
+        console.error('Fatal server startup error:', err);
+        if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+          process.exit(1);
+        }
+      })
+    : Promise.resolve();

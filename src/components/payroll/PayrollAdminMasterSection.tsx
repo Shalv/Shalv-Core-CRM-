@@ -1,0 +1,4531 @@
+import React, { useState, useEffect } from 'react';
+import { useCrm } from '../../context/CrmContext';
+import {
+  User,
+  UserRole,
+  CrmModuleKey,
+  PermissionAction,
+  RolePermissionsMap,
+} from '../../types';
+import { ALL_CRM_MODULES, DEFAULT_ROLE_PERMISSIONS } from '../../data/initialData';
+import {
+  AdminPolicyMaster,
+  EmployeeSalaryMasterRecord,
+  LeaveRequestItem,
+  ExpenseClaimItem,
+  StatutoryDetails,
+  OrgMasterItem,
+  PayrollOrgMasters,
+  loadPayrollOrgMasters,
+  savePayrollOrgMasters,
+  PAYROLL_ORG_MASTERS_SYNC_EVENT,
+  generateRandomPassword,
+  getPayrollLoginLink,
+  clearAllPayrollData,
+  saveEmployeeSalaryMasters,
+  getNextAvailableEmpCode,
+  normalizeEmpCode,
+  isDuplicateEmpCode,
+  recordDeletedPayrollMasterIds,
+  forgetDeletedPayrollMasterIds,
+  getRoleDefaultGross,
+  buildDefaultSalaryMasterRecord,
+  loadEmployeeAttendance,
+  saveEmployeeAttendance,
+  loadEmployeeLeaves,
+  loadEmployeeClaims,
+  DEFAULT_ADMIN_POLICY_MASTER,
+  saveAdminPolicyMaster,
+  evaluateAttendancePolicy,
+  calculateEmployeePolicyPayroll,
+} from './payrollTypes';
+import {
+  Plus,
+  Trash2,
+  Edit3,
+  CheckCircle2,
+  Download,
+  UserPlus,
+  Check,
+  X,
+  ShieldCheck,
+  SlidersHorizontal,
+  ArrowRightLeft,
+  Key,
+  Copy,
+  RefreshCw,
+  Briefcase,
+  Building,
+  MapPin,
+  Sparkles,
+  ExternalLink,
+  RotateCcw,
+  AlertTriangle,
+  Lock,
+  Layers,
+  Search,
+  Eye,
+  EyeOff,
+  Share2,
+} from 'lucide-react';
+
+interface PayrollAdminMasterSectionProps {
+  selectedAdminUserId: string;
+  setSelectedAdminUserId: (id: string) => void;
+  adminPolicyMaster: AdminPolicyMaster;
+  setAdminPolicyMaster: React.Dispatch<React.SetStateAction<AdminPolicyMaster>>;
+  employeeSalaryMasters: Record<string, EmployeeSalaryMasterRecord>;
+  setEmployeeSalaryMasters: React.Dispatch<
+    React.SetStateAction<Record<string, EmployeeSalaryMasterRecord>>
+  >;
+  leaves: LeaveRequestItem[];
+  setLeaves: React.Dispatch<React.SetStateAction<LeaveRequestItem[]>>;
+  claims: ExpenseClaimItem[];
+  setClaims: React.Dispatch<React.SetStateAction<ExpenseClaimItem[]>>;
+  setStatutory: React.Dispatch<React.SetStateAction<StatutoryDetails>>;
+  selectedMonthMeta: {
+    key: string;
+    label: string;
+    payDate: string;
+    paidDays: number;
+    lopDays: number;
+  };
+  setStatusBanner: (msg: string | null) => void;
+  integrationSectionNode?: React.ReactNode;
+}
+
+const USER_ROLES: UserRole[] = [
+  'Super Admin',
+  'Administrator',
+  'Sales Manager',
+  'Sales Executive',
+  'Finance Manager',
+  'Finance Executive',
+  'Management/Viewer',
+];
+
+const USER_DEPARTMENTS: User['department'][] = [
+  'Sales',
+  'Finance',
+  'Executive',
+  'Operations',
+];
+
+export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps> = ({
+  selectedAdminUserId,
+  setSelectedAdminUserId,
+  adminPolicyMaster,
+  setAdminPolicyMaster,
+  employeeSalaryMasters,
+  setEmployeeSalaryMasters,
+  leaves,
+  setLeaves,
+  claims,
+  setClaims,
+  setStatutory,
+  selectedMonthMeta,
+  setStatusBanner,
+  integrationSectionNode,
+}) => {
+  const {
+    currentUser,
+    users,
+    customers,
+    addUser,
+    updateUser,
+    deleteUser,
+    rolePermissions,
+    updateUserCustomPermissions,
+    supplierCompany,
+    formatCurrency,
+  } = useCrm();
+
+  const [adminSubTab, setAdminSubTab] = useState<
+    'salary_master' | 'org_masters' | 'policy_master' | 'approvals' | 'payroll_run' | 'external_integration'
+  >('salary_master');
+
+  const [userFormMode, setUserFormMode] = useState<'edit' | 'create'>('edit');
+
+  // Option: "Do you want to create this user in CRM as well?" when creating in Payroll
+  const [alsoCreateInCrm, setAlsoCreateInCrm] = useState<boolean>(false);
+  const [crmPermPreset, setCrmPermPreset] = useState<
+    'role_default' | 'full_access' | 'read_only' | 'custom'
+  >('role_default');
+  const [showCustomPermMatrix, setShowCustomPermMatrix] = useState<boolean>(false);
+  const [customPermsDraft, setCustomPermsDraft] = useState<RolePermissionsMap>(
+    () => ({ ...(rolePermissions['Sales Executive'] || DEFAULT_ROLE_PERMISSIONS['Sales Executive']) })
+  );
+
+  // Organization Masters state (Roles, Designations, Locations, Departments)
+  const [orgMasters, setOrgMasters] = useState<PayrollOrgMasters>(() => loadPayrollOrgMasters());
+  useEffect(() => {
+    const syncOrg = () => setOrgMasters(loadPayrollOrgMasters());
+    window.addEventListener(PAYROLL_ORG_MASTERS_SYNC_EVENT, syncOrg);
+    return () => window.removeEventListener(PAYROLL_ORG_MASTERS_SYNC_EVENT, syncOrg);
+  }, []);
+
+  const [orgMasterCategory, setOrgMasterCategory] = useState<
+    'roles' | 'designations' | 'locations' | 'departments'
+  >('roles');
+  const [orgSearchQuery, setOrgSearchQuery] = useState('');
+  const [editingOrgItem, setEditingOrgItem] = useState<{
+    category: 'roles' | 'designations' | 'locations' | 'departments';
+    mode: 'create' | 'edit';
+    item: OrgMasterItem;
+  } | null>(null);
+
+  // Clear All Data modal state
+  const [isClearAllConfirmOpen, setIsClearAllConfirmOpen] = useState(false);
+  // Share Credentials & Payroll Login Link modal state
+  const [credentialsModalTarget, setCredentialsModalTarget] = useState<EmployeeSalaryMasterRecord | null>(null);
+  const [toastCopiedMessage, setToastCopiedMessage] = useState<string | null>(null);
+
+  const [newUserDraft, setNewUserDraft] = useState(() => {
+    // No auto-generated temporary password — the Admin sets the login password.
+    return {
+      name: '',
+      username: '',
+      email: '',
+      password: '',
+      tempPassword: '',
+      mustChangePasswordOnFirstLogin: false,
+      accessType: 'payroll_only' as 'payroll_only' | 'crm_and_payroll',
+      phone: '+91 ',
+      role: 'Sales Executive',
+      department: 'Sales',
+      designation: 'Sales Executive',
+      location: 'Mumbai HQ',
+      reportingManager: users[0]?.name || 'Vikramaditya Rathore',
+      assignedTerritory: 'West Zone (Maharashtra & Gujarat)',
+      status: 'Active' as 'Active' | 'Inactive',
+      empCode: getNextAvailableEmpCode(employeeSalaryMasters),
+      monthlyGross: 78000,
+      basicPct: 50,
+      hraPct: 25,
+      specialPct: 18,
+      commissionPct: 1.5,
+      pfAmount: 1800,
+      profTax: 200,
+      tdsPct: 8.5,
+      lopDays: 0,
+      panNumber: 'ABCDE5678F',
+      uanNumber: '101489203999',
+      pfAccountNo: 'MH/BAN/0048291/000/000199',
+      taxRegime: 'New Tax Regime (Section 115BAC)' as
+        | 'New Tax Regime (Section 115BAC)'
+        | 'Old Tax Regime (With Exemptions)',
+      bankName: supplierCompany?.bankName || 'HDFC Bank Ltd',
+      bankAccountNo: '50100482910999',
+      ifscCode: supplierCompany?.ifscCode || 'HDFC0001245',
+      plQuota: adminPolicyMaster.plQuota || 12,
+      clQuota: adminPolicyMaster.clQuota || 6,
+      slQuota: adminPolicyMaster.slQuota || 6,
+      compOffQuota: adminPolicyMaster.compOffQuota || 4,
+      shiftTiming: `${adminPolicyMaster.shiftStartTime} - ${adminPolicyMaster.shiftEndTime}`,
+      workMode: 'Office HQ' as 'Office HQ' | 'Work From Home' | 'Client Site Visit',
+    };
+  });
+
+  // Inline Edit States for Leave & Expense Claim in Admin Desk
+  const [editingLeaveId, setEditingLeaveId] = useState<string | null>(null);
+  const [editingLeaveDraft, setEditingLeaveDraft] = useState<LeaveRequestItem | null>(null);
+
+  const [editingClaimId, setEditingClaimId] = useState<string | null>(null);
+  const [editingClaimDraft, setEditingClaimDraft] = useState<ExpenseClaimItem | null>(null);
+
+  // Build employee list ONLY from actual enrolled employees in employeeSalaryMasters
+  const unifiedEmployeeList = React.useMemo(() => {
+    const list: Array<{
+      id: string;
+      name: string;
+      email: string;
+      phone: string;
+      role: string;
+      department: string;
+      designation: string;
+      location: string;
+      status: 'Active' | 'Inactive';
+      inCrm: boolean;
+      inPayroll: boolean;
+      master: EmployeeSalaryMasterRecord;
+    }> = [];
+
+    Object.values(employeeSalaryMasters).forEach((m) => {
+      const mEmail = m.email ? m.email.toLowerCase() : '';
+      const crmUser =
+        users.find((u) => u.id === m.userId) ||
+        (mEmail ? users.find((u) => u.email?.toLowerCase() === mEmail) : undefined);
+      list.push({
+        id: m.userId,
+        name: m.name || crmUser?.name || 'Employee',
+        email: m.email || crmUser?.email || '',
+        phone: m.phone || crmUser?.phone || '',
+        role: m.role || crmUser?.role || 'Sales Executive',
+        department: m.department || crmUser?.department || 'Sales',
+        designation: m.designation || crmUser?.designation || m.role || 'Employee',
+        location: m.location || crmUser?.location || 'Corporate HQ',
+        status: m.status || crmUser?.status || 'Active',
+        inCrm: Boolean(crmUser && m.accessType !== 'payroll_only'),
+        inPayroll: true,
+        master: m,
+      });
+    });
+
+    return list;
+  }, [users, employeeSalaryMasters]);
+
+  // Dynamic Org Options derived from Org Masters (fallback to defaults if empty)
+  const dynamicRoles = React.useMemo(() => {
+    const fromMaster = orgMasters.roles.filter((r) => r.isActive).map((r) => r.name);
+    return Array.from(new Set([...fromMaster, ...USER_ROLES]));
+  }, [orgMasters.roles]);
+
+  const dynamicDesignations = React.useMemo(() => {
+    const fromMaster = orgMasters.designations.filter((d) => d.isActive).map((d) => d.name);
+    const defaults = [
+      'Sales Executive',
+      'Sales Manager',
+      'Account Executive',
+      'Finance Executive',
+      'Finance Manager',
+      'Operations Specialist',
+      'Customer Support Lead',
+      'Technical Support Specialist',
+      'Administrator',
+      'Director',
+    ];
+    return Array.from(new Set([...fromMaster, ...defaults]));
+  }, [orgMasters.designations]);
+
+  const dynamicLocations = React.useMemo(() => {
+    const fromMaster = orgMasters.locations.filter((l) => l.isActive).map((l) => l.name);
+    const defaults = [
+      'Mumbai HQ',
+      'New Delhi HQ',
+      'Bengaluru Branch',
+      'Pune Hub',
+      'Hyderabad Center',
+      'Chennai Office',
+      'Kolkata Office',
+    ];
+    return Array.from(new Set([...fromMaster, ...defaults]));
+  }, [orgMasters.locations]);
+
+  const dynamicDepartments = React.useMemo(() => {
+    const fromMaster = orgMasters.departments.filter((d) => d.isActive).map((d) => d.name);
+    return Array.from(
+      new Set([
+        ...fromMaster,
+        ...USER_DEPARTMENTS,
+        'Customer Support',
+        'Engineering',
+        'Human Resources',
+      ])
+    );
+  }, [orgMasters.departments]);
+
+  // Org Master CRUD actions
+  const handleSaveOrgItem = (itemData: {
+    category: 'roles' | 'designations' | 'locations' | 'departments';
+    id?: string;
+    name: string;
+    code?: string;
+    description?: string;
+    isActive: boolean;
+  }) => {
+    if (!itemData.name.trim()) return;
+    const { category } = itemData;
+    const currentList = orgMasters[category] || [];
+
+    let updatedList: OrgMasterItem[];
+    if (itemData.id) {
+      updatedList = currentList.map((item) =>
+        item.id === itemData.id
+          ? {
+              ...item,
+              name: itemData.name.trim(),
+              code: itemData.code?.trim() || item.code,
+              description: itemData.description?.trim() || '',
+              isActive: itemData.isActive,
+            }
+          : item
+      );
+    } else {
+      const prefix =
+        category === 'roles'
+          ? 'ROL'
+          : category === 'designations'
+          ? 'DES'
+          : category === 'locations'
+          ? 'LOC'
+          : 'DEP';
+      const newItem: OrgMasterItem = {
+        id: `${prefix}-${Date.now().toString().slice(-5)}`,
+        name: itemData.name.trim(),
+        code:
+          itemData.code?.trim() ||
+          `${prefix}-${String(currentList.length + 1).padStart(2, '0')}`,
+        description: itemData.description?.trim() || '',
+        isActive: itemData.isActive,
+        createdAt: new Date().toISOString().split('T')[0],
+      };
+      updatedList = [...currentList, newItem];
+    }
+
+    const nextMasters: PayrollOrgMasters = {
+      ...orgMasters,
+      [category]: updatedList,
+    };
+    setOrgMasters(nextMasters);
+    savePayrollOrgMasters(nextMasters, true);
+    setEditingOrgItem(null);
+    setStatusBanner(
+      `Saved ${category.slice(0, -1)} master "${itemData.name.trim()}" successfully.`
+    );
+  };
+
+  const handleDeleteOrgItem = (
+    category: 'roles' | 'designations' | 'locations' | 'departments',
+    item: OrgMasterItem
+  ) => {
+    const updatedList = (orgMasters[category] || []).filter((i) => i.id !== item.id);
+    const nextMasters: PayrollOrgMasters = {
+      ...orgMasters,
+      [category]: updatedList,
+    };
+    setOrgMasters(nextMasters);
+    savePayrollOrgMasters(nextMasters, true);
+    setStatusBanner(`Deleted ${category.slice(0, -1)} master "${item.name}".`);
+  };
+
+  const handlePreFillDefaultOrgMasters = () => {
+    const defaultRoles: OrgMasterItem[] = [
+      { id: 'ROL-01', name: 'Sales Executive', code: 'ROL-01', description: 'Frontline sales and customer relationship', isActive: true, createdAt: '2026-01-01' },
+      { id: 'ROL-02', name: 'Sales Manager', code: 'ROL-02', description: 'Sales team lead, pipeline and quota management', isActive: true, createdAt: '2026-01-01' },
+      { id: 'ROL-03', name: 'Finance Executive', code: 'ROL-03', description: 'Billing, collections and reconciliation', isActive: true, createdAt: '2026-01-01' },
+      { id: 'ROL-04', name: 'Finance Manager', code: 'ROL-04', description: 'Financial controls, audit and taxation', isActive: true, createdAt: '2026-01-01' },
+      { id: 'ROL-05', name: 'Super Admin', code: 'ROL-05', description: 'Full system privileges across all modules', isActive: true, createdAt: '2026-01-01' },
+      { id: 'ROL-06', name: 'Administrator', code: 'ROL-06', description: 'Company operations and master configurations', isActive: true, createdAt: '2026-01-01' },
+    ];
+    const defaultDesigs: OrgMasterItem[] = [
+      { id: 'DES-01', name: 'Business Development Manager', code: 'DES-01', description: 'Enterprise deal acquisition', isActive: true, createdAt: '2026-01-01' },
+      { id: 'DES-02', name: 'Account Executive', code: 'DES-02', description: 'Direct customer engagement', isActive: true, createdAt: '2026-01-01' },
+      { id: 'DES-03', name: 'Senior Finance Specialist', code: 'DES-03', description: 'Invoicing & ledger reconciliation', isActive: true, createdAt: '2026-01-01' },
+      { id: 'DES-04', name: 'Operations Lead', code: 'DES-04', description: 'Order fulfillment & supply chain', isActive: true, createdAt: '2026-01-01' },
+      { id: 'DES-05', name: 'Technical Support Lead', code: 'DES-05', description: 'Support ticket resolution & AMC maintenance', isActive: true, createdAt: '2026-01-01' },
+    ];
+    const defaultLocs: OrgMasterItem[] = [
+      { id: 'LOC-01', name: 'Mumbai HQ', code: 'LOC-01', description: 'Corporate headquarters, Bandra Kurla Complex', isActive: true, createdAt: '2026-01-01' },
+      { id: 'LOC-02', name: 'New Delhi HQ', code: 'LOC-02', description: 'North Zone regional office, Okhla', isActive: true, createdAt: '2026-01-01' },
+      { id: 'LOC-03', name: 'Bengaluru Branch', code: 'LOC-03', description: 'South Zone tech & customer delivery center', isActive: true, createdAt: '2026-01-01' },
+      { id: 'LOC-04', name: 'Pune Hub', code: 'LOC-04', description: 'West Zone operations and logistics hub', isActive: true, createdAt: '2026-01-01' },
+      { id: 'LOC-05', name: 'Hyderabad Center', code: 'LOC-05', description: 'HITEC City regional branch', isActive: true, createdAt: '2026-01-01' },
+    ];
+    const defaultDepts: OrgMasterItem[] = [
+      { id: 'DEP-01', name: 'Sales', code: 'DEP-01', description: 'Commercial business and accounts', isActive: true, createdAt: '2026-01-01' },
+      { id: 'DEP-02', name: 'Finance', code: 'DEP-02', description: 'Accounts, taxes and receivables', isActive: true, createdAt: '2026-01-01' },
+      { id: 'DEP-03', name: 'Operations', code: 'DEP-03', description: 'Logistics, delivery and orders', isActive: true, createdAt: '2026-01-01' },
+      { id: 'DEP-04', name: 'Executive', code: 'DEP-04', description: 'Leadership and management', isActive: true, createdAt: '2026-01-01' },
+      { id: 'DEP-05', name: 'Customer Support', code: 'DEP-05', description: 'After-sales, warranties and service contracts', isActive: true, createdAt: '2026-01-01' },
+    ];
+    const populated = {
+      roles: defaultRoles,
+      designations: defaultDesigs,
+      locations: defaultLocs,
+      departments: defaultDepts,
+    };
+    setOrgMasters(populated);
+    savePayrollOrgMasters(populated, true);
+    setStatusBanner('Pre-filled standard corporate defaults for Roles, Designations, Locations, and Departments.');
+  };
+
+  const handleCopyLinkOnly = (email?: string) => {
+    const link = getPayrollLoginLink(email);
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(link).then(() => {
+        setToastCopiedMessage('Direct Payroll Login Link copied to clipboard!');
+        setTimeout(() => setToastCopiedMessage(null), 3000);
+      });
+    }
+  };
+
+  const handleCopyFullInvite = (rec: EmployeeSalaryMasterRecord) => {
+    const link = getPayrollLoginLink(rec.email);
+    const pass = rec.password || rec.tempPassword || 'Check with HR';
+    const msg = [
+      `🔐 ${supplierCompany?.name || 'Company'} — Payroll ESS Portal Login Access`,
+      `----------------------------------------------------`,
+      `Employee: ${rec.name} (${rec.empCode})`,
+      `Portal Link: ${link}`,
+      `Login Email ID: ${rec.email}`,
+      `Login Password: ${pass}`,
+      `Security Note: For your safety, please change your password anytime from your ESS Profile.`,
+      `----------------------------------------------------`,
+    ].join('\n');
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(msg).then(() => {
+        setToastCopiedMessage(`Full credentials & invite copied for ${rec.name}!`);
+        setTimeout(() => setToastCopiedMessage(null), 3000);
+      });
+    }
+  };
+
+  const handleRegeneratePasswordForEmployee = (empId: string, customPass?: string) => {
+    const newPass = (customPass && customPass.trim()) || generateRandomPassword();
+    setEmployeeSalaryMasters((prev) => {
+      const existing = prev[empId];
+      if (!existing) return prev;
+      const updated: EmployeeSalaryMasterRecord = {
+        ...existing,
+        password: newPass,
+        tempPassword: newPass,
+        mustChangePasswordOnFirstLogin: false,
+      };
+      if (credentialsModalTarget && credentialsModalTarget.userId === empId) {
+        setCredentialsModalTarget(updated);
+      }
+      const next = {
+        ...prev,
+        [empId]: updated,
+      };
+      saveEmployeeSalaryMasters(next, true);
+      return next;
+    });
+    const crmMatch = users.find(
+      (u) =>
+        u.id === empId ||
+        (credentialsModalTarget?.email &&
+          u.email?.toLowerCase() === credentialsModalTarget.email.toLowerCase())
+    );
+    if (crmMatch) {
+      updateUser(crmMatch.id, {
+        password: newPass,
+        tempPassword: newPass,
+        mustChangePassword: false,
+        mustChangePasswordOnFirstLogin: false,
+      });
+    }
+    setStatusBanner('Updated login password for employee.');
+  };
+
+  const targetEntry =
+    unifiedEmployeeList.find((e) => e.id === selectedAdminUserId) || unifiedEmployeeList[0] || null;
+
+  const targetMaster = targetEntry?.master || buildDefaultSalaryMasterRecord(currentUser, 0);
+
+  const updateSelectedMaster = (patch: Partial<EmployeeSalaryMasterRecord>) => {
+    if (!targetEntry) return;
+    const nextPatch = { ...patch };
+    if (nextPatch.empCode !== undefined) {
+      const normalized = normalizeEmpCode(nextPatch.empCode);
+      if (normalized && isDuplicateEmpCode(normalized, employeeSalaryMasters, targetEntry.id)) {
+        setStatusBanner(
+          `Employee Code "${normalized}" is already assigned to another employee. Please use a unique Employee Code.`
+        );
+        return;
+      }
+      if (normalized) {
+        nextPatch.empCode = normalized;
+      }
+    }
+    const updated: EmployeeSalaryMasterRecord = {
+      ...targetMaster,
+      ...nextPatch,
+      userId: targetEntry.id,
+    };
+    setEmployeeSalaryMasters((prev) => {
+      const next = {
+        ...prev,
+        [targetEntry.id]: updated,
+      };
+      // Editing an employee's own master is an explicit save for that identity —
+      // clear any stale tombstone so the update is never blocked or swapped
+      forgetDeletedPayrollMasterIds([targetEntry.id]);
+      saveEmployeeSalaryMasters(next, true, false, [targetEntry.id]);
+      return next;
+    });
+    if (targetEntry.id === currentUser.id) {
+      setStatutory((prevStat) => ({
+        ...prevStat,
+        empCode: updated.empCode,
+        panNumber: updated.panNumber,
+        uanNumber: updated.uanNumber,
+        bankName: updated.bankName,
+        bankAccountNo: updated.bankAccountNo,
+        ifscCode: updated.ifscCode,
+      }));
+    }
+  };
+
+  const applyCrmPresetToDraft = (
+    preset: 'role_default' | 'full_access' | 'read_only' | 'custom',
+    role: UserRole
+  ) => {
+    setCrmPermPreset(preset);
+    if (preset === 'role_default') {
+      const base = rolePermissions[role] || DEFAULT_ROLE_PERMISSIONS[role];
+      setCustomPermsDraft({ ...base });
+    } else if (preset === 'full_access') {
+      const next = {} as RolePermissionsMap;
+      ALL_CRM_MODULES.forEach((m) => {
+        next[m.id] = { view: true, create: true, edit: true, delete: true };
+      });
+      setCustomPermsDraft(next);
+    } else if (preset === 'read_only') {
+      const next = {} as RolePermissionsMap;
+      ALL_CRM_MODULES.forEach((m) => {
+        next[m.id] = { view: true, create: false, edit: false, delete: false };
+      });
+      setCustomPermsDraft(next);
+    } else {
+      setShowCustomPermMatrix(true);
+    }
+  };
+
+  const toggleDraftModulePerm = (mod: CrmModuleKey, action: PermissionAction) => {
+    setCrmPermPreset('custom');
+    setCustomPermsDraft((prev) => {
+      const current = prev[mod]?.[action] ?? false;
+      const nextVal = !current;
+      const updatedMod = { ...prev[mod], [action]: nextVal };
+      if (action === 'view' && !nextVal) {
+        updatedMod.create = false;
+        updatedMod.edit = false;
+        updatedMod.delete = false;
+      } else if (action !== 'view' && nextVal) {
+        updatedMod.view = true;
+      }
+      return { ...prev, [mod]: updatedMod };
+    });
+  };
+
+  const handleCreateEmployeeWithAllocations = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newUserDraft.name.trim() || !newUserDraft.email.trim()) {
+      setStatusBanner('Please enter Employee Full Name and Official Email.');
+      return;
+    }
+    if (!newUserDraft.password.trim()) {
+      setStatusBanner(
+        'Please set a login password for the employee. Temporary passwords are no longer auto-generated.'
+      );
+      return;
+    }
+
+    const cleanEmail = newUserDraft.email.trim().toLowerCase();
+    const existingEmailUser = users.find(
+      (u) => u.email && u.email.trim().toLowerCase() === cleanEmail
+    );
+    const existingEmailMaster = Object.values(employeeSalaryMasters).find(
+      (m) => m && m.email && m.email.trim().toLowerCase() === cleanEmail
+    );
+    const excludeId = existingEmailUser?.id || existingEmailMaster?.userId;
+
+    const resolvedEmpCode =
+      normalizeEmpCode(newUserDraft.empCode) || getNextAvailableEmpCode(employeeSalaryMasters);
+    if (isDuplicateEmpCode(resolvedEmpCode, employeeSalaryMasters, excludeId)) {
+      setStatusBanner(
+        `Employee Code "${resolvedEmpCode}" is already assigned to another employee. Please choose a unique Employee Code.`
+      );
+      return;
+    }
+
+    const finalPass = newUserDraft.password.trim();
+    const resolvedUsername =
+      newUserDraft.username.trim() || newUserDraft.email.trim().split('@')[0];
+    const mustChange = Boolean(newUserDraft.mustChangePasswordOnFirstLogin);
+
+    const createdUser = addUser({
+      name: newUserDraft.name.trim(),
+      username: resolvedUsername,
+      email: newUserDraft.email.trim(),
+      password: finalPass,
+      tempPassword: finalPass,
+      mustChangePassword: mustChange,
+      mustChangePasswordOnFirstLogin: mustChange,
+      accessScope: alsoCreateInCrm ? 'FULL_CRM_AND_PAYROLL' : 'PAYROLL_ONLY',
+      accessType: alsoCreateInCrm ? 'crm_and_payroll' : 'payroll_only',
+      phone: newUserDraft.phone.trim() || '+91 98200 00000',
+      role: newUserDraft.role,
+      department: newUserDraft.department,
+      designation: newUserDraft.designation.trim() || newUserDraft.role,
+      location: newUserDraft.location.trim() || 'Mumbai HQ',
+      reportingManager: newUserDraft.reportingManager.trim(),
+      assignedTerritory: newUserDraft.assignedTerritory.trim(),
+      status: newUserDraft.status,
+    });
+    const finalUserId = createdUser.id;
+
+    if (alsoCreateInCrm && crmPermPreset !== 'role_default') {
+      updateUserCustomPermissions(finalUserId, customPermsDraft);
+    }
+
+    const newMasterRecord: EmployeeSalaryMasterRecord = {
+      userId: finalUserId,
+      empCode: resolvedEmpCode,
+      name: newUserDraft.name.trim(),
+      email: newUserDraft.email.trim(),
+      password: finalPass,
+      tempPassword: finalPass,
+      mustChangePasswordOnFirstLogin: mustChange,
+      accessType: alsoCreateInCrm ? 'crm_and_payroll' : 'payroll_only',
+      phone: newUserDraft.phone.trim() || '+91 98200 00000',
+      role: newUserDraft.role,
+      department: newUserDraft.department,
+      designation: newUserDraft.designation.trim() || newUserDraft.role,
+      location: newUserDraft.location.trim() || 'Mumbai HQ',
+      reportingManager: newUserDraft.reportingManager.trim(),
+      assignedTerritory: newUserDraft.assignedTerritory.trim(),
+      status: newUserDraft.status,
+      syncedWithCrm: alsoCreateInCrm,
+      enrolledInPayroll: true,
+      monthlyGross: Number(newUserDraft.monthlyGross) || getRoleDefaultGross(newUserDraft.role),
+      basicPct: Number.isFinite(Number(newUserDraft.basicPct)) ? Number(newUserDraft.basicPct) : 50,
+      hraPct: Number.isFinite(Number(newUserDraft.hraPct)) ? Number(newUserDraft.hraPct) : 25,
+      specialPct: Number.isFinite(Number(newUserDraft.specialPct)) ? Number(newUserDraft.specialPct) : 18,
+      commissionPct: Number.isFinite(Number(newUserDraft.commissionPct)) ? Number(newUserDraft.commissionPct) : 1.5,
+      pfAmount: Number.isFinite(Number(newUserDraft.pfAmount)) && Number(newUserDraft.pfAmount) >= 0 ? Math.round(Number(newUserDraft.pfAmount)) : 1800,
+      profTax: Number.isFinite(Number(newUserDraft.profTax)) && Number(newUserDraft.profTax) >= 0 ? Math.round(Number(newUserDraft.profTax)) : 200,
+      tdsPct: Number.isFinite(Number(newUserDraft.tdsPct)) && Number(newUserDraft.tdsPct) >= 0 ? Number(newUserDraft.tdsPct) : 8.5,
+      lopDays: Number.isFinite(Number(newUserDraft.lopDays)) && Number(newUserDraft.lopDays) >= 0 ? Number(newUserDraft.lopDays) : 0,
+      deductionsLockedByAdmin: true,
+      panNumber: newUserDraft.panNumber.trim().toUpperCase() || 'ABCDE1234F',
+      uanNumber: newUserDraft.uanNumber.trim() || '101489203912',
+      pfAccountNo: newUserDraft.pfAccountNo.trim() || 'MH/BAN/0048291/000/000199',
+      taxRegime: newUserDraft.taxRegime,
+      bankName: newUserDraft.bankName.trim() || supplierCompany?.bankName || 'HDFC Bank Ltd',
+      bankAccountNo: newUserDraft.bankAccountNo.trim() || '50100482910482',
+      ifscCode: newUserDraft.ifscCode.trim().toUpperCase() || 'HDFC0001245',
+      plQuota: Number(newUserDraft.plQuota) || 12,
+      clQuota: Number(newUserDraft.clQuota) || 6,
+      slQuota: Number(newUserDraft.slQuota) || 6,
+      compOffQuota: Number(newUserDraft.compOffQuota) || 4,
+      shiftTiming: newUserDraft.shiftTiming || '09:30 AM - 06:30 PM',
+      workMode: newUserDraft.workMode,
+    };
+
+    const nextMasters = {
+      ...employeeSalaryMasters,
+    };
+    if (existingEmailMaster && existingEmailMaster.userId !== finalUserId) {
+      delete nextMasters[existingEmailMaster.userId];
+    }
+    nextMasters[finalUserId] = newMasterRecord;
+    saveEmployeeSalaryMasters(nextMasters, true);
+    setEmployeeSalaryMasters(nextMasters);
+
+    setSelectedAdminUserId(finalUserId);
+    setCredentialsModalTarget(newMasterRecord);
+    setUserFormMode('edit');
+    setNewUserDraft({
+      ...newUserDraft,
+      name: '',
+      username: '',
+      email: '',
+      password: '',
+      tempPassword: '',
+      mustChangePasswordOnFirstLogin: false,
+      phone: '+91 ',
+      empCode: getNextAvailableEmpCode(nextMasters),
+    });
+
+    setStatusBanner(
+      alsoCreateInCrm
+        ? `Created "${newMasterRecord.name}" (${newMasterRecord.empCode}) in BOTH Payroll & CRM with full salary (${formatCurrency(
+            newMasterRecord.monthlyGross
+          )}/mo), leave, statutory & CRM module allocations.`
+        : `Created "${newMasterRecord.name}" (${newMasterRecord.empCode}) in Payroll Master Only (${formatCurrency(
+            newMasterRecord.monthlyGross
+          )}/mo). You can link/create them in CRM anytime.`
+    );
+  };
+
+  // Promote a Payroll-Only employee to CRM with 1 click
+  const handleSyncPayrollEmployeeToCrm = (entry: (typeof unifiedEmployeeList)[number]) => {
+    const existingCrmUser = users.find(
+      (u) => u.id === entry.id || u.email?.toLowerCase() === entry.email.toLowerCase()
+    );
+    const preservedPass =
+      entry.master.password ||
+      entry.master.tempPassword ||
+      existingCrmUser?.password ||
+      'password123';
+
+    let targetId = entry.id;
+    if (existingCrmUser) {
+      targetId = existingCrmUser.id;
+      updateUser(targetId, {
+        accessScope: 'FULL_CRM_AND_PAYROLL',
+        accessType: 'crm_and_payroll',
+        password: preservedPass,
+        tempPassword: preservedPass,
+      });
+    } else {
+      const createdCrmUser = addUser({
+        name: entry.name,
+        username: entry.email.split('@')[0],
+        email: entry.email,
+        password: preservedPass,
+        tempPassword: preservedPass,
+        accessScope: 'FULL_CRM_AND_PAYROLL',
+        accessType: 'crm_and_payroll',
+        phone: entry.phone,
+        role: entry.role,
+        department: entry.department,
+        designation: entry.designation,
+        location: entry.location,
+        reportingManager: entry.master.reportingManager,
+        assignedTerritory: entry.master.assignedTerritory,
+        status: entry.status,
+      });
+      targetId = createdCrmUser.id;
+    }
+
+    setEmployeeSalaryMasters((prev) => {
+      const next = { ...prev };
+      const oldRecord = next[entry.id] || entry.master;
+      if (targetId !== entry.id) {
+        delete next[entry.id];
+      }
+      next[targetId] = {
+        ...oldRecord,
+        userId: targetId,
+        password: preservedPass,
+        tempPassword: preservedPass,
+        accessType: 'crm_and_payroll',
+        syncedWithCrm: true,
+        enrolledInPayroll: true,
+      };
+      // Re-linking the employee replaces their master record — clear any stale tombstone
+      forgetDeletedPayrollMasterIds([entry.id, targetId]);
+      saveEmployeeSalaryMasters(next, true, false, [entry.id, targetId]);
+      return next;
+    });
+
+    setSelectedAdminUserId(targetId);
+    setStatusBanner(
+      `Synced "${entry.name}" (${entry.master.empCode}) into CRM User Master with role ${entry.role}.`
+    );
+  };
+
+  // Enroll a CRM-only user into Payroll Master with 1 click
+  const handleEnrollCrmUserInPayroll = (entry: (typeof unifiedEmployeeList)[number]) => {
+    setEmployeeSalaryMasters((prev) => {
+      const next = {
+        ...prev,
+        [entry.id]: {
+          ...entry.master,
+          userId: entry.id,
+          enrolledInPayroll: true,
+          syncedWithCrm: true,
+        },
+      };
+      forgetDeletedPayrollMasterIds([entry.id]);
+      saveEmployeeSalaryMasters(next, true, false, [entry.id]);
+      return next;
+    });
+    setStatusBanner(
+      `Enrolled CRM user "${entry.name}" (${entry.master.empCode}) into Payroll & ESS Master.`
+    );
+  };
+
+  const handleDeleteUnifiedEmployee = (
+    entry: (typeof unifiedEmployeeList)[number],
+    deleteFromCrmAsWell = false
+  ) => {
+    if (deleteFromCrmAsWell) {
+      if (entry.inCrm && users.length <= 1) {
+        setStatusBanner('Cannot delete the last remaining CRM user in the system.');
+        return;
+      }
+      if (entry.inCrm) {
+        deleteUser(entry.id);
+      }
+    }
+
+    const next = { ...employeeSalaryMasters };
+    delete next[entry.id];
+    // Tombstone the removed employee so background syncs on other devices/tabs
+    // delete the record instead of resurrecting it under someone else's login
+    recordDeletedPayrollMasterIds([entry.id]);
+    setEmployeeSalaryMasters(next);
+    saveEmployeeSalaryMasters(next, true);
+    fetch(`/api/payroll/masters/${encodeURIComponent(entry.id)}`, { method: 'DELETE' }).catch(
+      () => {}
+    );
+
+    const remaining = Object.values(next)[0];
+    setSelectedAdminUserId(remaining ? remaining.userId : '');
+    setStatusBanner(
+      deleteFromCrmAsWell && entry.inCrm
+        ? `Deleted "${entry.name}" (${entry.master.empCode}) from both CRM Users & Payroll Master.`
+        : `Removed "${entry.name}" (${entry.master.empCode}) from Payroll Master.`
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Admin Control Header Bar */}
+      <div className="bg-slate-900 text-white rounded-xl px-5 py-3.5 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-xs text-slate-300 whitespace-nowrap overflow-x-auto">
+            <span className="font-bold text-amber-400 uppercase tracking-wider">
+              Admin Control ({currentUser.role})
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="font-bold text-white text-sm">
+              Unified Payroll &amp; CRM User Master Allocation Center
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="text-emerald-400 font-medium">
+              {unifiedEmployeeList.length} Total Employees
+            </span>
+          </div>
+          <p className="text-slate-400 text-[11px] mt-0.5 truncate">
+            Allocate everything at user creation: Salary Structure, Statutory &amp; Bank, Leave Quotas, Shift, and choose whether to create in CRM as well.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {/* Clear All Data Button */}
+          <button
+            type="button"
+            onClick={() => setIsClearAllConfirmOpen(true)}
+            className="px-3 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 font-semibold text-xs flex items-center gap-1.5 transition cursor-pointer"
+            title="Remove all data from payroll to create from scratch"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-rose-400" />
+            <span>Clear All Payroll Data</span>
+          </button>
+
+          {/* Segmented Sub-Navigation */}
+          <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-lg border border-slate-700 overflow-x-auto shrink-0">
+            {[
+              { id: 'salary_master', label: '1. Employees & Full Allocation (CRUD)' },
+              {
+                id: 'org_masters',
+                label: `2. Org Masters (${
+                  orgMasters.roles.length +
+                  orgMasters.designations.length +
+                  orgMasters.locations.length +
+                  orgMasters.departments.length
+                })`,
+              },
+              { id: 'policy_master', label: '3. Leave & Shift Policy' },
+              { id: 'approvals', label: '4. Leaves & Claims (CRUD / Approve)' },
+              { id: 'payroll_run', label: '5. Monthly Payroll Run' },
+              ...(integrationSectionNode
+                ? [{ id: 'external_integration', label: '6. External Payroll Link (Admin)' }]
+                : []),
+            ].map((sub) => (
+              <button
+                key={sub.id}
+                type="button"
+                onClick={() => setAdminSubTab(sub.id as typeof adminSubTab)}
+                className={`px-3 py-1.5 rounded-md font-semibold text-xs whitespace-nowrap transition cursor-pointer ${
+                  adminSubTab === sub.id
+                    ? 'bg-[#1f7e9e] text-white shadow-xs'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                }`}
+              >
+                {sub.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* SUB-TAB 1: UNIFIED EMPLOYEE CREATION & FULL ALLOCATION */}
+      {adminSubTab === 'salary_master' && (
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+          {/* Left 6 Cols: Create or Edit Employee with Complete Allocation */}
+          <div className="xl:col-span-6 bg-white rounded-xl border border-slate-200 p-4 space-y-3.5 shadow-2xs">
+            <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <div className="min-w-0">
+                <h4 className="font-bold text-sm text-slate-900 whitespace-nowrap truncate">
+                  {userFormMode === 'create'
+                    ? 'Create Employee & Allocate Everything'
+                    : `Edit Allocations: ${targetEntry?.name || ''}`}
+                </h4>
+                <p className="text-[11px] text-slate-500 whitespace-nowrap truncate">
+                  {userFormMode === 'create'
+                    ? 'Allocate Salary, Statutory, Leave Quotas, Shift & CRM Rights in one place'
+                    : 'Live-edit CRM Profile, Salary Formula, Leave Quotas, Shift & Bank Details'}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setUserFormMode('edit')}
+                  className={`px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                    userFormMode === 'edit'
+                      ? 'bg-white text-slate-900 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Edit Existing
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewUserDraft((prev) => ({
+                      ...prev,
+                      empCode: getNextAvailableEmpCode(employeeSalaryMasters),
+                    }));
+                    setUserFormMode('create');
+                  }}
+                  className={`px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap flex items-center gap-1 transition cursor-pointer ${
+                    userFormMode === 'create'
+                      ? 'bg-[#1f7e9e] text-white shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <UserPlus className="w-3 h-3" />
+                  <span>+ New Employee</span>
+                </button>
+              </div>
+            </div>
+
+            {userFormMode === 'create' ? (
+              <form onSubmit={handleCreateEmployeeWithAllocations} className="space-y-3.5 text-xs">
+                {/* CROSS-SYSTEM PROMPT: DO YOU WANT TO CREATE IN CRM? */}
+                <div className="p-3 rounded-xl bg-slate-900 text-white border border-slate-800 space-y-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <ArrowRightLeft className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span className="font-bold text-xs whitespace-nowrap">
+                        Do you want to create this user in CRM as well?
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setAlsoCreateInCrm(true)}
+                        className={`px-3 py-1 rounded-lg font-bold text-xs whitespace-nowrap transition cursor-pointer ${
+                          alsoCreateInCrm
+                            ? 'bg-emerald-500 text-white shadow-xs'
+                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                        }`}
+                      >
+                        ✓ Yes, Create in CRM &amp; Payroll
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAlsoCreateInCrm(false)}
+                        className={`px-3 py-1 rounded-lg font-bold text-xs whitespace-nowrap transition cursor-pointer ${
+                          !alsoCreateInCrm
+                            ? 'bg-amber-500 text-slate-950 shadow-xs'
+                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                        }`}
+                      >
+                        No, Payroll Only
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-300">
+                    {alsoCreateInCrm
+                      ? 'Creates the employee in Payroll AND automatically provisions their CRM login account, role, territory, and module permissions.'
+                      : 'Creates the employee only inside the Payroll & ESS Master without creating a CRM login account.'}
+                  </p>
+                </div>
+
+                {/* SECTION 1: BASIC IDENTITY & ORGANIZATION ALLOCATION */}
+                <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-2.5">
+                  <div className="font-bold text-slate-800 uppercase tracking-wider text-[10px] flex items-center justify-between">
+                    <span>1. Identity, Role &amp; Organization Allocation</span>
+                    <span className="text-[#1f7e9e] font-mono">{newUserDraft.empCode}</span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2.5">
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        Employee Full Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newUserDraft.name}
+                        onChange={(e) => {
+                          const nextName = e.target.value;
+                          const prevAuto = newUserDraft.name
+                            .toLowerCase()
+                            .trim()
+                            .replace(/\s+/g, '.');
+                          const shouldUpdateUsername =
+                            !newUserDraft.username || newUserDraft.username === prevAuto;
+                          setNewUserDraft({
+                            ...newUserDraft,
+                            name: nextName,
+                            username: shouldUpdateUsername
+                              ? nextName.toLowerCase().trim().replace(/\s+/g, '.')
+                              : newUserDraft.username,
+                          });
+                        }}
+                        placeholder="e.g. Rohan Mehta"
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        Official Email *
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={newUserDraft.email}
+                        onChange={(e) => setNewUserDraft({ ...newUserDraft, email: e.target.value })}
+                        placeholder="rohan@company.com"
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        Mobile Phone
+                      </label>
+                      <input
+                        type="text"
+                        value={newUserDraft.phone}
+                        onChange={(e) => setNewUserDraft({ ...newUserDraft, phone: e.target.value })}
+                        placeholder="+91 98200 11223"
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-2">
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        Role
+                      </label>
+                      <select
+                        value={newUserDraft.role}
+                        onChange={(e) => {
+                          const role = e.target.value as UserRole;
+                          setNewUserDraft({
+                            ...newUserDraft,
+                            role,
+                            designation: role,
+                            monthlyGross: getRoleDefaultGross(role),
+                          });
+                          if (crmPermPreset === 'role_default') {
+                            applyCrmPresetToDraft('role_default', role);
+                          }
+                        }}
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-900"
+                      >
+                        {dynamicRoles.map((r) => (
+                          <option key={r} value={r}>
+                            {r}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        Department
+                      </label>
+                      <select
+                        value={newUserDraft.department}
+                        onChange={(e) =>
+                          setNewUserDraft({
+                            ...newUserDraft,
+                            department: e.target.value as User['department'],
+                          })
+                        }
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-900"
+                      >
+                        {dynamicDepartments.map((d) => (
+                          <option key={d} value={d}>
+                            {d}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        Reporting Manager
+                      </label>
+                      <select
+                        value={newUserDraft.reportingManager}
+                        onChange={(e) =>
+                          setNewUserDraft({ ...newUserDraft, reportingManager: e.target.value })
+                        }
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-900"
+                      >
+                        {users.map((u) => (
+                          <option key={u.id} value={u.name}>
+                            {u.name} ({u.role})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        Location / Branch
+                      </label>
+                      <input
+                        type="text"
+                        list="org-locations-list"
+                        value={newUserDraft.location}
+                        onChange={(e) =>
+                          setNewUserDraft({
+                            ...newUserDraft,
+                            location: e.target.value,
+                            assignedTerritory: e.target.value,
+                          })
+                        }
+                        placeholder="e.g. Mumbai HQ / Pune"
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold"
+                      />
+                      <datalist id="org-locations-list">
+                        {dynamicLocations.map((loc) => (
+                          <option key={loc} value={loc} />
+                        ))}
+                      </datalist>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-200/60 flex items-center gap-2">
+                    <div className="flex-1">
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        Official Designation
+                      </label>
+                      <input
+                        type="text"
+                        list="org-designations-list"
+                        value={newUserDraft.designation}
+                        onChange={(e) =>
+                          setNewUserDraft({ ...newUserDraft, designation: e.target.value })
+                        }
+                        placeholder="e.g. Senior Account Executive"
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold"
+                      />
+                      <datalist id="org-designations-list">
+                        {dynamicDesignations.map((des) => (
+                          <option key={des} value={des} />
+                        ))}
+                      </datalist>
+                    </div>
+                    <div className="w-48 shrink-0">
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        Work Mode
+                      </label>
+                      <select
+                        value={newUserDraft.workMode}
+                        onChange={(e) =>
+                          setNewUserDraft({
+                            ...newUserDraft,
+                            workMode: e.target.value as typeof newUserDraft.workMode,
+                          })
+                        }
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs"
+                      >
+                        <option value="Office HQ">Office HQ</option>
+                        <option value="Work From Home">Work From Home</option>
+                        <option value="Client Site Visit">Client Site Visit</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* SECTION 2: PAYROLL SALARY, STATUTORY, BANK & LEAVE ALLOCATION */}
+                <div className="p-3 rounded-xl bg-emerald-50/40 border border-emerald-200/80 space-y-2.5">
+                  <div className="font-bold text-emerald-950 uppercase tracking-wider text-[10px] flex items-center justify-between">
+                    <span>2. Payroll Compensation, Statutory, Bank &amp; Leave Allocation</span>
+                    <span className="font-mono text-emerald-700 font-bold">
+                      Gross: {formatCurrency(newUserDraft.monthlyGross)}/mo
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-5 gap-2">
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        Emp Code *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newUserDraft.empCode}
+                        onChange={(e) =>
+                          setNewUserDraft({
+                            ...newUserDraft,
+                            empCode: e.target.value.toUpperCase(),
+                          })
+                        }
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-[#1f7e9e]"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        Monthly Gross (₹)
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        value={newUserDraft.monthlyGross}
+                        onChange={(e) =>
+                          setNewUserDraft({
+                            ...newUserDraft,
+                            monthlyGross: Number(e.target.value),
+                          })
+                        }
+                        className="w-full bg-white border border-emerald-300 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-emerald-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        Basic / HRA / Special %
+                      </label>
+                      <div className="grid grid-cols-3 gap-1">
+                        <input
+                          type="number"
+                          value={newUserDraft.basicPct}
+                          onChange={(e) =>
+                            setNewUserDraft({ ...newUserDraft, basicPct: Number(e.target.value) })
+                          }
+                          title="Basic %"
+                          className="w-full bg-white border border-slate-200 rounded-lg px-1 py-1.5 text-xs font-mono font-bold text-center"
+                        />
+                        <input
+                          type="number"
+                          value={newUserDraft.hraPct}
+                          onChange={(e) =>
+                            setNewUserDraft({ ...newUserDraft, hraPct: Number(e.target.value) })
+                          }
+                          title="HRA %"
+                          className="w-full bg-white border border-slate-200 rounded-lg px-1 py-1.5 text-xs font-mono font-bold text-center"
+                        />
+                        <input
+                          type="number"
+                          value={newUserDraft.specialPct}
+                          onChange={(e) =>
+                            setNewUserDraft({ ...newUserDraft, specialPct: Number(e.target.value) })
+                          }
+                          title="Special Allowance %"
+                          className="w-full bg-white border border-slate-200 rounded-lg px-1 py-1.5 text-xs font-mono font-bold text-center"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        Sales Comm %
+                      </label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={newUserDraft.commissionPct}
+                        onChange={(e) =>
+                          setNewUserDraft({
+                            ...newUserDraft,
+                            commissionPct: Number(e.target.value),
+                          })
+                        }
+                        title="Sales Commission %"
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        Tax Regime
+                      </label>
+                      <select
+                        value={newUserDraft.taxRegime}
+                        onChange={(e) =>
+                          setNewUserDraft({
+                            ...newUserDraft,
+                            taxRegime: e.target.value as typeof newUserDraft.taxRegime,
+                          })
+                        }
+                        className="w-full bg-white border border-slate-200 rounded-lg px-1.5 py-1.5 text-xs font-semibold"
+                      >
+                        <option value="New Tax Regime (Section 115BAC)">New Regime (115BAC)</option>
+                        <option value="Old Tax Regime (With Exemptions)">Old Regime</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* FIXED DEDUCTIONS ALLOCATION (LOCKED UNTIL ADMIN EDITS) */}
+                  <div className="p-2.5 rounded-lg bg-rose-50/70 border border-rose-200/80 space-y-2 min-w-0">
+                    <div className="flex items-center justify-between gap-2 whitespace-nowrap min-w-0">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-rose-950 flex items-center gap-1 min-w-0 truncate">
+                        <Lock className="w-3 h-3 text-rose-700 shrink-0" />
+                        <span className="truncate">Employee Deductions Allocation (Locked Until Admin Edits)</span>
+                      </span>
+                      <span className="text-[10px] font-semibold text-rose-800 bg-white/80 px-2 py-0.5 rounded border border-rose-200 shrink-0">
+                        Editable PF · Fixed
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center justify-between gap-1 mb-1 whitespace-nowrap min-w-0">
+                          <label className="font-semibold text-rose-950 block truncate text-[11px]">
+                            PF Amount (₹) *
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const basicAmt = Math.round(
+                                (Number(newUserDraft.monthlyGross) || 0) *
+                                  ((Number(newUserDraft.basicPct) || 50) / 100)
+                              );
+                              const autoPf = Math.round(
+                                Math.min(basicAmt, adminPolicyMaster.defaultPfCapBasic || 15000) * 0.12
+                              );
+                              setNewUserDraft({ ...newUserDraft, pfAmount: autoPf });
+                            }}
+                            className="text-[9.5px] font-bold text-[#1f7e9e] hover:underline cursor-pointer shrink-0"
+                            title="Calculate 12% of Basic (capped)"
+                          >
+                            12% Calc
+                          </button>
+                        </div>
+                        <input
+                          type="number"
+                          min={0}
+                          value={newUserDraft.pfAmount}
+                          onChange={(e) =>
+                            setNewUserDraft({
+                              ...newUserDraft,
+                              pfAmount: Math.max(0, Number(e.target.value)),
+                            })
+                          }
+                          className="w-full bg-white border border-rose-300 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-rose-900"
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <label className="font-semibold text-rose-950 block mb-1 whitespace-nowrap truncate text-[11px]">
+                          Prof. Tax (₹)
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={newUserDraft.profTax}
+                          onChange={(e) =>
+                            setNewUserDraft({
+                              ...newUserDraft,
+                              profTax: Math.max(0, Number(e.target.value)),
+                            })
+                          }
+                          className="w-full bg-white border border-rose-300 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-rose-900"
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <label className="font-semibold text-rose-950 block mb-1 whitespace-nowrap truncate text-[11px]">
+                          TDS Tax (%)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min={0}
+                          value={newUserDraft.tdsPct}
+                          onChange={(e) =>
+                            setNewUserDraft({
+                              ...newUserDraft,
+                              tdsPct: Math.max(0, Number(e.target.value)),
+                            })
+                          }
+                          className="w-full bg-white border border-rose-300 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-rose-900"
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <label className="font-semibold text-rose-950 block mb-1 whitespace-nowrap truncate text-[11px]">
+                          LOP Days
+                        </label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min={0}
+                          value={newUserDraft.lopDays}
+                          onChange={(e) =>
+                            setNewUserDraft({
+                              ...newUserDraft,
+                              lopDays: Math.max(0, Number(e.target.value)),
+                            })
+                          }
+                          className="w-full bg-white border border-rose-300 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-rose-900"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-5 gap-2">
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        PAN Number
+                      </label>
+                      <input
+                        type="text"
+                        value={newUserDraft.panNumber}
+                        onChange={(e) =>
+                          setNewUserDraft({
+                            ...newUserDraft,
+                            panNumber: e.target.value.toUpperCase(),
+                          })
+                        }
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        PF UAN No
+                      </label>
+                      <input
+                        type="text"
+                        value={newUserDraft.uanNumber}
+                        onChange={(e) =>
+                          setNewUserDraft({ ...newUserDraft, uanNumber: e.target.value })
+                        }
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        Bank Name
+                      </label>
+                      <input
+                        type="text"
+                        value={newUserDraft.bankName}
+                        onChange={(e) =>
+                          setNewUserDraft({ ...newUserDraft, bankName: e.target.value })
+                        }
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        Bank A/C No
+                      </label>
+                      <input
+                        type="text"
+                        value={newUserDraft.bankAccountNo}
+                        onChange={(e) =>
+                          setNewUserDraft({ ...newUserDraft, bankAccountNo: e.target.value })
+                        }
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        IFSC Code
+                      </label>
+                      <input
+                        type="text"
+                        value={newUserDraft.ifscCode}
+                        onChange={(e) =>
+                          setNewUserDraft({
+                            ...newUserDraft,
+                            ifscCode: e.target.value.toUpperCase(),
+                          })
+                        }
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Leave Quota & Shift Allocation Row */}
+                  <div className="grid grid-cols-6 gap-2 pt-1 border-t border-emerald-200/60">
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        PL Quota
+                      </label>
+                      <input
+                        type="number"
+                        value={newUserDraft.plQuota}
+                        onChange={(e) =>
+                          setNewUserDraft({ ...newUserDraft, plQuota: Number(e.target.value) })
+                        }
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        CL Quota
+                      </label>
+                      <input
+                        type="number"
+                        value={newUserDraft.clQuota}
+                        onChange={(e) =>
+                          setNewUserDraft({ ...newUserDraft, clQuota: Number(e.target.value) })
+                        }
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        SL Quota
+                      </label>
+                      <input
+                        type="number"
+                        value={newUserDraft.slQuota}
+                        onChange={(e) =>
+                          setNewUserDraft({ ...newUserDraft, slQuota: Number(e.target.value) })
+                        }
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        Comp-Off
+                      </label>
+                      <input
+                        type="number"
+                        value={newUserDraft.compOffQuota}
+                        onChange={(e) =>
+                          setNewUserDraft({
+                            ...newUserDraft,
+                            compOffQuota: Number(e.target.value),
+                          })
+                        }
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-mono font-bold"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        Allocated Shift Timing
+                      </label>
+                      <input
+                        type="text"
+                        value={newUserDraft.shiftTiming}
+                        onChange={(e) =>
+                          setNewUserDraft({ ...newUserDraft, shiftTiming: e.target.value })
+                        }
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* SECTION 3: CRM CREDENTIALS & MODULE ACCESS ALLOCATION (IF ALSO CREATE IN CRM = YES) */}
+                {alsoCreateInCrm && (
+                  <div className="p-3 rounded-xl bg-indigo-50/50 border border-indigo-200/80 space-y-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="font-bold text-indigo-950 uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                        <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>3. CRM Login Credentials &amp; Module Permissions Allocation</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowCustomPermMatrix(!showCustomPermMatrix)}
+                        className="px-2 py-0.5 rounded-md bg-white border border-indigo-200 text-indigo-700 font-bold text-[11px] flex items-center gap-1 hover:bg-indigo-100 cursor-pointer"
+                      >
+                        <SlidersHorizontal className="w-3 h-3" />
+                        <span>
+                          {showCustomPermMatrix
+                            ? 'Hide 15-Module Matrix'
+                            : 'Customize 15 CRM Modules'}
+                        </span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                          CRM Username
+                        </label>
+                        <input
+                          type="text"
+                          value={newUserDraft.username}
+                          onChange={(e) =>
+                            setNewUserDraft({ ...newUserDraft, username: e.target.value })
+                          }
+                          placeholder="rohan.mehta"
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                          CRM Password
+                        </label>
+                        <input
+                          type="text"
+                          value={newUserDraft.password}
+                          onChange={(e) =>
+                            setNewUserDraft({
+                              ...newUserDraft,
+                              password: e.target.value,
+                              tempPassword: e.target.value,
+                            })
+                          }
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-indigo-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                          CRM Access Preset
+                        </label>
+                        <select
+                          value={crmPermPreset}
+                          onChange={(e) =>
+                            applyCrmPresetToDraft(
+                              e.target.value as typeof crmPermPreset,
+                              newUserDraft.role
+                            )
+                          }
+                          className="w-full bg-white border border-indigo-200 rounded-lg px-2 py-1.5 text-xs font-bold text-indigo-900"
+                        >
+                          <option value="role_default">
+                            Inherit {newUserDraft.role} Defaults
+                          </option>
+                          <option value="full_access">Grant Full Control (All 15 Modules)</option>
+                          <option value="read_only">View-Only (Read All 15 Modules)</option>
+                          <option value="custom">Custom Module Allocation</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {showCustomPermMatrix && (
+                      <div className="bg-white rounded-lg border border-indigo-200 overflow-hidden max-h-48 overflow-y-auto">
+                        <table className="w-full text-left text-[11px] whitespace-nowrap">
+                          <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 sticky top-0">
+                            <tr>
+                              <th className="py-1.5 px-2.5">CRM Module</th>
+                              <th className="py-1.5 px-2 text-center">View</th>
+                              <th className="py-1.5 px-2 text-center">Create</th>
+                              <th className="py-1.5 px-2 text-center">Edit</th>
+                              <th className="py-1.5 px-2 text-center">Delete</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {ALL_CRM_MODULES.map((m) => {
+                              const p = customPermsDraft[m.id] || {
+                                view: false,
+                                create: false,
+                                edit: false,
+                                delete: false,
+                              };
+                              return (
+                                <tr key={m.id} className="hover:bg-slate-50">
+                                  <td className="py-1 px-2.5 font-semibold text-slate-800">
+                                    {m.label}
+                                  </td>
+                                  {(['view', 'create', 'edit', 'delete'] as PermissionAction[]).map(
+                                    (act) => (
+                                      <td key={act} className="py-1 px-2 text-center">
+                                        <input
+                                          type="checkbox"
+                                          checked={!!p[act]}
+                                          onChange={() => toggleDraftModulePerm(m.id, act)}
+                                          className="rounded border-slate-300 text-indigo-600 cursor-pointer"
+                                        />
+                                      </td>
+                                    )
+                                  )}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {!alsoCreateInCrm && (
+                  <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200/80 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="font-bold text-amber-950 uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                        <Key className="w-3.5 h-3.5 text-amber-600" />
+                        <span>3. Payroll Portal Access &amp; Admin-Set Credentials</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
+                        Payroll-Only Portal Login
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                          Login Email ID (Username)
+                        </label>
+                        <div className="p-2 bg-white rounded-lg border border-slate-200 font-mono text-xs font-bold text-slate-900 truncate">
+                          {newUserDraft.email || 'Enter official email above'}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                          Set Login Password <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={newUserDraft.password}
+                          onChange={(e) =>
+                            setNewUserDraft({
+                              ...newUserDraft,
+                              password: e.target.value,
+                              tempPassword: e.target.value,
+                            })
+                          }
+                          placeholder="Admin sets the initial login password"
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-indigo-700"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <input
+                        type="checkbox"
+                        id="new-must-change-pwd"
+                        checked={newUserDraft.mustChangePasswordOnFirstLogin}
+                        onChange={(e) =>
+                          setNewUserDraft({
+                            ...newUserDraft,
+                            mustChangePasswordOnFirstLogin: e.target.checked,
+                          })
+                        }
+                        className="rounded text-[#1f7e9e] focus:ring-[#1f7e9e]"
+                      />
+                      <label htmlFor="new-must-change-pwd" className="text-slate-700 font-medium text-[11px] cursor-pointer">
+                        Require employee to change password on first login &amp; save their new password
+                      </label>
+                    </div>
+
+                    {/* Direct Login Link Preview */}
+                    <div className="p-2 bg-white rounded-lg border border-amber-200 text-[11px] space-y-1">
+                      <div className="flex items-center justify-between text-slate-500 font-medium">
+                        <span className="flex items-center gap-1">
+                          <ExternalLink className="w-3 h-3 text-[#1f7e9e]" />
+                          <span>Direct Payroll Login Link:</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyLinkOnly(newUserDraft.email)}
+                          className="text-[#1f7e9e] hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <Copy className="w-3 h-3" />
+                          <span>Copy Link</span>
+                        </button>
+                      </div>
+                      <div className="font-mono text-slate-700 text-[10px] truncate select-all">
+                        {getPayrollLoginLink(newUserDraft.email)}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="submit"
+                    className="flex-1 py-2 px-4 bg-[#1f7e9e] hover:bg-[#17647e] text-white font-bold rounded-lg shadow-xs whitespace-nowrap transition cursor-pointer"
+                  >
+                    {alsoCreateInCrm
+                      ? 'Create Employee in Both Payroll & CRM (With Allocations)'
+                      : 'Create Employee in Payroll Master Only'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUserFormMode('edit')}
+                    className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg whitespace-nowrap cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : (
+              /* EDIT EXISTING EMPLOYEE ALLOCATIONS */
+              <div className="space-y-3 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex-1">
+                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                      Select Employee to Manage Allocations
+                    </label>
+                    <select
+                      value={targetEntry?.id || ''}
+                      onChange={(e) => setSelectedAdminUserId(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-900"
+                    >
+                      {unifiedEmployeeList.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} — {u.role} ({u.department}) [{u.master.empCode}] ·{' '}
+                          {u.inCrm && u.inPayroll
+                            ? 'CRM + Payroll'
+                            : u.inCrm
+                            ? 'CRM Only'
+                            : 'Payroll Only'}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {targetEntry && !targetEntry.inCrm && (
+                    <button
+                      type="button"
+                      onClick={() => handleSyncPayrollEmployeeToCrm(targetEntry)}
+                      className="mt-5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs whitespace-nowrap cursor-pointer"
+                    >
+                      + Also Create in CRM
+                    </button>
+                  )}
+                </div>
+
+                {/* Direct Credentials & Link Quick Access */}
+                <div className="flex items-center justify-between bg-amber-50/70 border border-amber-200 rounded-lg p-2">
+                  <div className="flex items-center gap-1.5 text-amber-900 font-semibold text-[11px] min-w-0 truncate">
+                    <Key className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                    <span className="shrink-0">Portal Access:</span>
+                    <span className="font-mono text-slate-700 truncate">
+                      {targetMaster.email || targetEntry?.email}
+                    </span>
+                    <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-200/70 text-amber-900 shrink-0">
+                      {targetMaster.accessType === 'payroll_only' ? 'Payroll-Only' : 'CRM + Payroll'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCredentialsModalTarget(targetMaster)}
+                    className="px-2.5 py-1 bg-white hover:bg-amber-100 border border-amber-300 rounded font-bold text-[11px] text-amber-900 flex items-center gap-1 cursor-pointer shadow-2xs shrink-0"
+                  >
+                    <Key className="w-3 h-3 text-amber-700" />
+                    <span>View Credentials &amp; Link</span>
+                  </button>
+                </div>
+
+                {/* Identity & Role Fields */}
+                <div className="grid grid-cols-3 gap-2.5">
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                      Employee Full Name
+                    </label>
+                    <input
+                      type="text"
+                      value={targetEntry?.name || ''}
+                      onChange={(e) => {
+                        if (targetEntry?.inCrm) {
+                          updateUser(targetEntry.id, { name: e.target.value });
+                        }
+                        updateSelectedMaster({ name: e.target.value });
+                      }}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                      Official Email
+                    </label>
+                    <input
+                      type="email"
+                      value={targetEntry?.email || ''}
+                      onChange={(e) => {
+                        if (targetEntry?.inCrm) {
+                          updateUser(targetEntry.id, { email: e.target.value });
+                        }
+                        updateSelectedMaster({ email: e.target.value });
+                      }}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                      Role &amp; Department
+                    </label>
+                    <select
+                      value={targetEntry?.role || 'Sales Executive'}
+                      onChange={(e) => {
+                        const nextRole = e.target.value as UserRole;
+                        if (targetEntry?.inCrm) {
+                          updateUser(targetEntry.id, {
+                            role: nextRole,
+                            designation: nextRole,
+                          });
+                        }
+                        updateSelectedMaster({ role: nextRole, designation: nextRole });
+                      }}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-900"
+                    >
+                      {dynamicRoles.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Payroll Compensation & Statutory Fields */}
+                <div className="grid grid-cols-3 gap-2.5 pt-2 border-t border-slate-100">
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                      Employee Code
+                    </label>
+                    <input
+                      type="text"
+                      value={targetMaster.empCode}
+                      onChange={(e) =>
+                        updateSelectedMaster({ empCode: e.target.value.toUpperCase() })
+                      }
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-[#1f7e9e]"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                      Monthly Gross Salary (₹)
+                    </label>
+                    <input
+                      type="number"
+                      value={targetMaster.monthlyGross}
+                      onChange={(e) =>
+                        updateSelectedMaster({ monthlyGross: Number(e.target.value) })
+                      }
+                      className="w-full bg-emerald-50/70 border border-emerald-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-emerald-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                      Sales Comm %
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={targetMaster.commissionPct}
+                      onChange={(e) =>
+                        updateSelectedMaster({ commissionPct: Number(e.target.value) })
+                      }
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                      Basic %
+                    </label>
+                    <input
+                      type="number"
+                      value={targetMaster.basicPct}
+                      onChange={(e) => updateSelectedMaster({ basicPct: Number(e.target.value) })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                      HRA %
+                    </label>
+                    <input
+                      type="number"
+                      value={targetMaster.hraPct}
+                      onChange={(e) => updateSelectedMaster({ hraPct: Number(e.target.value) })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                      Special Allowance %
+                    </label>
+                    <input
+                      type="number"
+                      value={targetMaster.specialPct}
+                      onChange={(e) =>
+                        updateSelectedMaster({ specialPct: Number(e.target.value) })
+                      }
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold"
+                    />
+                  </div>
+                </div>
+
+                {/* ADMIN DEDUCTIONS CONTROL PANEL (LOCKED UNTIL ADMIN EDITS) */}
+                <div className="p-3 rounded-xl bg-rose-50/70 border border-rose-200 space-y-2 min-w-0">
+                  <div className="flex items-center justify-between gap-2 whitespace-nowrap min-w-0">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-rose-950 flex items-center gap-1 min-w-0 truncate">
+                      <Lock className="w-3 h-3 text-rose-700 shrink-0" />
+                      <span className="truncate">Admin Deduction Controls (PF Amount, PT, TDS &amp; LOP)</span>
+                    </span>
+                    <span className="text-[10px] font-semibold text-rose-800 bg-white px-2 py-0.5 rounded border border-rose-200 shrink-0">
+                      Locked Until Admin Edits
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center justify-between gap-1 mb-1 whitespace-nowrap min-w-0">
+                        <label className="font-semibold text-rose-950 block truncate text-[11px]">
+                          PF Amount (₹)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const basicAmt = Math.round(
+                              (targetMaster.monthlyGross || 0) *
+                                ((targetMaster.basicPct || 50) / 100)
+                            );
+                            const autoPf = Math.round(
+                              Math.min(basicAmt, adminPolicyMaster.defaultPfCapBasic || 15000) * 0.12
+                            );
+                            updateSelectedMaster({
+                              pfAmount: autoPf,
+                              deductionsLockedByAdmin: true,
+                            });
+                          }}
+                          className="text-[9.5px] font-bold text-[#1f7e9e] hover:underline cursor-pointer shrink-0"
+                          title="Reset PF Amount to 12% of Basic (capped)"
+                        >
+                          12% Calc
+                        </button>
+                      </div>
+                      <input
+                        type="number"
+                        min={0}
+                        value={
+                          targetMaster.pfAmount ??
+                          Math.round(
+                            Math.min(
+                              Math.round(
+                                (targetMaster.monthlyGross || 0) *
+                                  ((targetMaster.basicPct || 50) / 100)
+                              ),
+                              adminPolicyMaster.defaultPfCapBasic || 15000
+                            ) * 0.12
+                          )
+                        }
+                        onChange={(e) =>
+                          updateSelectedMaster({
+                            pfAmount: Math.max(0, Number(e.target.value)),
+                            deductionsLockedByAdmin: true,
+                          })
+                        }
+                        className="w-full bg-white border border-rose-300 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-rose-900"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <label className="font-semibold text-rose-950 block mb-1 whitespace-nowrap truncate text-[11px]">
+                        Prof. Tax (₹)
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={targetMaster.profTax}
+                        onChange={(e) =>
+                          updateSelectedMaster({
+                            profTax: Math.max(0, Number(e.target.value)),
+                            deductionsLockedByAdmin: true,
+                          })
+                        }
+                        className="w-full bg-white border border-rose-300 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-rose-900"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <label className="font-semibold text-rose-950 block mb-1 whitespace-nowrap truncate text-[11px]">
+                        TDS Tax %
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min={0}
+                        value={targetMaster.tdsPct}
+                        onChange={(e) =>
+                          updateSelectedMaster({
+                            tdsPct: Math.max(0, Number(e.target.value)),
+                            deductionsLockedByAdmin: true,
+                          })
+                        }
+                        className="w-full bg-white border border-rose-300 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-rose-900"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <label className="font-semibold text-rose-950 block mb-1 whitespace-nowrap truncate text-[11px]">
+                        LOP Days
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min={0}
+                        max={30}
+                        value={targetMaster.lopDays}
+                        onChange={(e) =>
+                          updateSelectedMaster({
+                            lopDays: Math.max(0, Number(e.target.value)),
+                            deductionsLockedByAdmin: true,
+                          })
+                        }
+                        className="w-full bg-white border border-rose-300 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-rose-900"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-4 gap-2">
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                      PL Quota
+                    </label>
+                    <input
+                      type="number"
+                      value={targetMaster.plQuota ?? adminPolicyMaster.plQuota}
+                      onChange={(e) => updateSelectedMaster({ plQuota: Number(e.target.value) })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                      CL Quota
+                    </label>
+                    <input
+                      type="number"
+                      value={targetMaster.clQuota ?? adminPolicyMaster.clQuota}
+                      onChange={(e) => updateSelectedMaster({ clQuota: Number(e.target.value) })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                      SL Quota
+                    </label>
+                    <input
+                      type="number"
+                      value={targetMaster.slQuota ?? adminPolicyMaster.slQuota}
+                      onChange={(e) => updateSelectedMaster({ slQuota: Number(e.target.value) })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                      Shift Timing
+                    </label>
+                    <input
+                      type="text"
+                      value={targetMaster.shiftTiming || '09:30 AM - 06:30 PM'}
+                      onChange={(e) => updateSelectedMaster({ shiftTiming: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                      PAN Number
+                    </label>
+                    <input
+                      type="text"
+                      value={targetMaster.panNumber}
+                      onChange={(e) =>
+                        updateSelectedMaster({ panNumber: e.target.value.toUpperCase() })
+                      }
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                      Bank Name
+                    </label>
+                    <input
+                      type="text"
+                      value={targetMaster.bankName}
+                      onChange={(e) => updateSelectedMaster({ bankName: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                      Bank Account No
+                    </label>
+                    <input
+                      type="text"
+                      value={targetMaster.bankAccountNo}
+                      onChange={(e) => updateSelectedMaster({ bankAccountNo: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setStatusBanner(
+                        `Saved CRM & Payroll Master allocations for ${targetEntry?.name} (${
+                          targetMaster.empCode
+                        }) — Monthly Gross ${formatCurrency(targetMaster.monthlyGross)}.`
+                      )
+                    }
+                    className="flex-1 py-2 px-4 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-lg shadow-2xs whitespace-nowrap transition cursor-pointer"
+                  >
+                    Save Employee Allocations
+                  </button>
+
+                  {targetEntry && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteUnifiedEmployee(targetEntry, false)}
+                      className="py-2 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold rounded-lg flex items-center gap-1.5 whitespace-nowrap transition cursor-pointer"
+                      title="Remove employee from Payroll"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Remove from Payroll</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right 6 Cols: Unified CRM & Payroll Employee Directory Table */}
+          <div className="xl:col-span-6 bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
+            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50/60">
+              <div className="min-w-0">
+                <h4 className="font-bold text-sm text-slate-900 whitespace-nowrap">
+                  Unified Employee Directory ({unifiedEmployeeList.length})
+                </h4>
+                <p className="text-[11px] text-slate-500 whitespace-nowrap truncate">
+                  View CRM &amp; Payroll sync status, allocated salary, leave quotas, or promote between systems
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setNewUserDraft((prev) => ({
+                    ...prev,
+                    empCode: `EMP-${String(101 + unifiedEmployeeList.length).padStart(3, '0')}`,
+                  }));
+                  setUserFormMode('create');
+                }}
+                className="px-3 py-1.5 bg-[#1f7e9e] hover:bg-[#17647e] text-white font-bold rounded-lg text-xs flex items-center gap-1.5 whitespace-nowrap shadow-2xs transition cursor-pointer shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Employee</span>
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    <th className="py-2.5 px-3">Emp Code</th>
+                    <th className="py-2.5 px-3">Employee &amp; Role</th>
+                    <th className="py-2.5 px-3">System Allocation</th>
+                    <th className="py-2.5 px-3 text-right">Monthly Gross</th>
+                    <th className="py-2.5 px-3 text-center">Leaves (PL/CL/SL)</th>
+                    <th className="py-2.5 px-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {unifiedEmployeeList.map((entry) => {
+                    const m = entry.master;
+                    const isSelected = entry.id === targetEntry?.id;
+                    return (
+                      <tr
+                        key={entry.id}
+                        onClick={() => {
+                          setSelectedAdminUserId(entry.id);
+                          setUserFormMode('edit');
+                        }}
+                        className={`cursor-pointer transition ${
+                          isSelected ? 'bg-sky-50/90' : 'hover:bg-slate-50'
+                        }`}
+                      >
+                        <td className="py-2.5 px-3 font-mono font-bold text-[#1f7e9e]">
+                          {m.empCode}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="font-bold text-slate-900">{entry.name}</div>
+                          <div className="text-[11px] text-slate-500">
+                            {entry.role} · {entry.department}
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          {entry.inCrm && entry.inPayroll ? (
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                              CRM + Payroll Synced
+                            </span>
+                          ) : !entry.inCrm ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                                Payroll Only
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(ev) => {
+                                  ev.stopPropagation();
+                                  handleSyncPayrollEmployeeToCrm(entry);
+                                }}
+                                className="text-[10px] font-bold text-indigo-600 hover:underline cursor-pointer"
+                              >
+                                + Create in CRM
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] font-bold text-indigo-800 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
+                                CRM Only
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(ev) => {
+                                  ev.stopPropagation();
+                                  handleEnrollCrmUserInPayroll(entry);
+                                }}
+                                className="text-[10px] font-bold text-emerald-700 hover:underline cursor-pointer"
+                              >
+                                + Create in Payroll
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 tabular-nums">
+                          {formatCurrency(m.monthlyGross)}
+                        </td>
+                        <td className="py-2.5 px-3 text-center font-mono text-slate-600">
+                          {m.plQuota ?? adminPolicyMaster.plQuota}/
+                          {m.clQuota ?? adminPolicyMaster.clQuota}/
+                          {m.slQuota ?? adminPolicyMaster.slQuota}
+                        </td>
+                        <td
+                          className="py-2.5 px-3 text-right"
+                          onClick={(ev) => ev.stopPropagation()}
+                        >
+                          <div className="inline-flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setCredentialsModalTarget(m)}
+                              className="px-2 py-1 rounded bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-semibold text-[11px] flex items-center gap-1 cursor-pointer"
+                              title="View Credentials & Copy Direct Payroll Login Link"
+                            >
+                              <Key className="w-3 h-3 text-amber-700" />
+                              <span>Login Link</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedAdminUserId(entry.id);
+                                setUserFormMode('edit');
+                              }}
+                              className="px-2 py-1 rounded bg-white border border-slate-200 hover:border-[#1f7e9e] text-slate-700 hover:text-[#1f7e9e] font-semibold text-[11px] flex items-center gap-1 cursor-pointer"
+                            >
+                              <Edit3 className="w-3 h-3" />
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteUnifiedEmployee(entry, false)}
+                              className="p-1 rounded bg-white border border-slate-200 hover:bg-rose-50 hover:border-rose-200 text-slate-400 hover:text-rose-600 cursor-pointer"
+                              title="Remove Employee from Payroll"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-TAB 2: ORGANIZATION MASTERS (ROLES, DESIGNATIONS, LOCATIONS, DEPARTMENTS) */}
+      {adminSubTab === 'org_masters' && (
+        <div className="space-y-4 text-xs">
+          {/* Top Banner & Category Tabs */}
+          <div className="bg-slate-900 text-white rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
+            <div>
+              <div className="flex items-center gap-2">
+                <Layers className="w-5 h-5 text-sky-400 shrink-0" />
+                <h3 className="font-bold text-sm text-white">
+                  Payroll Organization Masters
+                </h3>
+              </div>
+              <p className="text-slate-400 text-[11px] mt-0.5">
+                Create, customize, and maintain foundational corporate masters: Roles, Designations, Locations, and Departments.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handlePreFillDefaultOrgMasters}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 font-semibold text-xs flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Pre-fill Standard Corporate Defaults</span>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setEditingOrgItem({
+                    category: orgMasterCategory,
+                    mode: 'create',
+                    item: {
+                      id: '',
+                      name: '',
+                      code: '',
+                      description: '',
+                      isActive: true,
+                      createdAt: new Date().toISOString().split('T')[0],
+                    },
+                  })
+                }
+                className="px-3 py-1.5 rounded-lg bg-[#1f7e9e] hover:bg-[#1a6b86] text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>
+                  Add{' '}
+                  {orgMasterCategory === 'roles'
+                    ? 'Role'
+                    : orgMasterCategory === 'designations'
+                    ? 'Designation'
+                    : orgMasterCategory === 'locations'
+                    ? 'Location'
+                    : 'Department'}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Category Switcher & Search Bar */}
+          <div className="bg-white rounded-xl border border-slate-200 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-1.5 overflow-x-auto">
+              {[
+                { id: 'roles', label: 'Roles', icon: ShieldCheck, count: orgMasters.roles.length },
+                {
+                  id: 'designations',
+                  label: 'Designations',
+                  icon: Briefcase,
+                  count: orgMasters.designations.length,
+                },
+                {
+                  id: 'locations',
+                  label: 'Locations & Branches',
+                  icon: MapPin,
+                  count: orgMasters.locations.length,
+                },
+                {
+                  id: 'departments',
+                  label: 'Departments',
+                  icon: Building,
+                  count: orgMasters.departments.length,
+                },
+              ].map((cat) => {
+                const Icon = cat.icon;
+                const isSelected = orgMasterCategory === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => {
+                      setOrgMasterCategory(cat.id as typeof orgMasterCategory);
+                      setOrgSearchQuery('');
+                    }}
+                    className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
+                      isSelected
+                        ? 'bg-slate-900 text-white shadow-2xs'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    <Icon
+                      className={`w-3.5 h-3.5 ${
+                        isSelected ? 'text-sky-400' : 'text-slate-500'
+                      }`}
+                    />
+                    <span>{cat.label}</span>
+                    <span
+                      className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                        isSelected
+                          ? 'bg-sky-500/20 text-sky-300'
+                          : 'bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {cat.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="relative w-full sm:w-64 shrink-0">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={orgSearchQuery}
+                onChange={(e) => setOrgSearchQuery(e.target.value)}
+                placeholder={`Search ${orgMasterCategory}...`}
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:bg-white focus:outline-hidden"
+              />
+            </div>
+          </div>
+
+          {/* Master Table */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
+            {(() => {
+              const currentList = orgMasters[orgMasterCategory] || [];
+              const filteredList = currentList.filter(
+                (item) =>
+                  item.name.toLowerCase().includes(orgSearchQuery.toLowerCase()) ||
+                  (item.code &&
+                    item.code.toLowerCase().includes(orgSearchQuery.toLowerCase())) ||
+                  (item.description &&
+                    item.description.toLowerCase().includes(orgSearchQuery.toLowerCase()))
+              );
+
+              if (filteredList.length === 0) {
+                return (
+                  <div className="p-8 text-center space-y-3">
+                    <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                      <Layers className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-800 text-sm">
+                        {currentList.length === 0
+                          ? `No ${orgMasterCategory} created yet`
+                          : 'No matching records found'}
+                      </h4>
+                      <p className="text-slate-500 text-xs mt-1 max-w-md mx-auto">
+                        {currentList.length === 0
+                          ? `Create your first ${orgMasterCategory.slice(
+                              0,
+                              -1
+                            )} master from scratch, or click "Pre-fill Standard Corporate Defaults" above.`
+                          : 'Try modifying your search filter.'}
+                      </p>
+                    </div>
+                    {currentList.length === 0 && (
+                      <div className="flex items-center justify-center gap-2 pt-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditingOrgItem({
+                              category: orgMasterCategory,
+                              mode: 'create',
+                              item: {
+                                id: '',
+                                name: '',
+                                code: '',
+                                description: '',
+                                isActive: true,
+                                createdAt: new Date().toISOString().split('T')[0],
+                              },
+                            })
+                          }
+                          className="px-3.5 py-1.5 bg-[#1f7e9e] hover:bg-[#1a6b86] text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>+ Add First {orgMasterCategory.slice(0, -1).toUpperCase()}</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              return (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs whitespace-nowrap">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      <tr>
+                        <th className="py-2.5 px-3">Code / ID</th>
+                        <th className="py-2.5 px-3">Master Name</th>
+                        <th className="py-2.5 px-3">Description</th>
+                        <th className="py-2.5 px-3 text-center">Status</th>
+                        <th className="py-2.5 px-3 text-center">Assigned Employees</th>
+                        <th className="py-2.5 px-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {filteredList.map((item) => {
+                        const assignedCount = unifiedEmployeeList.filter((emp) => {
+                          if (orgMasterCategory === 'roles') return emp.role === item.name;
+                          if (orgMasterCategory === 'designations')
+                            return emp.designation === item.name;
+                          if (orgMasterCategory === 'locations')
+                            return emp.location === item.name;
+                          if (orgMasterCategory === 'departments')
+                            return emp.department === item.name;
+                          return false;
+                        }).length;
+
+                        return (
+                          <tr key={item.id} className="hover:bg-slate-50/80 transition">
+                            <td className="py-2.5 px-3 font-mono font-bold text-[#1f7e9e]">
+                              {item.code || item.id}
+                            </td>
+                            <td className="py-2.5 px-3 font-bold text-slate-900">
+                              {item.name}
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-500 max-w-xs truncate">
+                              {item.description || '—'}
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              {item.isActive ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                  Active
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                  Inactive
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-700">
+                              {assignedCount > 0 ? (
+                                <span className="px-2 py-0.5 rounded bg-sky-50 text-sky-800 border border-sky-200">
+                                  {assignedCount} employee{assignedCount !== 1 ? 's' : ''}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 font-normal">0</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-right">
+                              <div className="inline-flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setEditingOrgItem({
+                                      category: orgMasterCategory,
+                                      mode: 'edit',
+                                      item,
+                                    })
+                                  }
+                                  className="px-2 py-1 rounded bg-white border border-slate-200 hover:border-[#1f7e9e] text-slate-700 hover:text-[#1f7e9e] font-semibold text-[11px] flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Edit3 className="w-3 h-3" />
+                                  <span>Edit</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleDeleteOrgItem(orgMasterCategory, item)
+                                  }
+                                  className="px-2 py-1 rounded bg-white border border-slate-200 hover:border-rose-400 text-rose-600 font-semibold text-[11px] flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  <span>Delete</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* SUB-TAB 3: COMPANY LEAVE QUOTAS, SHIFT TIMING & PAYROLL FORMULA POLICY (CS-HR-POL-001) */}
+      {adminSubTab === 'policy_master' && (
+        <div className="space-y-4">
+          {/* Top Action Bar for Admin Policy Master */}
+          <div className="bg-slate-900 text-white rounded-xl p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-xs">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded bg-amber-400/20 border border-amber-400/40 text-amber-300 font-mono font-bold text-[10px]">
+                  {adminPolicyMaster.policyCode || 'CS-HR-POL-001'} · v
+                  {adminPolicyMaster.policyVersion || '1.0'}
+                </span>
+                <span className="px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 font-bold text-[10px]">
+                  Admin Editable Policy Engine
+                </span>
+              </div>
+              <h4 className="font-bold text-sm text-white mt-1">
+                {adminPolicyMaster.policyTitle ||
+                  'Attendance, Working Hours & Leave Policy Rollout — Full Admin Configuration'}
+              </h4>
+              <p className="text-xs text-slate-300 mt-0.5">
+                Edit any rule below and click &ldquo;Save &amp; Apply All Policies to Payroll&rdquo;
+                to immediately recalculate attendance, late cycles, leaves, and salaries across all{' '}
+                {unifiedEmployeeList.length} employees.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  const resetPolicy: AdminPolicyMaster = {
+                    ...DEFAULT_ADMIN_POLICY_MASTER,
+                    lastPublishedMonth: adminPolicyMaster.lastPublishedMonth,
+                  };
+                  setAdminPolicyMaster(resetPolicy);
+                  saveAdminPolicyMaster(resetPolicy, true);
+                  setStatusBanner(
+                    'Reset all policy parameters to official CoreEnact Solutions Policy CS-HR-POL-001 v1.0 defaults.'
+                  );
+                }}
+                className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs whitespace-nowrap cursor-pointer"
+              >
+                Reset to CS-HR-POL-001 Defaults
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  saveAdminPolicyMaster(adminPolicyMaster, true);
+                  const todayIso = new Date().toISOString().split('T')[0];
+
+                  // 1. Propagate updated policy shift & leave quotas ONLY (NEVER overwrite existing employee deductions or PF amounts!)
+                  setEmployeeSalaryMasters((prev) => {
+                    const next = { ...prev };
+                    unifiedEmployeeList.forEach((emp) => {
+                      const existing = next[emp.id] || emp.master;
+                      next[emp.id] = {
+                        ...existing,
+                        shiftTiming: `${adminPolicyMaster.shiftStartTime} - ${adminPolicyMaster.shiftEndTime}`,
+                        plQuota: adminPolicyMaster.plQuota,
+                        clQuota: adminPolicyMaster.clQuota,
+                        slQuota: adminPolicyMaster.slQuota,
+                        compOffQuota: adminPolicyMaster.compOffQuota,
+                      };
+                    });
+                    return next;
+                  });
+
+                  // 2. Re-evaluate every employee's attendance session against the edited policy
+                  unifiedEmployeeList.forEach((emp, idx) => {
+                    const att = loadEmployeeAttendance(
+                      emp.id,
+                      emp.location || 'New Delhi',
+                      todayIso,
+                      idx
+                    );
+                    if (att.punchInTime) {
+                      const evalRes = evaluateAttendancePolicy({
+                        punchInTime: att.punchInTime,
+                        punchOutTime: att.punchOutTime,
+                        priorGraceUsed: Math.max(0, (att.graceUsedThisMonth || 0) - 1),
+                        priorLateCount: Math.max(0, (att.lateCountThisMonth || 0) - 1),
+                        hasPriorApproval: Boolean(att.hasPriorApproval),
+                        managementAuthorizedEarly: Boolean(att.managementAuthorizedEarly),
+                        breakDurationMins: att.breakDurationMins || 45,
+                        policy: adminPolicyMaster,
+                      });
+                      saveEmployeeAttendance(
+                        emp.id,
+                        {
+                          ...att,
+                          recordedInTime: evalRes.recordedInTime,
+                          policyStatus: evalRes.finalStatus,
+                          policyRemarks: evalRes.summaryCitation,
+                        },
+                        false
+                      );
+                    }
+                  });
+
+                  window.dispatchEvent(new CustomEvent('crm-payroll-data-sync'));
+                  setStatusBanner(
+                    `Saved & Applied Policy ${adminPolicyMaster.policyCode || 'CS-HR-POL-001'} v${
+                      adminPolicyMaster.policyVersion || '1.0'
+                    } across all ${unifiedEmployeeList.length} employees (${
+                      adminPolicyMaster.shiftStartTime
+                    }–${adminPolicyMaster.shiftEndTime}, ${
+                      adminPolicyMaster.monthlyLeaveLimit ?? 1
+                    } Leave/Mo, ${adminPolicyMaster.monthlyGraceLimit ?? 3}x Grace until ${
+                      adminPolicyMaster.graceEndTime || '09:45 AM'
+                    }, Every ${
+                      adminPolicyMaster.lateCycleHalfDayNth ?? 4
+                    }th Late = ${adminPolicyMaster.lateCycleDeductionDays ?? 0.5}d LOP).`
+                  );
+                }}
+                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 whitespace-nowrap shadow-xs cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Save &amp; Apply All Policies to Payroll</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* CARD 1: IDENTITY, WORKING HOURS, WEEKLY CALENDAR & EARLY ARRIVAL / GRACE */}
+            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4 shadow-2xs">
+              <div className="border-b border-slate-100 pb-3 flex items-center justify-between gap-2">
+                <div>
+                  <h4 className="font-bold text-sm text-slate-900">
+                    1 &amp; 2. Working Hours, Calendar, Early Arrival &amp; Grace Policy
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Edit standard shift timings, Saturday holiday rules, &lt;9:00 AM floor, and grace
+                    window
+                  </p>
+                </div>
+                <span className="px-2 py-0.5 rounded bg-sky-100 text-sky-800 font-bold text-[10px] shrink-0">
+                  Sections 1 &amp; 2
+                </span>
+              </div>
+
+              {/* Policy Code, Version, Title */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">Policy Code</label>
+                  <input
+                    type="text"
+                    value={adminPolicyMaster.policyCode || 'CS-HR-POL-001'}
+                    onChange={(e) =>
+                      setAdminPolicyMaster({
+                        ...adminPolicyMaster,
+                        policyCode: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">Version</label>
+                  <input
+                    type="text"
+                    value={adminPolicyMaster.policyVersion || '1.0'}
+                    onChange={(e) =>
+                      setAdminPolicyMaster({
+                        ...adminPolicyMaster,
+                        policyVersion: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold text-slate-900"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="font-semibold text-slate-700 block mb-1">Policy Name</label>
+                  <input
+                    type="text"
+                    value={
+                      adminPolicyMaster.policyTitle ||
+                      'Attendance, Working Hours & Leave Policy Rollout'
+                    }
+                    onChange={(e) =>
+                      setAdminPolicyMaster({
+                        ...adminPolicyMaster,
+                        policyTitle: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-semibold text-slate-900"
+                  />
+                </div>
+              </div>
+
+              {/* Shift Start, Shift End, Early Arrival Cutoff, Grace End Time */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-2 border-t border-slate-100">
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">
+                    Shift Start Time
+                  </label>
+                  <input
+                    type="text"
+                    value={adminPolicyMaster.shiftStartTime}
+                    onChange={(e) =>
+                      setAdminPolicyMaster({
+                        ...adminPolicyMaster,
+                        shiftStartTime: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">
+                    Shift End Time
+                  </label>
+                  <input
+                    type="text"
+                    value={adminPolicyMaster.shiftEndTime}
+                    onChange={(e) =>
+                      setAdminPolicyMaster({
+                        ...adminPolicyMaster,
+                        shiftEndTime: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">
+                    Early Floor Cutoff
+                  </label>
+                  <input
+                    type="text"
+                    value={adminPolicyMaster.earlyArrivalCutoff || '09:00 AM'}
+                    onChange={(e) =>
+                      setAdminPolicyMaster({
+                        ...adminPolicyMaster,
+                        earlyArrivalCutoff: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold text-indigo-900"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">
+                    Grace End Time
+                  </label>
+                  <input
+                    type="text"
+                    value={adminPolicyMaster.graceEndTime || '09:45 AM'}
+                    onChange={(e) =>
+                      setAdminPolicyMaster({
+                        ...adminPolicyMaster,
+                        graceEndTime: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold text-emerald-900"
+                  />
+                </div>
+              </div>
+
+              {/* Grace Period Mins, Grace Limit / Month & Early Arrival Toggle */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-2 border-t border-slate-100">
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">
+                    Grace Window (Mins)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={adminPolicyMaster.gracePeriodMins ?? 15}
+                    onChange={(e) =>
+                      setAdminPolicyMaster({
+                        ...adminPolicyMaster,
+                        gracePeriodMins: Number(e.target.value),
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">
+                    Grace Limit / Month
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={adminPolicyMaster.monthlyGraceLimit ?? 3}
+                    onChange={(e) =>
+                      setAdminPolicyMaster({
+                        ...adminPolicyMaster,
+                        monthlyGraceLimit: Number(e.target.value),
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold text-slate-900"
+                  />
+                </div>
+                <div className="flex items-end pb-1">
+                  <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={adminPolicyMaster.capEarlyArrival !== false}
+                      onChange={(e) =>
+                        setAdminPolicyMaster({
+                          ...adminPolicyMaster,
+                          capEarlyArrival: e.target.checked,
+                        })
+                      }
+                      className="rounded border-slate-300 text-[#1f7e9e]"
+                    />
+                    <span className="font-semibold text-slate-700 leading-tight">
+                      Cap arrival &lt;{adminPolicyMaster.earlyArrivalCutoff || '09:00 AM'} unless
+                      authorized
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Interactive Weekly Calendar: Holiday Saturdays & Sunday Off */}
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-800">
+                    Weekly Off Calendar Configuration (Saturdays &amp; Sundays)
+                  </span>
+                  <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={adminPolicyMaster.sundaysOff !== false}
+                      onChange={(e) =>
+                        setAdminPolicyMaster({
+                          ...adminPolicyMaster,
+                          sundaysOff: e.target.checked,
+                        })
+                      }
+                      className="rounded border-slate-300"
+                    />
+                    <span className="font-semibold text-slate-700">All Sundays Holiday</span>
+                  </label>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {[1, 2, 3, 4, 5].map((satNum) => {
+                    const currentHolidays = Array.isArray(adminPolicyMaster.holidaySaturdayNumbers)
+                      ? adminPolicyMaster.holidaySaturdayNumbers
+                      : [2, 4];
+                    const isHoliday = currentHolidays.includes(satNum);
+                    const ord =
+                      satNum === 1
+                        ? '1st'
+                        : satNum === 2
+                        ? '2nd'
+                        : satNum === 3
+                        ? '3rd'
+                        : satNum === 4
+                        ? '4th'
+                        : '5th';
+                    return (
+                      <button
+                        key={satNum}
+                        type="button"
+                        onClick={() => {
+                          const nextHolidays = isHoliday
+                            ? currentHolidays.filter((n) => n !== satNum)
+                            : [...currentHolidays, satNum].sort((a, b) => a - b);
+                          const allSats = [1, 2, 3, 4, 5];
+                          const workingSats = allSats.filter((n) => !nextHolidays.includes(n));
+                          const fmtOrd = (n: number) =>
+                            n === 1
+                              ? '1st'
+                              : n === 2
+                              ? '2nd'
+                              : n === 3
+                              ? '3rd'
+                              : n === 4
+                              ? '4th'
+                              : '5th';
+                          setAdminPolicyMaster({
+                            ...adminPolicyMaster,
+                            holidaySaturdayNumbers: nextHolidays,
+                            weeklyHolidaySaturdays: `${
+                              nextHolidays.map(fmtOrd).join(', ') || 'No'
+                            } Saturdays${
+                              adminPolicyMaster.sundaysOff !== false ? ' + All Sundays' : ''
+                            }`,
+                            workingSaturdays: `${
+                              workingSats.map(fmtOrd).join(', ') || 'No'
+                            } Saturdays`,
+                          });
+                        }}
+                        className={`px-2.5 py-1.5 rounded-lg font-bold text-[11px] border transition cursor-pointer ${
+                          isHoliday
+                            ? 'bg-amber-100 border-amber-300 text-amber-900'
+                            : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                        }`}
+                      >
+                        {ord} Sat: {isHoliday ? 'Holiday Off' : 'Working Day'}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="text-[11px] text-slate-500">
+                  Click any Saturday above to toggle between <strong>Holiday Off</strong> and{' '}
+                  <strong>Working Day</strong>. Monthly working days recalculate automatically.
+                </div>
+              </div>
+            </div>
+
+            {/* CARD 2: LATE-COMING CYCLE, MIDDAY ENTRY, EARLY EXIT & BREAK / LEAVE RULES */}
+            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4 shadow-2xs">
+              <div className="border-b border-slate-100 pb-3 flex items-center justify-between gap-2">
+                <div>
+                  <h4 className="font-bold text-sm text-slate-900">
+                    3, 4 &amp; 5. Late-Coming Cycle, Midday/Exit &amp; Break / Leave Rules
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Edit late cycle LOP triggers, midday entry/exit cutoffs, break limits &amp;
+                    leave quotas
+                  </p>
+                </div>
+                <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[10px] shrink-0">
+                  Sections 3, 4 &amp; 5
+                </span>
+              </div>
+
+              {/* Section 3: Late-Coming Cycle */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">
+                    Nth Late = Half Day
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={adminPolicyMaster.lateCycleHalfDayNth ?? 4}
+                    onChange={(e) =>
+                      setAdminPolicyMaster({
+                        ...adminPolicyMaster,
+                        lateCycleHalfDayNth: Math.max(1, Number(e.target.value)),
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold text-rose-800"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">
+                    Late Cycle LOP (Days)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.25"
+                    min={0}
+                    value={adminPolicyMaster.lateCycleDeductionDays ?? 0.5}
+                    onChange={(e) =>
+                      setAdminPolicyMaster({
+                        ...adminPolicyMaster,
+                        lateCycleDeductionDays: Number(e.target.value),
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold text-rose-800"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">
+                    Paid Leave / Month
+                  </label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min={0}
+                    value={adminPolicyMaster.monthlyLeaveLimit ?? 1}
+                    onChange={(e) =>
+                      setAdminPolicyMaster({
+                        ...adminPolicyMaster,
+                        monthlyLeaveLimit: Number(e.target.value),
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">
+                    Max Break (Mins)
+                  </label>
+                  <input
+                    type="number"
+                    min={15}
+                    value={adminPolicyMaster.maxBreakDurationMins ?? 60}
+                    onChange={(e) =>
+                      setAdminPolicyMaster({
+                        ...adminPolicyMaster,
+                        maxBreakDurationMins: Number(e.target.value),
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold text-slate-900"
+                  />
+                </div>
+              </div>
+
+              {/* Section 4: Midday Entry & Early Exit Time Cutoffs */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-2 border-t border-slate-100">
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">
+                    Midday Entry Start
+                  </label>
+                  <input
+                    type="text"
+                    value={adminPolicyMaster.middayEntryStartTime || '12:00 PM'}
+                    onChange={(e) =>
+                      setAdminPolicyMaster({
+                        ...adminPolicyMaster,
+                        middayEntryStartTime: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">
+                    Midday Entry End
+                  </label>
+                  <input
+                    type="text"
+                    value={adminPolicyMaster.middayEntryEndTime || '01:00 PM'}
+                    onChange={(e) =>
+                      setAdminPolicyMaster({
+                        ...adminPolicyMaster,
+                        middayEntryEndTime: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">
+                    Exit Absent Before
+                  </label>
+                  <input
+                    type="text"
+                    value={adminPolicyMaster.earlyExitAbsentBeforeTime || '12:30 PM'}
+                    onChange={(e) =>
+                      setAdminPolicyMaster({
+                        ...adminPolicyMaster,
+                        earlyExitAbsentBeforeTime: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold text-rose-800"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">
+                    Regular Exit After
+                  </label>
+                  <input
+                    type="text"
+                    value={adminPolicyMaster.earlyExitHalfDayEndTime || '04:00 PM'}
+                    onChange={(e) =>
+                      setAdminPolicyMaster({
+                        ...adminPolicyMaster,
+                        earlyExitHalfDayEndTime: e.target.value,
+                        regularExitAfterTime: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold text-emerald-800"
+                  />
+                </div>
+              </div>
+
+              {/* Section 5: Break Window & Annual Leave Quotas */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs pt-2 border-t border-slate-100">
+                <div className="col-span-2">
+                  <label className="font-semibold text-slate-700 block mb-1">
+                    Daily Break Window
+                  </label>
+                  <input
+                    type="text"
+                    value={adminPolicyMaster.dailyBreakWindow || '01:00 PM - 02:00 PM'}
+                    onChange={(e) =>
+                      setAdminPolicyMaster({
+                        ...adminPolicyMaster,
+                        dailyBreakWindow: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">Annual PL</label>
+                  <input
+                    type="number"
+                    value={adminPolicyMaster.plQuota}
+                    onChange={(e) =>
+                      setAdminPolicyMaster({
+                        ...adminPolicyMaster,
+                        plQuota: Number(e.target.value),
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">Annual CL</label>
+                  <input
+                    type="number"
+                    value={adminPolicyMaster.clQuota}
+                    onChange={(e) =>
+                      setAdminPolicyMaster({
+                        ...adminPolicyMaster,
+                        clQuota: Number(e.target.value),
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">Comp-Off</label>
+                  <input
+                    type="number"
+                    value={adminPolicyMaster.compOffQuota}
+                    onChange={(e) =>
+                      setAdminPolicyMaster({
+                        ...adminPolicyMaster,
+                        compOffQuota: Number(e.target.value),
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] space-y-1 text-slate-700">
+                <div>
+                  <strong>Live Rule Preview:</strong> Arrival &lt;{' '}
+                  <span className="font-mono font-bold">
+                    {adminPolicyMaster.earlyArrivalCutoff || '09:00 AM'}
+                  </span>{' '}
+                  recorded as{' '}
+                  <span className="font-mono font-bold">
+                    {adminPolicyMaster.earlyArrivalCutoff || '09:00 AM'}
+                  </span>{' '}
+                  · Grace until{' '}
+                  <span className="font-mono font-bold">
+                    {adminPolicyMaster.graceEndTime || '09:45 AM'}
+                  </span>{' '}
+                  (Max {adminPolicyMaster.monthlyGraceLimit ?? 3}x/mo).
+                </div>
+                <div>
+                  <strong>Late Cycle &amp; Midday/Exit:</strong> Every{' '}
+                  <strong>{adminPolicyMaster.lateCycleHalfDayNth ?? 4}th</strong> late ={' '}
+                  <strong>{adminPolicyMaster.lateCycleDeductionDays ?? 0.5}d LOP</strong> · Entry{' '}
+                  {adminPolicyMaster.middayEntryStartTime || '12:00 PM'}–
+                  {adminPolicyMaster.middayEntryEndTime || '01:00 PM'} = Half Day · Exit &lt;{' '}
+                  {adminPolicyMaster.earlyExitAbsentBeforeTime || '12:30 PM'} = Absent · Exit &gt;{' '}
+                  {adminPolicyMaster.earlyExitHalfDayEndTime || '04:00 PM'} = Regular Day.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4 shadow-2xs">
+            <div className="border-b border-slate-100 pb-3">
+              <h4 className="font-bold text-sm text-slate-900 whitespace-nowrap">
+                6. Default Statutory &amp; Salary Formula Master
+              </h4>
+              <p className="text-xs text-slate-500 mt-0.5 whitespace-nowrap truncate">
+                Set organization-wide default salary split and statutory deduction rules.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                  Default Basic %
+                </label>
+                <input
+                  type="number"
+                  value={adminPolicyMaster.defaultBasicPct}
+                  onChange={(e) =>
+                    setAdminPolicyMaster({
+                      ...adminPolicyMaster,
+                      defaultBasicPct: Number(e.target.value),
+                    })
+                  }
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold"
+                />
+              </div>
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                  Default HRA %
+                </label>
+                <input
+                  type="number"
+                  value={adminPolicyMaster.defaultHraPct}
+                  onChange={(e) =>
+                    setAdminPolicyMaster({
+                      ...adminPolicyMaster,
+                      defaultHraPct: Number(e.target.value),
+                    })
+                  }
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold"
+                />
+              </div>
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                  Default Sales Comm %
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={adminPolicyMaster.defaultSalesCommissionPct}
+                  onChange={(e) =>
+                    setAdminPolicyMaster({
+                      ...adminPolicyMaster,
+                      defaultSalesCommissionPct: Number(e.target.value),
+                    })
+                  }
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold"
+                />
+              </div>
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                  PF Wage Ceiling (₹)
+                </label>
+                <input
+                  type="number"
+                  value={adminPolicyMaster.defaultPfCapBasic}
+                  onChange={(e) =>
+                    setAdminPolicyMaster({
+                      ...adminPolicyMaster,
+                      defaultPfCapBasic: Number(e.target.value),
+                    })
+                  }
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold"
+                />
+              </div>
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                  Monthly Prof. Tax (₹)
+                </label>
+                <input
+                  type="number"
+                  value={adminPolicyMaster.defaultProfTax}
+                  onChange={(e) =>
+                    setAdminPolicyMaster({
+                      ...adminPolicyMaster,
+                      defaultProfTax: Number(e.target.value),
+                    })
+                  }
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold"
+                />
+              </div>
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                  Default TDS %
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  value={adminPolicyMaster.defaultTdsPct}
+                  onChange={(e) =>
+                    setAdminPolicyMaster({
+                      ...adminPolicyMaster,
+                      defaultTdsPct: Number(e.target.value),
+                    })
+                  }
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono font-bold"
+                />
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                saveAdminPolicyMaster(adminPolicyMaster, true);
+                setStatusBanner(
+                  `Saved Default Statutory & Salary Formula Master (${adminPolicyMaster.defaultBasicPct}% Basic, ${adminPolicyMaster.defaultHraPct}% HRA, ${adminPolicyMaster.defaultSalesCommissionPct}% Commission) for new employees. Existing employee deductions remain locked until edited individually by Admin.`
+                );
+              }}
+              className="py-2 px-4 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-lg text-xs whitespace-nowrap transition cursor-pointer"
+            >
+              Save Default Formula for New Employees (Keep Existing Deductions Locked)
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-TAB 3: ADMIN APPROVALS & CRUD DESK (LEAVES & REIMBURSEMENTS) */}
+      {adminSubTab === 'approvals' && (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          {/* Leave Requests Admin CRUD & Approval Card */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
+            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-2 bg-slate-50/60">
+              <h4 className="font-bold text-sm text-slate-900 whitespace-nowrap">
+                Leave Applications — Create, Edit, Approve, Delete ({leaves.length})
+              </h4>
+              <button
+                type="button"
+                onClick={() => {
+                  const newLv: LeaveRequestItem = {
+                    id: `LV-${Math.floor(100 + Math.random() * 900)}`,
+                    employeeId: targetEntry?.id,
+                    employeeName: targetEntry?.name,
+                    leaveType: 'Casual Leave',
+                    startDate: new Date().toISOString().split('T')[0],
+                    endDate: new Date().toISOString().split('T')[0],
+                    days: 1,
+                    dayType: 'Full Day',
+                    reason: 'Admin allocated leave entry',
+                    handoverTo: 'Team Lead',
+                    status: 'Approved',
+                    appliedOn: 'Today',
+                  };
+                  setLeaves((prev) => [newLv, ...prev]);
+                  setStatusBanner(`Created new leave record ${newLv.id} for ${targetEntry?.name}.`);
+                }}
+                className="px-2.5 py-1 bg-[#1f7e9e] hover:bg-[#17647e] text-white font-semibold rounded-md text-xs flex items-center gap-1 whitespace-nowrap cursor-pointer"
+              >
+                <Plus className="w-3 h-3" />
+                <span>Add Leave</span>
+              </button>
+            </div>
+
+            <div className="divide-y divide-slate-200 max-h-[420px] overflow-y-auto">
+              {leaves.map((lv) => {
+                const isEditing = editingLeaveId === lv.id && editingLeaveDraft;
+                return (
+                  <div key={lv.id} className="p-3.5 hover:bg-slate-50 text-xs">
+                    {isEditing ? (
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-3 gap-2">
+                          <select
+                            value={editingLeaveDraft.leaveType}
+                            onChange={(e) =>
+                              setEditingLeaveDraft({
+                                ...editingLeaveDraft,
+                                leaveType: e.target.value as LeaveRequestItem['leaveType'],
+                              })
+                            }
+                            className="bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold"
+                          >
+                            <option value="Privilege Leave">Privilege Leave</option>
+                            <option value="Casual Leave">Casual Leave</option>
+                            <option value="Sick Leave">Sick Leave</option>
+                            <option value="Comp-Off">Comp-Off</option>
+                          </select>
+                          <input
+                            type="date"
+                            value={editingLeaveDraft.startDate}
+                            onChange={(e) =>
+                              setEditingLeaveDraft({
+                                ...editingLeaveDraft,
+                                startDate: e.target.value,
+                              })
+                            }
+                            className="bg-white border border-slate-200 rounded px-2 py-1 text-xs font-mono"
+                          />
+                          <input
+                            type="number"
+                            step="0.5"
+                            min={0.5}
+                            value={editingLeaveDraft.days}
+                            onChange={(e) =>
+                              setEditingLeaveDraft({
+                                ...editingLeaveDraft,
+                                days: Number(e.target.value),
+                              })
+                            }
+                            className="bg-white border border-slate-200 rounded px-2 py-1 text-xs font-mono font-bold"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={editingLeaveDraft.reason}
+                            onChange={(e) =>
+                              setEditingLeaveDraft({
+                                ...editingLeaveDraft,
+                                reason: e.target.value,
+                              })
+                            }
+                            className="flex-1 bg-white border border-slate-200 rounded px-2 py-1 text-xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLeaves((prev) =>
+                                prev.map((item) =>
+                                  item.id === lv.id ? editingLeaveDraft : item
+                                )
+                              );
+                              setEditingLeaveId(null);
+                              setEditingLeaveDraft(null);
+                              setStatusBanner(`Updated leave request ${lv.id}.`);
+                            }}
+                            className="px-2.5 py-1 bg-emerald-600 text-white rounded font-semibold flex items-center gap-1 whitespace-nowrap cursor-pointer"
+                          >
+                            <Check className="w-3 h-3" />
+                            <span>Save</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingLeaveId(null);
+                              setEditingLeaveDraft(null);
+                            }}
+                            className="px-2 py-1 bg-slate-200 text-slate-700 rounded font-semibold cursor-pointer"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-bold text-slate-900 whitespace-nowrap truncate">
+                            {lv.id} · {lv.leaveType} ({lv.days}d — {lv.dayType})
+                          </div>
+                          <div className="text-slate-500 mt-0.5 whitespace-nowrap truncate">
+                            {lv.startDate} to {lv.endDate} · {lv.reason}
+                          </div>
+                          <div className="mt-1 text-[11px] font-semibold">
+                            Status:{' '}
+                            <span
+                              className={
+                                lv.status === 'Approved'
+                                  ? 'text-emerald-600'
+                                  : lv.status === 'Pending Approval'
+                                  ? 'text-amber-600'
+                                  : 'text-rose-600'
+                              }
+                            >
+                              {lv.status}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setLeaves((prev) =>
+                                prev.map((x) =>
+                                  x.id === lv.id ? { ...x, status: 'Approved' } : x
+                                )
+                              )
+                            }
+                            className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-semibold whitespace-nowrap cursor-pointer"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setLeaves((prev) =>
+                                prev.map((x) =>
+                                  x.id === lv.id ? { ...x, status: 'Cancelled' } : x
+                                )
+                              )
+                            }
+                            className="px-2.5 py-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-semibold whitespace-nowrap cursor-pointer"
+                          >
+                            Reject
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingLeaveId(lv.id);
+                              setEditingLeaveDraft({ ...lv });
+                            }}
+                            className="p-1.5 rounded bg-white border border-slate-200 hover:border-slate-300 text-slate-600 cursor-pointer"
+                            title="Edit Leave"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLeaves((prev) => prev.filter((x) => x.id !== lv.id));
+                              setStatusBanner(`Deleted leave record ${lv.id}.`);
+                            }}
+                            className="p-1.5 rounded bg-white border border-slate-200 hover:bg-rose-50 hover:border-rose-200 text-slate-400 hover:text-rose-600 cursor-pointer"
+                            title="Delete Leave"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Reimbursement Claims Admin CRUD & Approval Card */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
+            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-2 bg-slate-50/60">
+              <h4 className="font-bold text-sm text-slate-900 whitespace-nowrap">
+                Expense Claims — Create, Edit, Verify, Delete ({claims.length})
+              </h4>
+              <button
+                type="button"
+                onClick={() => {
+                  const newClm: ExpenseClaimItem = {
+                    id: `EXP-${Math.floor(300 + Math.random() * 600)}`,
+                    employeeId: targetEntry?.id,
+                    employeeName: targetEntry?.name,
+                    claimNo: `CLM-2026-${Math.floor(100 + Math.random() * 899)}`,
+                    category: 'Client Visit Travel',
+                    expenseDate: new Date().toISOString().split('T')[0],
+                    amount: 2500,
+                    linkedCustomer: customers[0]?.name || 'Enterprise Client',
+                    billNumber: `BILL-${Math.floor(1000 + Math.random() * 9000)}`,
+                    description: 'Admin added reimbursement entry',
+                    status: 'Approved & Queued for Payroll',
+                  };
+                  setClaims((prev) => [newClm, ...prev]);
+                  setStatusBanner(
+                    `Created reimbursement claim ${newClm.claimNo} (${formatCurrency(
+                      newClm.amount
+                    )}).`
+                  );
+                }}
+                className="px-2.5 py-1 bg-[#1f7e9e] hover:bg-[#17647e] text-white font-semibold rounded-md text-xs flex items-center gap-1 whitespace-nowrap cursor-pointer"
+              >
+                <Plus className="w-3 h-3" />
+                <span>Add Claim</span>
+              </button>
+            </div>
+
+            <div className="divide-y divide-slate-200 max-h-[420px] overflow-y-auto">
+              {claims.map((c) => {
+                const isEditing = editingClaimId === c.id && editingClaimDraft;
+                return (
+                  <div key={c.id} className="p-3.5 hover:bg-slate-50 text-xs">
+                    {isEditing ? (
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-3 gap-2">
+                          <select
+                            value={editingClaimDraft.category}
+                            onChange={(e) =>
+                              setEditingClaimDraft({
+                                ...editingClaimDraft,
+                                category: e.target.value as ExpenseClaimItem['category'],
+                              })
+                            }
+                            className="bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold"
+                          >
+                            <option value="Client Visit Travel">Client Visit Travel</option>
+                            <option value="Meals & Client Hospitality">
+                              Meals &amp; Client Hospitality
+                            </option>
+                            <option value="Fuel & Cab Conveyance">Fuel &amp; Cab Conveyance</option>
+                            <option value="Mobile & Internet">Mobile &amp; Internet</option>
+                            <option value="Software / Office Supplies">
+                              Software / Office Supplies
+                            </option>
+                          </select>
+                          <input
+                            type="number"
+                            value={editingClaimDraft.amount}
+                            onChange={(e) =>
+                              setEditingClaimDraft({
+                                ...editingClaimDraft,
+                                amount: Number(e.target.value),
+                              })
+                            }
+                            className="bg-white border border-slate-200 rounded px-2 py-1 text-xs font-mono font-bold"
+                          />
+                          <input
+                            type="text"
+                            value={editingClaimDraft.linkedCustomer}
+                            onChange={(e) =>
+                              setEditingClaimDraft({
+                                ...editingClaimDraft,
+                                linkedCustomer: e.target.value,
+                              })
+                            }
+                            className="bg-white border border-slate-200 rounded px-2 py-1 text-xs"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={editingClaimDraft.description}
+                            onChange={(e) =>
+                              setEditingClaimDraft({
+                                ...editingClaimDraft,
+                                description: e.target.value,
+                              })
+                            }
+                            className="flex-1 bg-white border border-slate-200 rounded px-2 py-1 text-xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setClaims((prev) =>
+                                prev.map((item) =>
+                                  item.id === c.id ? editingClaimDraft : item
+                                )
+                              );
+                              setEditingClaimId(null);
+                              setEditingClaimDraft(null);
+                              setStatusBanner(`Updated expense claim ${c.claimNo}.`);
+                            }}
+                            className="px-2.5 py-1 bg-emerald-600 text-white rounded font-semibold flex items-center gap-1 whitespace-nowrap cursor-pointer"
+                          >
+                            <Check className="w-3 h-3" />
+                            <span>Save</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingClaimId(null);
+                              setEditingClaimDraft(null);
+                            }}
+                            className="px-2 py-1 bg-slate-200 text-slate-700 rounded font-semibold cursor-pointer"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-bold text-slate-900 whitespace-nowrap truncate">
+                            {c.claimNo} · {c.category} —{' '}
+                            <span className="font-mono text-emerald-700">
+                              {formatCurrency(c.amount)}
+                            </span>
+                          </div>
+                          <div className="text-slate-500 mt-0.5 whitespace-nowrap truncate">
+                            {c.linkedCustomer} · {c.description}
+                          </div>
+                          <div className="mt-1 text-[11px] font-semibold">
+                            Status:{' '}
+                            <span
+                              className={
+                                c.status === 'Approved & Queued for Payroll'
+                                  ? 'text-emerald-600'
+                                  : c.status === 'Paid in Payslip'
+                                  ? 'text-[#1f7e9e]'
+                                  : 'text-amber-600'
+                              }
+                            >
+                              {c.status}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setClaims((prev) =>
+                                prev.map((x) =>
+                                  x.id === c.id
+                                    ? { ...x, status: 'Approved & Queued for Payroll' }
+                                    : x
+                                )
+                              )
+                            }
+                            className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-semibold whitespace-nowrap cursor-pointer"
+                          >
+                            Queue
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setClaims((prev) =>
+                                prev.map((x) =>
+                                  x.id === c.id ? { ...x, status: 'Paid in Payslip' } : x
+                                )
+                              )
+                            }
+                            className="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-white font-semibold whitespace-nowrap cursor-pointer"
+                          >
+                            Mark Paid
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingClaimId(c.id);
+                              setEditingClaimDraft({ ...c });
+                            }}
+                            className="p-1.5 rounded bg-white border border-slate-200 hover:border-slate-300 text-slate-600 cursor-pointer"
+                            title="Edit Claim"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setClaims((prev) => prev.filter((x) => x.id !== c.id));
+                              setStatusBanner(`Deleted expense claim ${c.claimNo}.`);
+                            }}
+                            className="p-1.5 rounded bg-white border border-slate-200 hover:bg-rose-50 hover:border-rose-200 text-slate-400 hover:text-rose-600 cursor-pointer"
+                            title="Delete Claim"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-TAB 4: MONTHLY PAYROLL RUN & REGISTER */}
+      {adminSubTab === 'payroll_run' && (
+        <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4 shadow-2xs">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-200 pb-4">
+            <div className="min-w-0">
+              <h4 className="font-bold text-sm text-slate-900 whitespace-nowrap">
+                Organization Monthly Payroll Register — {selectedMonthMeta.label}
+              </h4>
+              <p className="text-xs text-slate-500 mt-0.5 whitespace-nowrap truncate">
+                Last Published Cycle: <strong>{adminPolicyMaster.lastPublishedMonth}</strong> ·{' '}
+                {unifiedEmployeeList.length} Employees
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setAdminPolicyMaster({
+                    ...adminPolicyMaster,
+                    lastPublishedMonth: selectedMonthMeta.label,
+                  });
+                  setStatusBanner(
+                    `Executed Monthly Payroll Run for ${selectedMonthMeta.label} across all ${unifiedEmployeeList.length} employees.`
+                  );
+                }}
+                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-xs flex items-center gap-1.5 whitespace-nowrap shadow-xs cursor-pointer"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Run &amp; Publish {selectedMonthMeta.label} Payslips</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const todayIso = new Date().toISOString().split('T')[0];
+                  const csvRows = [
+                    [
+                      'EmpCode',
+                      'EmployeeName',
+                      'Role',
+                      'Department',
+                      'SystemSync',
+                      'BankName',
+                      'AccountNo',
+                      'IFSC',
+                      'FixedMonthlyGross',
+                      'PaidDays',
+                      'PolicyLopDays',
+                      'PolicyLopDeductionINR',
+                      'AdjustedGrossEarningsINR',
+                      'StatutoryDeductionsINR',
+                      'ApprovedReimbursementsINR',
+                      'NetPayableINR',
+                    ].join(','),
+                    ...unifiedEmployeeList.map((entry, idx) => {
+                      const m = entry.master;
+                      const empAtt = loadEmployeeAttendance(
+                        entry.id,
+                        entry.location || 'New Delhi',
+                        todayIso,
+                        idx
+                      );
+                      const empLeaves =
+                        entry.id === selectedAdminUserId
+                          ? leaves
+                          : loadEmployeeLeaves(entry.id, entry.name, 'Reporting Manager', idx);
+                      const empClaims =
+                        entry.id === selectedAdminUserId
+                          ? claims
+                          : loadEmployeeClaims(entry.id, entry.name, 'Enterprise Client', idx);
+                      const calc = calculateEmployeePolicyPayroll({
+                        monthKey: selectedMonthMeta.key,
+                        master: m,
+                        policy: adminPolicyMaster,
+                        attendance: empAtt,
+                        leaves: empLeaves,
+                        claims: empClaims,
+                      });
+                      return [
+                        m.empCode,
+                        `"${entry.name}"`,
+                        `"${entry.role}"`,
+                        `"${entry.department}"`,
+                        entry.inCrm ? 'CRM+Payroll' : 'PayrollOnly',
+                        `"${m.bankName}"`,
+                        m.bankAccountNo,
+                        m.ifscCode,
+                        calc.baseMonthlyGross,
+                        calc.paidDays,
+                        calc.lopDays,
+                        calc.policyLopDeductionAmount,
+                        calc.grossEarnings,
+                        calc.totalDeductions,
+                        calc.approvedReimbursements,
+                        calc.netPayable,
+                      ].join(',');
+                    }),
+                  ].join('\n');
+                  const blob = new Blob([csvRows], { type: 'text/csv;charset=utf-8;' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `Bank_Disbursement_${selectedMonthMeta.key}.csv`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  setStatusBanner(
+                    `Exported Policy CS-HR-POL-001 NEFT Bank Advice CSV for ${unifiedEmployeeList.length} employees.`
+                  );
+                }}
+                className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-lg text-xs flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Export Bank NEFT CSV</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  <th className="py-2.5 px-3">Emp Code</th>
+                  <th className="py-2.5 px-3">Employee Name</th>
+                  <th className="py-2.5 px-3">Policy Attendance &amp; Leaves</th>
+                  <th className="py-2.5 px-3">Bank A/C &amp; IFSC</th>
+                  <th className="py-2.5 px-3 text-right">Fixed Gross</th>
+                  <th className="py-2.5 px-3 text-right">Policy LOP Ded.</th>
+                  <th className="py-2.5 px-3 text-right">PF + PT + TDS</th>
+                  <th className="py-2.5 px-3 text-right">Reimb.</th>
+                  <th className="py-2.5 px-3 text-right">Net Disbursement</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {unifiedEmployeeList.map((entry, idx) => {
+                  const m = entry.master;
+                  const todayIso = new Date().toISOString().split('T')[0];
+                  const empAtt = loadEmployeeAttendance(
+                    entry.id,
+                    entry.location || 'New Delhi',
+                    todayIso,
+                    idx
+                  );
+                  const empLeaves =
+                    entry.id === selectedAdminUserId
+                      ? leaves
+                      : loadEmployeeLeaves(entry.id, entry.name, 'Reporting Manager', idx);
+                  const empClaims =
+                    entry.id === selectedAdminUserId
+                      ? claims
+                      : loadEmployeeClaims(entry.id, entry.name, 'Enterprise Client', idx);
+                  const calc = calculateEmployeePolicyPayroll({
+                    monthKey: selectedMonthMeta.key,
+                    master: m,
+                    policy: adminPolicyMaster,
+                    attendance: empAtt,
+                    leaves: empLeaves,
+                    claims: empClaims,
+                  });
+                  return (
+                    <tr key={entry.id} className="hover:bg-slate-50">
+                      <td className="py-2.5 px-3 font-mono font-bold text-[#1f7e9e]">
+                        {m.empCode}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="font-bold text-slate-900">{entry.name}</div>
+                        <div className="text-[10px] text-slate-500">
+                          {entry.role} · {entry.inCrm ? 'CRM + Payroll' : 'Payroll Only'}
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-[11px] text-slate-700">
+                        <div>
+                          Paid: <strong>{calc.paidDays}/{calc.calendar.totalCalendarDays}d</strong> · LOP: <strong className={calc.lopDays > 0 ? 'text-rose-700' : 'text-emerald-700'}>{calc.lopDays}d</strong>
+                        </div>
+                        <div className="text-[10px] text-slate-500">
+                          Grace {calc.graceUsedThisMonth}/3 · Late #{calc.lateCountThisMonth} · Leave {calc.paidLeaveDaysAllowed}/1d
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-slate-600">
+                        {m.bankName} · {m.bankAccountNo} ({m.ifscCode})
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono font-semibold text-slate-900 tabular-nums">
+                        {formatCurrency(calc.baseMonthlyGross)}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono text-rose-700 tabular-nums">
+                        {calc.policyLopDeductionAmount > 0
+                          ? `-${formatCurrency(calc.policyLopDeductionAmount)}`
+                          : '₹0'}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono text-rose-600 tabular-nums">
+                        -{formatCurrency(calc.totalDeductions)}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono text-[#1f7e9e] tabular-nums">
+                        +{formatCurrency(calc.approvedReimbursements)}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700 tabular-nums">
+                        {formatCurrency(calc.netPayable)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-TAB 6: ADMIN EXTERNAL PAYROLL LINK & API BRIDGE */}
+      {adminSubTab === 'external_integration' && integrationSectionNode && (
+        <div>{integrationSectionNode}</div>
+      )}
+
+      {/* MODAL: ADD / EDIT ORG MASTER ITEM */}
+      {editingOrgItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-2xs p-3">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-md w-full p-5 space-y-4 text-xs">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h4 className="font-bold text-sm text-slate-900">
+                  {editingOrgItem.mode === 'create' ? 'Add New' : 'Edit'}{' '}
+                  {editingOrgItem.category === 'roles'
+                    ? 'Role'
+                    : editingOrgItem.category === 'designations'
+                    ? 'Designation'
+                    : editingOrgItem.category === 'locations'
+                    ? 'Location'
+                    : 'Department'}
+                </h4>
+                <p className="text-[11px] text-slate-500">
+                  Configure corporate master record for employee assignment
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingOrgItem(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSaveOrgItem({
+                  category: editingOrgItem.category,
+                  id: editingOrgItem.mode === 'edit' ? editingOrgItem.item.id : undefined,
+                  name: editingOrgItem.item.name,
+                  code: editingOrgItem.item.code,
+                  description: editingOrgItem.item.description,
+                  isActive: editingOrgItem.item.isActive,
+                });
+              }}
+              className="space-y-3"
+            >
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1">
+                  Master Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editingOrgItem.item.name}
+                  onChange={(e) =>
+                    setEditingOrgItem({
+                      ...editingOrgItem,
+                      item: { ...editingOrgItem.item, name: e.target.value },
+                    })
+                  }
+                  placeholder={`e.g. ${
+                    editingOrgItem.category === 'roles'
+                      ? 'Sales Manager'
+                      : editingOrgItem.category === 'designations'
+                      ? 'Senior Account Executive'
+                      : editingOrgItem.category === 'locations'
+                      ? 'Bengaluru Branch Office'
+                      : 'Product Operations'
+                  }`}
+                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-hidden focus:border-[#1f7e9e]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">
+                    Code / Abbreviation
+                  </label>
+                  <input
+                    type="text"
+                    value={editingOrgItem.item.code || ''}
+                    onChange={(e) =>
+                      setEditingOrgItem({
+                        ...editingOrgItem,
+                        item: { ...editingOrgItem.item, code: e.target.value.toUpperCase() },
+                      })
+                    }
+                    placeholder="e.g. MGR-01 / BLR"
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-hidden focus:border-[#1f7e9e]"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">
+                    Status
+                  </label>
+                  <select
+                    value={editingOrgItem.item.isActive ? 'active' : 'inactive'}
+                    onChange={(e) =>
+                      setEditingOrgItem({
+                        ...editingOrgItem,
+                        item: { ...editingOrgItem.item, isActive: e.target.value === 'active' },
+                      })
+                    }
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-hidden focus:border-[#1f7e9e]"
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1">
+                  Description / Purpose (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={editingOrgItem.item.description || ''}
+                  onChange={(e) =>
+                    setEditingOrgItem({
+                      ...editingOrgItem,
+                      item: { ...editingOrgItem.item, description: e.target.value },
+                    })
+                  }
+                  placeholder="Optional details, job family or regional notes..."
+                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-normal text-slate-900 focus:outline-hidden focus:border-[#1f7e9e]"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingOrgItem(null)}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 rounded-lg bg-[#1f7e9e] hover:bg-[#1a6b86] text-white font-bold cursor-pointer shadow-xs"
+                >
+                  {editingOrgItem.mode === 'create' ? 'Create Master' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CLEAR ALL PAYROLL DATA CONFIRMATION */}
+      {isClearAllConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-2xs p-3">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-md w-full p-5 space-y-4 text-xs">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="font-bold text-sm text-slate-900">
+                  Remove All Data From Payroll?
+                </h4>
+                <p className="text-slate-600 text-xs mt-1">
+                  This will completely clear all employee salary master records, daily attendance logs, leave requests, and expense claims.
+                </p>
+                <p className="text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-2 text-[11px] mt-2 font-medium">
+                  You requested to start from scratch. You will be able to manually create employees, define Org Masters (Role, Designation, Location, Department), and generate direct payroll login links.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsClearAllConfirmOpen(false)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  clearAllPayrollData();
+                  setEmployeeSalaryMasters({});
+                  saveEmployeeSalaryMasters({}, true, true);
+                  setSelectedAdminUserId('');
+                  setIsClearAllConfirmOpen(false);
+                  setStatusBanner(
+                    'All payroll data removed. You can now build employee salary masters and org masters from scratch.'
+                  );
+                }}
+                className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold cursor-pointer shadow-xs flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Yes, Clear Everything</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: SHARE PAYROLL LOGIN LINK & CREDENTIALS */}
+      {credentialsModalTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-2xs p-3">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-lg w-full p-5 space-y-4 text-xs">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                  <Key className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-slate-900">
+                    Payroll Portal Login Credentials &amp; Link
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    {credentialsModalTarget.name} ({credentialsModalTarget.empCode})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCredentialsModalTarget(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {/* Access Scope Badge */}
+              <div className="flex items-center justify-between bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                <span className="font-semibold text-slate-600">Access Scope:</span>
+                <span
+                  className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                    credentialsModalTarget.accessType === 'payroll_only'
+                      ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                      : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                  }`}
+                >
+                  {credentialsModalTarget.accessType === 'payroll_only'
+                    ? 'Payroll ESS Portal Only (Direct Link)'
+                    : 'Full CRM & Payroll Access'}
+                </span>
+              </div>
+
+              {/* Login Email */}
+              <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1">
+                <label className="font-semibold text-slate-500 uppercase tracking-wider text-[10px] block">
+                  Login Email ID (Username)
+                </label>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono font-bold text-slate-900 text-xs">
+                    {credentialsModalTarget.email}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (
+                        typeof navigator !== 'undefined' &&
+                        navigator.clipboard &&
+                        credentialsModalTarget.email
+                      ) {
+                        navigator.clipboard.writeText(credentialsModalTarget.email);
+                        setToastCopiedMessage('Email ID copied!');
+                        setTimeout(() => setToastCopiedMessage(null), 2500);
+                      }
+                    }}
+                    className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded text-slate-700 font-semibold text-[11px] flex items-center gap-1 cursor-pointer"
+                  >
+                    <Copy className="w-3 h-3" />
+                    <span>Copy</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Password */}
+              <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">
+                    Login Password (Admin Managed)
+                  </label>
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded">
+                    {credentialsModalTarget.mustChangePasswordOnFirstLogin !== false
+                      ? 'Must change on first login'
+                      : 'Password active'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono font-bold text-indigo-700 text-sm tracking-wide bg-white px-2 py-1 rounded border border-indigo-200">
+                    {credentialsModalTarget.password ||
+                      credentialsModalTarget.tempPassword ||
+                      '—'}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleRegeneratePasswordForEmployee(
+                          credentialsModalTarget.userId
+                        )
+                      }
+                      className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded text-slate-700 font-semibold text-[11px] flex items-center gap-1 cursor-pointer"
+                      title="Generate new random password"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>Regenerate</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const pass =
+                          credentialsModalTarget.password ||
+                          credentialsModalTarget.tempPassword ||
+                          '';
+                        if (
+                          typeof navigator !== 'undefined' &&
+                          navigator.clipboard &&
+                          pass
+                        ) {
+                          navigator.clipboard.writeText(pass);
+                          setToastCopiedMessage('Password copied!');
+                          setTimeout(() => setToastCopiedMessage(null), 2500);
+                        }
+                      }}
+                      className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded text-slate-700 font-semibold text-[11px] flex items-center gap-1 cursor-pointer"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>Copy</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Direct Payroll Login Link */}
+              <div className="bg-sky-50/70 p-3 rounded-lg border border-sky-200 space-y-1.5">
+                <label className="font-bold text-sky-950 uppercase tracking-wider text-[10px] flex items-center gap-1">
+                  <ExternalLink className="w-3 h-3 text-[#1f7e9e]" />
+                  <span>Direct Payroll Portal Login Link</span>
+                </label>
+                <div className="p-2 bg-white rounded border border-sky-200 font-mono text-[11px] text-sky-900 break-all select-all">
+                  {getPayrollLoginLink(credentialsModalTarget.email)}
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+                  <span className="text-[11px] text-slate-600">
+                    Opens the dedicated <strong>Payroll &amp; ESS Login Page</strong> and restricts access strictly to <strong>{credentialsModalTarget.name}</strong>&apos;s own information only.
+                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleCopyLinkOnly(credentialsModalTarget.email)}
+                      className="px-3 py-1 bg-white hover:bg-sky-100 text-[#1f7e9e] border border-[#1f7e9e] rounded font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>Copy Login Link</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetEmail = credentialsModalTarget.email;
+                        const targetEmpCode = credentialsModalTarget.empCode;
+                        setCredentialsModalTarget(null);
+                        window.dispatchEvent(
+                          new CustomEvent('crm-open-payroll-login', {
+                            detail: { email: targetEmail, empCode: targetEmpCode },
+                          })
+                        );
+                      }}
+                      className="px-3 py-1 bg-[#1f7e9e] hover:bg-[#1a6b86] text-white rounded font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0"
+                      title="Open the separate Payroll Login Page bound to this employee's credentials"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      <span>Open Payroll Login Page</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => handleCopyFullInvite(credentialsModalTarget)}
+                className="w-full sm:w-auto px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span>Copy Complete Invitation &amp; Credentials</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCredentialsModalTarget(null)}
+                className="w-full sm:w-auto px-4 py-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 font-semibold cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TOAST COPIED MESSAGE */}
+      {toastCopiedMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl border border-slate-700 flex items-center gap-2 text-xs font-semibold">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{toastCopiedMessage}</span>
+        </div>
+      )}
+    </div>
+  );
+};

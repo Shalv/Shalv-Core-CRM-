@@ -1,0 +1,6 @@
+{
+  "name": "Enact 360 - Enterprise CRM & Sales Management System",
+  "description": "Integrated CRM, Sales Orders, Payment Milestones, GST Invoicing, Collections & Customer Receivables Ledger",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
