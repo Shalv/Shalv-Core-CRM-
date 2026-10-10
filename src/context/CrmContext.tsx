@@ -1628,6 +1628,11 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Combine current React users state with latest localStorage users so synchronous login calls never see stale state
     const allKnownUsers: User[] = [...users];
+    for (const initU of INITIAL_USERS) {
+      if (!allKnownUsers.some((u) => u.id === initU.id || (u.email && initU.email && u.email.trim().toLowerCase() === initU.email.trim().toLowerCase()))) {
+        allKnownUsers.push(initU);
+      }
+    }
     try {
       const savedUsersRaw = localStorage.getItem(STORAGE_KEYS.USERS);
       if (savedUsersRaw) {
@@ -1877,11 +1882,18 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
       }
 
-      const isPayrollOnly =
-        isPayrollPortalLogin ||
-        matchedUser.accessScope === 'payroll_only' ||
-        matchedUser.accessType === 'payroll_only' ||
-        matchedPayrollMaster?.accessType === 'payroll_only';
+      const isAdminUser =
+        matchedUser.role === 'Super Admin' ||
+        matchedUser.role === 'Administrator' ||
+        matchedUser.id === 'usr-1' ||
+        ['admin', 'admin@coreenact.com', 'shalv', 'shalv.sharma@coreenact.com', 'shalvpersonal@gmail.com'].includes(cleanId);
+
+      const isPayrollOnly = isAdminUser
+        ? false
+        : isPayrollPortalLogin ||
+          matchedUser.accessScope === 'payroll_only' ||
+          matchedUser.accessType === 'payroll_only' ||
+          matchedPayrollMaster?.accessType === 'payroll_only';
 
       const nowFormatted = new Date().toLocaleString('en-IN', {
         year: 'numeric',
@@ -1901,10 +1913,10 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const next = exists
           ? prev.map((u) =>
               u.id === matchedUser.id
-                ? { ...updatedUser, accessScope: matchedUser.accessScope }
+                ? { ...updatedUser, accessScope: updatedUser.accessScope }
                 : u
             )
-          : [...prev, { ...updatedUser, accessScope: matchedUser.accessScope }];
+          : [...prev, { ...updatedUser, accessScope: updatedUser.accessScope }];
         try {
           localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(next));
         } catch {

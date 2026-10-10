@@ -933,24 +933,52 @@ export const LoginView: React.FC = () => {
               </div>
             ) : (
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  {isPayrollPortalMode ? (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
-                      Payroll & ESS Portal
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsPayrollPortalMode(false);
+                        if (typeof window !== 'undefined') {
+                          const url = new URL(window.location.href);
+                          url.searchParams.delete('portal');
+                          window.history.replaceState({}, '', url.toString());
+                        }
+                      }}
+                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer ${
+                        !isPayrollPortalMode
+                          ? 'bg-white text-slate-900 shadow-2xs font-bold'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
                       CRM Enterprise
-                    </span>
-                  )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsPayrollPortalMode(true);
+                        if (typeof window !== 'undefined') {
+                          const url = new URL(window.location.href);
+                          url.searchParams.set('portal', 'payroll');
+                          window.history.replaceState({}, '', url.toString());
+                        }
+                      }}
+                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer ${
+                        isPayrollPortalMode
+                          ? 'bg-blue-600 text-white shadow-2xs font-bold'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Payroll &amp; ESS
+                    </button>
+                  </div>
                   <button
                     type="button"
                     onClick={handleCopyPortalLink}
                     className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
                     title="Copy direct Payroll Login Link"
                   >
-                    {linkCopiedToast ? '✓ Link Copied!' : '🔗 Copy Payroll Login Link'}
+                    {linkCopiedToast ? '✓ Link Copied!' : '🔗 Copy Payroll Link'}
                   </button>
                 </div>
 
@@ -1066,6 +1094,20 @@ export const LoginView: React.FC = () => {
                 </form>
 
                 <div className="mt-4 pt-3 border-t border-slate-200/60 flex flex-col gap-2 text-center">
+                  {!isPayrollPortalMode && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmail('admin@coreenact.com');
+                        setPassword('password123');
+                        setErrors({});
+                      }}
+                      className="text-xs font-semibold text-slate-700 hover:text-blue-700 py-1.5 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <span>🔑 Fill Super Admin Credentials</span>
+                      <span className="font-mono text-[11px] text-slate-500 font-normal">(admin@coreenact.com / password123)</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={handleSwitchToPayrollPage}
