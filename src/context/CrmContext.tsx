@@ -75,6 +75,7 @@ import {
   INITIAL_CHANGE_REQUESTS,
   INITIAL_LICENSE_TYPES,
 } from '../data/supportAmcData';
+import { useApplicationSync } from './useApplicationSync';
 
 interface CrmContextType {
   currentUser: User;
@@ -417,6 +418,13 @@ interface CrmContextType {
   updateSupplierCompany: (data: Partial<typeof SUPPLIER_COMPANY>) => void;
   resetAllToSampleData: () => void;
   formatCurrency: (amount: number) => string;
+
+  // Cross-tab & Server Sync
+  hasRemoteConflict?: boolean;
+  conflictMessage?: string;
+  acceptRemoteConflict?: () => void;
+  dismissConflict?: () => void;
+  lastSyncedAt?: string | null;
 }
 
 const CrmContext = createContext<CrmContextType | undefined>(undefined);
@@ -4527,14 +4535,26 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const totalAmount = updatedMilestones.reduce((acc, m) => acc + Number(m.amount), 0);
 
     if (Math.abs(totalPercentage - 100) > 0.01) {
-      alert(`Validation Error: Total milestone percentage must equal 100%. Currently: ${totalPercentage}%`);
+      addNotification({
+        type: 'MILESTONE',
+        title: 'Milestone Validation Error',
+        message: `Total milestone percentage must equal 100%. Currently: ${totalPercentage}%`,
+        timestamp: 'Just now',
+        linkType: 'order',
+        linkId: orderId,
+      });
       return false;
     }
 
     if (Math.abs(totalAmount - order.grandTotal) > 1.0) {
-      alert(
-        `Validation Error: Total milestone amount (₹${totalAmount.toLocaleString()}) must match Order Grand Total (₹${order.grandTotal.toLocaleString()}).`
-      );
+      addNotification({
+        type: 'MILESTONE',
+        title: 'Milestone Validation Error',
+        message: `Total milestone amount (₹${totalAmount.toLocaleString()}) must match Order Grand Total (₹${order.grandTotal.toLocaleString()}).`,
+        timestamp: 'Just now',
+        linkType: 'order',
+        linkId: orderId,
+      });
       return false;
     }
 
@@ -7455,6 +7475,11 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateSupplierCompany,
         resetAllToSampleData,
         formatCurrency,
+        hasRemoteConflict,
+        conflictMessage,
+        acceptRemoteConflict,
+        dismissConflict,
+        lastSyncedAt,
       }}
     >
       {children}
