@@ -29,7 +29,23 @@ export function useApplicationSync(snapshot:Snapshot, apply:(snapshot:Snapshot)=
         const response=await fetch('/api/state');
         const data=await readState(response);
         const remote=data.snapshot as Snapshot;
-        let local=reconcileSnapshot({...latest.current,...remote});
+        let local:Snapshot;
+        if(data.initialized===false) {
+          const mergedUsers=new Map<string,any>();
+          for(const u of remote.users || []) {
+            if(u && u.id) mergedUsers.set(String(u.id),u);
+          }
+          for(const u of latest.current.users || []) {
+            if(u && u.id) {
+              const prev=mergedUsers.get(String(u.id));
+              const pass=(u.password && u.password!=='password123') ? u.password : (prev?.password || u.password || 'password123');
+              mergedUsers.set(String(u.id),prev ? {...prev,...u,password:pass,tempPassword:u.tempPassword || prev?.tempPassword || pass} : u);
+            }
+          }
+          local=reconcileSnapshot({...remote,...latest.current,users:Array.from(mergedUsers.values())});
+        } else {
+          local=reconcileSnapshot({...latest.current,...remote});
+        }
         let baseline=remote;
         const pending=localStorage.getItem(PENDING_KEY);
         if(pending) {

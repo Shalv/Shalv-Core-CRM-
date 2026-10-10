@@ -17,6 +17,7 @@ import {
   normalizeEmpCode,
   getNextAvailableEmpCode,
   isDuplicateEmpCode,
+  forgetDeletedPayrollMasterIds,
   PAYROLL_MASTERS_SYNC_EVENT,
 } from '../payroll/payrollTypes';
 import {
@@ -469,14 +470,15 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
       }
       if (alsoCreateInPayroll) {
         const prevMaster = updatedMasters[targetUserId] || existingEmailMaster;
+        const finalPass = form.password.trim() || prevMaster?.password || 'password123';
         updatedMasters[targetUserId] = {
           ...prevMaster,
           userId: targetUserId,
           empCode: resolvedEmpCode,
           name: form.name.trim(),
           email: form.email.trim(),
-          password: form.password || prevMaster?.password || '',
-          tempPassword: form.password || prevMaster?.tempPassword || '',
+          password: finalPass,
+          tempPassword: finalPass,
           accessType: prevMaster?.accessType || 'crm_and_payroll',
           phone: form.phone.trim(),
           role: form.role,
@@ -524,11 +526,17 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
           shiftTiming: payrollDraft.shiftTiming || '09:30 AM - 06:30 PM',
           workMode: payrollDraft.workMode,
         };
+        forgetDeletedPayrollMasterIds([targetUserId]);
       } else {
         delete updatedMasters[targetUserId];
       }
       setPayrollMasters(updatedMasters);
-      saveEmployeeSalaryMasters(updatedMasters, true);
+      saveEmployeeSalaryMasters(
+        updatedMasters,
+        true,
+        false,
+        alsoCreateInPayroll ? [targetUserId] : undefined
+      );
 
       setHighlightedUserId(targetUserId);
       setTimeout(() => setHighlightedUserId(null), 3000);

@@ -473,10 +473,15 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
   const handleRegeneratePasswordForEmployee = (empId: string, customPass?: string) => {
     const newPass = (customPass && customPass.trim()) || generateRandomPassword();
     setEmployeeSalaryMasters((prev) => {
-      const existing = prev[empId];
+      const fallbackEntry = unifiedEmployeeList.find((e) => e.id === empId);
+      const existing =
+        prev[empId] ||
+        (credentialsModalTarget?.userId === empId ? credentialsModalTarget : undefined) ||
+        fallbackEntry?.master;
       if (!existing) return prev;
       const updated: EmployeeSalaryMasterRecord = {
         ...existing,
+        userId: empId,
         password: newPass,
         tempPassword: newPass,
         mustChangePasswordOnFirstLogin: false,
@@ -488,7 +493,8 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
         ...prev,
         [empId]: updated,
       };
-      saveEmployeeSalaryMasters(next, true);
+      forgetDeletedPayrollMasterIds([empId]);
+      saveEmployeeSalaryMasters(next, true, false, [empId]);
       return next;
     });
     const crmMatch = users.find(
@@ -528,6 +534,11 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
         nextPatch.empCode = normalized;
       }
     }
+    if (nextPatch.password !== undefined) {
+      nextPatch.tempPassword = nextPatch.password;
+    } else if (nextPatch.tempPassword !== undefined) {
+      nextPatch.password = nextPatch.tempPassword;
+    }
     const updated: EmployeeSalaryMasterRecord = {
       ...targetMaster,
       ...nextPatch,
@@ -544,6 +555,37 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
       saveEmployeeSalaryMasters(next, true, false, [targetEntry.id]);
       return next;
     });
+    // Also keep linked CRM User record in sync when password or identity fields are edited in Payroll Master
+    if (
+      nextPatch.password !== undefined ||
+      nextPatch.tempPassword !== undefined ||
+      nextPatch.email !== undefined ||
+      nextPatch.name !== undefined ||
+      nextPatch.role !== undefined ||
+      nextPatch.status !== undefined
+    ) {
+      const linkedCrmUser = users.find(
+        (u) =>
+          u.id === targetEntry.id ||
+          (updated.email && u.email && u.email.trim().toLowerCase() === updated.email.trim().toLowerCase())
+      );
+      if (linkedCrmUser) {
+        updateUser(linkedCrmUser.id, {
+          ...(nextPatch.name !== undefined ? { name: nextPatch.name } : {}),
+          ...(nextPatch.email !== undefined ? { email: nextPatch.email } : {}),
+          ...(nextPatch.password !== undefined
+            ? {
+                password: nextPatch.password,
+                tempPassword: nextPatch.password,
+                mustChangePassword: false,
+                mustChangePasswordOnFirstLogin: false,
+              }
+            : {}),
+          ...(nextPatch.role !== undefined ? { role: nextPatch.role as UserRole } : {}),
+          ...(nextPatch.status !== undefined ? { status: nextPatch.status } : {}),
+        });
+      }
+    }
     if (targetEntry.id === currentUser.id) {
       setStatutory((prevStat) => ({
         ...prevStat,
@@ -643,7 +685,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
       tempPassword: finalPass,
       mustChangePassword: mustChange,
       mustChangePasswordOnFirstLogin: mustChange,
-      accessScope: alsoCreateInCrm ? 'FULL_CRM_AND_PAYROLL' : 'PAYROLL_ONLY',
+      accessScope: alsoCreateInCrm ? 'all' : 'payroll_only',
       accessType: alsoCreateInCrm ? 'crm_and_payroll' : 'payroll_only',
       phone: newUserDraft.phone.trim() || '+91 98200 00000',
       role: newUserDraft.role,
@@ -653,6 +695,8 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
       reportingManager: newUserDraft.reportingManager.trim(),
       assignedTerritory: newUserDraft.assignedTerritory.trim(),
       status: newUserDraft.status,
+      customPermissions:
+        alsoCreateInCrm && crmPermPreset !== 'role_default' ? customPermsDraft : undefined,
     });
     const finalUserId = createdUser.id;
 
@@ -711,7 +755,8 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
       delete nextMasters[existingEmailMaster.userId];
     }
     nextMasters[finalUserId] = newMasterRecord;
-    saveEmployeeSalaryMasters(nextMasters, true);
+    forgetDeletedPayrollMasterIds([finalUserId]);
+    saveEmployeeSalaryMasters(nextMasters, true, false, [finalUserId]);
     setEmployeeSalaryMasters(nextMasters);
 
     setSelectedAdminUserId(finalUserId);
@@ -755,7 +800,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
     if (existingCrmUser) {
       targetId = existingCrmUser.id;
       updateUser(targetId, {
-        accessScope: 'FULL_CRM_AND_PAYROLL',
+        accessScope: 'all',
         accessType: 'crm_and_payroll',
         password: preservedPass,
         tempPassword: preservedPass,
@@ -767,7 +812,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
         email: entry.email,
         password: preservedPass,
         tempPassword: preservedPass,
-        accessScope: 'FULL_CRM_AND_PAYROLL',
+        accessScope: 'all',
         accessType: 'crm_and_payroll',
         phone: entry.phone,
         role: entry.role,
