@@ -20,12 +20,13 @@ import { PostgresDatabaseView } from './components/database/PostgresDatabaseView
 import { LoginView } from './components/auth/LoginView';
 import { LifecycleTraceModal } from './components/common/LifecycleTraceModal';
 import { AccessRestrictedView } from './components/common/AccessRestrictedView';
+import { DataSyncNotice } from './components/common/DataSyncNotice';
 import { PayrollEssPortalModal } from './components/payroll/PayrollEssPortalModal';
 import { Invoice, CrmModuleKey } from './types';
 import { ALL_CRM_MODULES } from './data/initialData';
 
 function MainAppContent() {
-  const { isAuthenticated, canView, currentUser, rolePermissions, logout } = useCrm();
+  const { isAuthenticated, canView, currentUser, rolePermissions, logout, syncStatus, retrySync, reloadSavedSync } = useCrm();
 
   // Helper to read initial navigation from URL or localStorage so page refresh or back/forward stays on last section
   const initialNav = React.useMemo(() => {
@@ -483,6 +484,15 @@ function MainAppContent() {
         invoiceId={traceInvoiceId}
         onNavigateToModule={handleNavigate}
       />
+
+      {syncStatus && retrySync && reloadSavedSync && (
+        <DataSyncNotice
+          status={syncStatus}
+          retry={retrySync}
+          reload={reloadSavedSync}
+          showIssues={true}
+        />
+      )}
     </div>
   );
 }
