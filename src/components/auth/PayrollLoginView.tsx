@@ -127,19 +127,6 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
       );
       return;
     }
-
-    if (res.mustChangePassword) {
-      setMustChangePasswordStep(true);
-      setPendingUserEmail(res.user?.email || cleanInput);
-      setPendingUserName(
-        res.payrollMaster?.name || res.user?.name || linkedEmployeeRecord?.name || 'Employee'
-      );
-      setPendingEmpCode(
-        res.payrollMaster?.empCode || linkedEmployeeRecord?.empCode || 'EMP'
-      );
-      setNewPassword('');
-      setConfirmNewPassword('');
-    }
   };
 
   const handleSetPermanentPassword = (e: React.FormEvent) => {

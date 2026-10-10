@@ -700,16 +700,6 @@ export const LoginView: React.FC = () => {
       return;
     }
 
-    if (res.mustChangePassword) {
-      setStatus('idle');
-      setFirstLoginTarget({
-        email: email.trim(),
-        name: res.user?.name || email.trim(),
-        tempPass: password,
-      });
-      return;
-    }
-
     setStatus('done');
     sim.current.gather = true;
     sim.current.linkT = 420;

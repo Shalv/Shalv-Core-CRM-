@@ -81,6 +81,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [showProfilePassword, setShowProfilePassword] = useState(false);
   const [isPayrollEssOpen, setIsPayrollEssOpen] = useState(false);
   const [payrollInitialTab, setPayrollInitialTab] = useState<EssTabKey>('overview');
 
@@ -1071,13 +1072,26 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 <div>
                   <label className="font-semibold text-slate-700 block mb-1">Login Password *</label>
-                  <input
-                    type="text"
-                    required
-                    value={profileForm.password}
-                    onChange={(e) => setProfileForm({ ...profileForm, password: e.target.value })}
-                    className="w-full bg-slate-50 focus:bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-[#1f7e9e] outline-none focus:ring-2 focus:ring-[#1f7e9e]/20 focus:border-[#1f7e9e]"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showProfilePassword ? 'text' : 'password'}
+                      required
+                      value={profileForm.password}
+                      onChange={(e) => setProfileForm({ ...profileForm, password: e.target.value })}
+                      placeholder="Enter new password"
+                      className="w-full bg-slate-50 focus:bg-white border border-slate-200 rounded-xl px-3 py-2 pr-14 text-xs font-mono font-bold text-[#1f7e9e] outline-none focus:ring-2 focus:ring-[#1f7e9e]/20 focus:border-[#1f7e9e]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowProfilePassword(!showProfilePassword)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-slate-500 hover:text-slate-800 px-1.5 py-0.5 rounded cursor-pointer select-none"
+                    >
+                      {showProfilePassword ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+                  <span className="text-[10px] text-slate-500 mt-1 block">
+                    Change your password here whenever needed and click Save.
+                  </span>
                 </div>
               </div>
 

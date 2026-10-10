@@ -1845,17 +1845,8 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         location: matchedPayrollMaster.location || 'Mumbai HQ',
         accessScope: 'payroll_only',
         accessType: 'payroll_only',
-        mustChangePasswordOnFirstLogin: mustChange,
+        mustChangePasswordOnFirstLogin: false,
       };
-
-      if (mustChange) {
-        return {
-          success: true,
-          user: payrollUser,
-          mustChangePassword: true,
-          payrollMaster: matchedPayrollMaster,
-        };
-      }
 
       const nowFormatted = new Date().toLocaleString('en-IN', {
         year: 'numeric',
@@ -1886,30 +1877,11 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
       }
 
-      let mustChange = Boolean(
-        matchedUser.mustChangePasswordOnFirstLogin || matchedUser.mustChangePassword
-      );
-      if (
-        matchedPayrollMaster &&
-        matchedPayrollMaster.mustChangePasswordOnFirstLogin !== undefined
-      ) {
-        mustChange = Boolean(matchedPayrollMaster.mustChangePasswordOnFirstLogin);
-      }
-
       const isPayrollOnly =
         isPayrollPortalLogin ||
         matchedUser.accessScope === 'payroll_only' ||
         matchedUser.accessType === 'payroll_only' ||
         matchedPayrollMaster?.accessType === 'payroll_only';
-
-      if (mustChange) {
-        return {
-          success: true,
-          user: matchedUser,
-          mustChangePassword: true,
-          payrollMaster: matchedPayrollMaster,
-        };
-      }
 
       const nowFormatted = new Date().toLocaleString('en-IN', {
         year: 'numeric',
