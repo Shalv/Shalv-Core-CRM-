@@ -137,8 +137,10 @@ export const PostgresDatabaseView: React.FC = () => {
   };
 
   const handleCopyPsqlCommand = () => {
-    const psqlCmd =
-      'PGPASSWORD=oRrcJSWfNAr7rC41KSRIcS8VphhDPBEt psql -h dpg-db2iikpsrm7s73bhre6g-a.oregon-postgres.render.com -U postgresqlcrm_go7i_user -d postgresqlcrm_go7i';
+    const host = dbHealth?.host || 'localhost';
+    const user = dbHealth?.databaseUser || 'postgres';
+    const dbName = dbHealth?.databaseName || 'enact360_crm';
+    const psqlCmd = `PGPASSWORD=<YOUR_DB_PASSWORD> psql -h ${host} -U ${user} -d ${dbName}`;
     navigator.clipboard.writeText(psqlCmd);
     setCopiedPsql(true);
     setTimeout(() => setCopiedPsql(false), 2000);

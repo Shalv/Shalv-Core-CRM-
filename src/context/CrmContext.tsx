@@ -875,6 +875,71 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return INITIAL_AUDIT_LOGS;
   });
 
+  // Cross-tab BroadcastChannel, localStorage event, and remote server state synchronization
+  const {
+    hasRemoteConflict,
+    conflictMessage,
+    acceptRemoteConflict,
+    dismissConflict,
+    lastSyncedAt,
+  } = useApplicationSync(
+    STORAGE_KEYS,
+    {
+      rolePermissions,
+      users,
+      states,
+      products,
+      taxRates,
+      paymentTerms,
+      contacts,
+      supplierCompany,
+      leads,
+      opportunities,
+      customers,
+      orders,
+      purchaseOrders,
+      amcContracts,
+      supportTickets,
+      changeRequests,
+      licenseTypes,
+      milestones,
+      invoices,
+      payments,
+      ledgerEntries,
+      activities,
+      notifications,
+      outlookEmailConfig,
+      auditLogs,
+    },
+    {
+      rolePermissions: setRolePermissions,
+      users: setUsers,
+      states: setStates,
+      products: setProducts,
+      taxRates: setTaxRates,
+      paymentTerms: setPaymentTerms,
+      contacts: setContacts,
+      supplierCompany: setSupplierCompany,
+      leads: setLeads,
+      opportunities: setOpportunities,
+      customers: setCustomers,
+      orders: setOrders,
+      purchaseOrders: setPurchaseOrders,
+      amcContracts: setAmcContracts,
+      supportTickets: setSupportTickets,
+      changeRequests: setChangeRequests,
+      licenseTypes: setLicenseTypes,
+      milestones: setMilestones,
+      invoices: setInvoices,
+      payments: setPayments,
+      ledgerEntries: setLedgerEntries,
+      activities: setActivities,
+      notifications: setNotifications,
+      outlookEmailConfig: setOutlookEmailConfig,
+      auditLogs: setAuditLogs,
+    }
+  );
+
   // Helper to push any state slice update to backend persistence
   const pushSliceToBackend = (sliceKey: string, sliceValue: any) => {
     fetch('/api/sync/push', {
@@ -7475,6 +7540,11 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateSupplierCompany,
         resetAllToSampleData,
         formatCurrency,
+        hasRemoteConflict,
+        conflictMessage,
+        acceptRemoteConflict,
+        dismissConflict,
+        lastSyncedAt,
       }}
     >
       {children}

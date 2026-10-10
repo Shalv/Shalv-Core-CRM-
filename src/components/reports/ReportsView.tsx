@@ -190,12 +190,23 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
+    const aliasMap: Record<string, ReportTabKey> = {
+      receivables: 'ledger_aging_register',
+      gst: 'gst_tax_register',
+      funnel: 'lead_register',
+      invoice_register: 'gst_tax_register',
+      payment_register: 'collection_register',
+      support_amc_register: 'support_register',
+    };
+    const resolvedTab = initialReportTab
+      ? (aliasMap[initialReportTab] || initialReportTab)
+      : undefined;
     if (
-      initialReportTab &&
-      VALID_REPORT_TABS.includes(initialReportTab as ReportTabKey) &&
-      canView(REPORT_MODULE_MAP[initialReportTab as ReportTabKey] as any)
+      resolvedTab &&
+      VALID_REPORT_TABS.includes(resolvedTab as ReportTabKey) &&
+      canView(REPORT_MODULE_MAP[resolvedTab as ReportTabKey] as any)
     ) {
-      const nextTab = initialReportTab as ReportTabKey;
+      const nextTab = resolvedTab as ReportTabKey;
       setActiveReport((prev) => (prev === nextTab ? prev : nextTab));
     } else if (!canView(REPORT_MODULE_MAP[activeReport] as any) && permittedReportTabs.length > 0) {
       const fallbackTab = permittedReportTabs[0];
