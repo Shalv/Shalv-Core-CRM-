@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import dotenv from 'dotenv';
 import { Pool } from 'pg';
+import { postgresStateMiddleware } from './backend/postgresState';
 import nodemailer from 'nodemailer';
 import fs from 'fs';
 import path from 'path';
@@ -30,22 +31,6 @@ app.set('trust proxy', 1);
 // Parse JSON and URL-encoded bodies
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
-
-// Durable writes: any mutating request that changed the store (users, passwords,
-// payroll masters, ...) is committed to Postgres BEFORE the response is sent, so a
-// later cold start / another serverless instance cannot revert it (e.g. back to the
-// default password).
-app.use((req: Request, res: Response, next: NextFunction) => {
-  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
-  const originalEnd = res.end.bind(res) as (...args: any[]) => Response;
-  (res as any).end = (...args: any[]) => {
-    if (!stateDirty || !isDatabaseActive()) return originalEnd(...args);
-    stateDirty = false;
-    flushStateToDatabase().finally(() => originalEnd(...args));
-    return res;
-  };
-  next();
-});
 
 // Database connection with in-memory mock fallback for AI Studio environment
 const MOCK_TABLES: Record<string, any[]> = {
@@ -488,6 +473,8 @@ let stateDirty = false;
 
 function savePersistedStore() {
   stateDirty = true;
+  if (transactionWriter) { transactionWriter(); return; }
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) return;
   try {
     relinkUsersAndPayrollMasters();
     syncMockTablesFromState();
@@ -563,47 +550,45 @@ function runMockQuery(sql: string, _params: any[] = []) {
   return { rows: [], rowCount: 0, fields: [] };
 }
 
-let db: { query: (sql: string, params?: any[]) => Promise<any>; connect: () => Promise<any> };
-try {
-  if (!process.env.DATABASE_URL) {
-    throw new Error('DATABASE_URL not set');
+let transactionWriter: (()=>void) | null = null;
+const pgPool = process.env.DATABASE_URL ? new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+  max: 2,
+  idleTimeoutMillis: 10000,
+  connectionTimeoutMillis: 10000,
+}) : null;
+pgPool?.on('error', (err) => console.error('PostgreSQL connection error:', (err as any).code || 'connection_failed'));
+const db = pgPool || {
+  query: async (sql: string, params: any[] = []) => runMockQuery(sql, params),
+  connect: async () => ({query: async (sql: string, params: any[] = []) => runMockQuery(sql, params), release: () => {}}),
+};
+
+// Production must never silently fall back to temporary local/mock storage.
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const api = req.path.startsWith('/api') || req.path.startsWith('/auth');
+  if (api && !pgPool && (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NODE_ENV === 'production')) {
+    return res.status(503).json({success:false, message:'DATABASE_URL is missing. Set the Render External Database URL in the server environment and redeploy.'});
   }
-  const pgPool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
-    max: 10,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 3000,
-  });
-  pgPool.on('error', (err) => {
-    console.warn('PostgreSQL client error (falling back to mock):', err.message);
-  });
-  pgPool.query('ALTER TABLE users ALTER COLUMN avatar TYPE TEXT;').catch(() => {});
-  db = {
-    query: async (sql: string, params: any[] = []) => {
-      try {
-        return await pgPool.query(sql, params);
-      } catch {
-        return runMockQuery(sql, params);
-      }
+  next();
+});
+if (pgPool) {
+  const durable = postgresStateMiddleware(pgPool, {
+    importLegacy: (saved) => applyParsedStore(saved),
+    capture: () => JSON.parse(JSON.stringify({state:PERSISTED_CRM_STATE, tables:MOCK_TABLES, stateInitialized:Boolean(PERSISTED_CRM_STATE.stateInitialized)})),
+    restore: (input) => {
+      const saved = JSON.parse(JSON.stringify(input));
+      for (const key of Object.keys(PERSISTED_CRM_STATE)) delete (PERSISTED_CRM_STATE as any)[key];
+      Object.assign(PERSISTED_CRM_STATE, saved.state);
+      for (const key of Object.keys(MOCK_TABLES)) delete MOCK_TABLES[key];
+      Object.assign(MOCK_TABLES, saved.tables);
     },
-    connect: async () => {
-      try {
-        return await pgPool.connect();
-      } catch {
-        return { query: async (sql: string, params: any[] = []) => runMockQuery(sql, params), release: () => {} };
-      }
-    },
-  };
-} catch {
-  console.warn('DB not connected — mock active');
-  db = {
-    query: async (sql: string, params: any[] = []) => runMockQuery(sql, params),
-    connect: async () => ({
-      query: async (sql: string, params: any[] = []) => runMockQuery(sql, params),
-      release: () => {},
-    }),
-  };
+    setWriter: (writer) => { transactionWriter = writer; },
+  });
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path === '/api/health' || (!req.path.startsWith('/api') && !req.path.startsWith('/auth'))) return next();
+    return durable(req, res, next);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -652,6 +637,7 @@ async function ensureStateTable() {
 }
 
 async function flushStateToDatabase() {
+  if (transactionWriter) { transactionWriter(); return; }
   if (!isDatabaseActive()) return;
   try {
     const payload = JSON.stringify(buildPersistedStoreObject());
@@ -666,6 +652,7 @@ async function flushStateToDatabase() {
 }
 
 async function hydrateStoreFromDatabase() {
+  if (transactionWriter) return true;
   if (!isDatabaseActive()) return false;
   try {
     await ensureStateTable();
@@ -702,6 +689,7 @@ async function query(sql: string, params: any[] = []) {
 // 1. Health check & live database stats
 app.get('/api/health', async (_req: Request, res: Response) => {
   try {
+    if (!pgPool) return res.status(503).json({status:'error', database:'unconfigured', message:'DATABASE_URL is not set.'});
     const start = Date.now();
     const dbRes = await pool.query('SELECT NOW() as current_time, current_database() as db, current_user as usr;');
     const latency = Date.now() - start;
@@ -2598,14 +2586,6 @@ app.get('/api/sync/pull', async (_req: Request, res: Response) => {
 // ============================================================================
 
 async function startServer() {
-  if (isDatabaseActive()) {
-    const hydrated = await hydrateStoreFromDatabase();
-    if (!hydrated) {
-      // First boot against an empty table: seed it from current in-memory/file state
-      await flushStateToDatabase();
-    }
-  }
-
   // On serverless (Vercel/Lambda) we must never bind a port or serve statics:
   // the platform routes requests straight into the exported Express app handler
   // and serves the Vite build from its own CDN. Binding a port crashes the

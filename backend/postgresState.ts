@@ -1,7 +1,7 @@
 import type {RequestHandler} from 'express';
 import type {Pool, PoolClient} from 'pg';
 
-type Hooks = {capture:()=>any; restore:(state:any)=>void; setWriter:(writer:(()=>void)|null)=>void};
+type Hooks = {importLegacy?:(state:any)=>void; capture:()=>any; restore:(state:any)=>void; setWriter:(writer:(()=>void)|null)=>void};
 /** Serialize each process's shared legacy state and lock the database across processes.
  * A response is sent only after its state transaction has committed. */
 export function postgresStateMiddleware(pool: Pick<Pool,'connect'>, hooks: Hooks): RequestHandler {
@@ -40,6 +40,18 @@ export function postgresStateMiddleware(pool: Pick<Pool,'connect'>, hooks: Hooks
         await client.query("SET LOCAL lock_timeout = '15s'");
         await client.query('SELECT pg_advisory_xact_lock(360026)');
         await client.query('CREATE TABLE IF NOT EXISTS enact360_application_state (id INTEGER PRIMARY KEY CHECK (id=1), payload JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())');
+        // Migrate the prior durable store once, preserving existing application records.
+        const existing = await client.query('SELECT id FROM enact360_application_state WHERE id=1');
+        if (!existing.rows.length) {
+          const legacyTable = await client.query("SELECT to_regclass('public.crm_state_store') AS name");
+          if (legacyTable.rows[0]?.name) {
+            const legacy = await client.query("SELECT payload FROM crm_state_store WHERE id='app' LIMIT 1");
+            if (legacy.rows[0]?.payload) {
+              const parsed = typeof legacy.rows[0].payload === 'string' ? JSON.parse(legacy.rows[0].payload) : legacy.rows[0].payload;
+              hooks.importLegacy?.(parsed);
+            }
+          }
+        }
         await client.query('INSERT INTO enact360_application_state (id,payload) VALUES (1,$1::jsonb) ON CONFLICT (id) DO NOTHING',[JSON.stringify(hooks.capture())]);
         const loaded=await client.query('SELECT payload FROM enact360_application_state WHERE id=1 FOR UPDATE');
         before=loaded.rows[0]?.payload;

@@ -7475,11 +7475,6 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateSupplierCompany,
         resetAllToSampleData,
         formatCurrency,
-        hasRemoteConflict,
-        conflictMessage,
-        acceptRemoteConflict,
-        dismissConflict,
-        lastSyncedAt,
       }}
     >
       {children}
