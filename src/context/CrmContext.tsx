@@ -464,6 +464,45 @@ const STORAGE_KEYS = {
   SUPPLIER_COMPANY: 'corecrm_v2_supplier_company',
 };
 
+const sanitizeClientUser = (u: any): User => {
+  if (!u || typeof u !== 'object') return u;
+  const {
+    password: _p,
+    tempPassword: _tp,
+    passwordHash: _ph,
+    password_hash: _ph2,
+    mustChangePassword: _m1,
+    mustChangePasswordOnFirstLogin: _m2,
+    forcePasswordReset: _m3,
+    firstLogin: _m4,
+    ...rest
+  } = u;
+  return {
+    ...rest,
+    mustChangePassword: false,
+    mustChangePasswordOnFirstLogin: false,
+  } as User;
+};
+
+const sanitizeClientPayrollObj = (m: any): any => {
+  if (!m || typeof m !== 'object') return m;
+  const {
+    password: _p,
+    tempPassword: _tp,
+    passwordHash: _ph,
+    password_hash: _ph2,
+    mustChangePassword: _m1,
+    mustChangePasswordOnFirstLogin: _m2,
+    forcePasswordReset: _m3,
+    firstLogin: _m4,
+    ...rest
+  } = m;
+  return {
+    ...rest,
+    mustChangePasswordOnFirstLogin: false,
+  };
+};
+
 export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.USERS);
@@ -471,11 +510,11 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          return parsed.map(sanitizeClientUser);
         }
       } catch (e) { /* ignore */ }
     }
-    return INITIAL_USERS;
+    return INITIAL_USERS.map(sanitizeClientUser);
   });
 
   const [rolePermissions, setRolePermissions] = useState<Record<UserRole, RolePermissionsMap>>(() => {
@@ -503,13 +542,13 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [rolePermissions]);
 
   const [currentUser, setCurrentUser] = useState<User>(() => {
-    let activeUsersList = INITIAL_USERS;
+    let activeUsersList = INITIAL_USERS.map(sanitizeClientUser);
     const savedUsers = localStorage.getItem(STORAGE_KEYS.USERS);
     if (savedUsers) {
       try {
         const parsed = JSON.parse(savedUsers);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          activeUsersList = parsed;
+          activeUsersList = parsed.map(sanitizeClientUser);
         }
       } catch (e) { /* ignore */ }
     }
@@ -517,17 +556,17 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
     if (saved) {
       try {
-        const parsed = JSON.parse(saved);
+        const parsed = sanitizeClientUser(JSON.parse(saved));
         const matched = activeUsersList.find((u) => u.id === parsed.id);
         if (matched) {
-          return { ...matched, ...parsed };
+          return sanitizeClientUser({ ...matched, ...parsed });
         }
         if (parsed && parsed.id && parsed.email) {
           return parsed;
         }
       } catch (e) { /* ignore */ }
     }
-    return activeUsersList[0] || INITIAL_USERS[0];
+    return activeUsersList[0] || sanitizeClientUser(INITIAL_USERS[0]);
   });
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -940,18 +979,12 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const mergeUserRecords = React.useCallback((localUsers: User[], incomingUsers: any[]): User[] => {
     const mergedById = new Map<string, User>();
     const idByEmail = new Map<string, string>();
-    const pickPass = (nextP: any, prevP: any) => {
-      const n = typeof nextP === 'string' ? nextP.trim() : '';
-      const p = typeof prevP === 'string' ? prevP.trim() : '';
-      if (n && n !== 'password123') return n;
-      if (p && p !== 'password123') return p;
-      return n || p || 'password123';
-    };
     for (const u of localUsers || []) {
       if (!u || !u.id || deletedUserIdsRef.current.has(String(u.id))) continue;
       const uid = String(u.id);
-      mergedById.set(uid, u);
-      if (u.email) idByEmail.set(u.email.trim().toLowerCase(), uid);
+      const cleanU = sanitizeClientUser(u);
+      mergedById.set(uid, cleanU);
+      if (cleanU.email) idByEmail.set(cleanU.email.trim().toLowerCase(), uid);
     }
     for (const raw of incomingUsers || []) {
       if (!raw || !raw.id || deletedUserIdsRef.current.has(String(raw.id))) continue;
@@ -961,23 +994,21 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ? rawId
         : (emailLower && idByEmail.get(emailLower)) || rawId;
       const prev = mergedById.get(resolvedId);
-      const pass = pickPass(raw.password || raw.tempPassword, prev?.password || prev?.tempPassword);
-      const merged: User = prev
-        ? {
-            ...prev,
-            ...raw,
-            id: resolvedId,
-            password: pass,
-            tempPassword: pickPass(raw.tempPassword || raw.password, prev?.tempPassword || prev?.password),
-            customPermissions: raw.customPermissions || raw.custom_permissions || prev.customPermissions,
-          }
-        : {
-            ...raw,
-            id: resolvedId,
-            password: pass,
-            tempPassword: raw.tempPassword || pass,
-            customPermissions: raw.customPermissions || raw.custom_permissions,
-          };
+      const merged: User = sanitizeClientUser(
+        prev
+          ? {
+              ...prev,
+              ...raw,
+              id: resolvedId,
+              customPermissions:
+                raw.customPermissions || raw.custom_permissions || prev.customPermissions,
+            }
+          : {
+              ...raw,
+              id: resolvedId,
+              customPermissions: raw.customPermissions || raw.custom_permissions,
+            }
+      );
       mergedById.set(resolvedId, merged);
       if (emailLower) idByEmail.set(emailLower, resolvedId);
     }
@@ -1047,7 +1078,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Sync state to localStorage & Backend
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(currentUser));
+    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(sanitizeClientUser(currentUser)));
   }, [currentUser]);
 
   useEffect(() => {
@@ -1055,11 +1086,12 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [isAuthenticated]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+    const cleanUsers = users.map(sanitizeClientUser);
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(cleanUsers));
     fetch('/api/sync/push', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ users }),
+      body: JSON.stringify({ users: cleanUsers }),
     }).catch(() => {});
   }, [users]);
 
@@ -1200,7 +1232,14 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     try {
       const rawLocal = localStorage.getItem('crm_ess_admin_employee_masters');
-      if (rawLocal) localMasters = JSON.parse(rawLocal) || {};
+      if (rawLocal) {
+        const parsedMasters = JSON.parse(rawLocal) || {};
+        for (const [k, v] of Object.entries(parsedMasters)) {
+          if (v && typeof v === 'object') {
+            localMasters[k] = sanitizeClientPayrollObj(v);
+          }
+        }
+      }
       const rawLoans = localStorage.getItem('crm_ess_employee_loans');
       if (rawLoans) localLoans = JSON.parse(rawLoans) || [];
       const rawPolicy = localStorage.getItem('crm_ess_admin_policy_master');
@@ -1342,7 +1381,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 for (const m of Object.values(currentLocal)) {
                   if (!m || !m.userId) continue;
                   const canonicalId = resolveCanonicalUserId(m);
-                  const normalized = { ...m, userId: canonicalId };
+                  const normalized = sanitizeClientPayrollObj({ ...m, userId: canonicalId });
                   mergedMasters[canonicalId] = normalized;
                   if (normalized.email) {
                     keyByEmail.set(String(normalized.email).trim().toLowerCase(), canonicalId);
@@ -1364,9 +1403,11 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                         resolveCanonicalUserId(m);
                   if (!canonicalId) continue;
                   const existingLocal = mergedMasters[canonicalId];
-                  mergedMasters[canonicalId] = existingLocal
-                    ? { ...m, ...existingLocal, userId: canonicalId }
-                    : { ...m, userId: canonicalId };
+                  mergedMasters[canonicalId] = sanitizeClientPayrollObj(
+                    existingLocal
+                      ? { ...m, ...existingLocal, userId: canonicalId }
+                      : { ...m, userId: canonicalId }
+                  );
                   if (emailLower) keyByEmail.set(emailLower, canonicalId);
                   if (codeUpper) keyByCode.set(codeUpper, canonicalId);
                 }
@@ -1816,60 +1857,33 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
-    // Collect all valid passwords across Payroll Master & CRM User so credentials work regardless of where they were set
-    const validPasswords = Array.from(
-      new Set(
-        [
-          matchedPayrollMaster?.password,
-          matchedPayrollMaster?.tempPassword,
-          matchedUser?.password,
-          matchedUser?.tempPassword,
-          'password123',
-        ]
-          .filter((p) => typeof p === 'string' && p.trim().length > 0)
-          .map((p) => String(p).trim())
-      )
-    );
-
-    const isPasswordValid =
-      cleanPassword === undefined ||
-      validPasswords.length === 0 ||
-      validPasswords.includes(cleanPassword) ||
-      (password !== undefined && validPasswords.includes(password));
-
     // Case 1: Payroll-only user (only exists in Payroll Master)
     if (!matchedUser && matchedPayrollMaster) {
-      if (matchedPayrollMaster.status === 'Inactive') {
+      if (
+        matchedPayrollMaster.status === 'Inactive' ||
+        matchedPayrollMaster.employmentStatus === 'Inactive'
+      ) {
         return {
           success: false,
           message: 'This payroll account is currently inactive. Contact Administrator.',
         };
       }
 
-      if (!isPasswordValid) {
-        return {
-          success: false,
-          message: 'Invalid password. Check credentials provided by your HR or administrator.',
-        };
-      }
-
-      const expectedPassword =
-        cleanPassword || matchedPayrollMaster.password || matchedPayrollMaster.tempPassword || 'password123';
       const isAdminRole =
         matchedPayrollMaster.role === 'Super Admin' ||
         matchedPayrollMaster.role === 'Administrator';
       const resolvedScope: 'all' | 'payroll_only' =
         !isAdminRole && isPayrollPortalLogin ? 'payroll_only' : 'all';
 
-      const payrollUser: User = {
+      const payrollUser: User = sanitizeClientUser({
         id: matchedPayrollMaster.userId || `usr-${Date.now()}`,
         name: matchedPayrollMaster.name || 'Payroll Employee',
-        username: matchedPayrollMaster.email
-          ? matchedPayrollMaster.email.split('@')[0]
-          : 'employee',
+        username:
+          matchedPayrollMaster.username ||
+          (matchedPayrollMaster.email
+            ? matchedPayrollMaster.email.split('@')[0]
+            : 'employee'),
         email: matchedPayrollMaster.email,
-        password: expectedPassword,
-        tempPassword: expectedPassword,
         phone: matchedPayrollMaster.phone || '',
         designation: matchedPayrollMaster.designation || 'Employee',
         role: matchedPayrollMaster.role || 'Sales Executive',
@@ -1879,7 +1893,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         accessScope: resolvedScope,
         accessType: matchedPayrollMaster.accessType || 'payroll_only',
         mustChangePasswordOnFirstLogin: false,
-      };
+      });
 
       const nowFormatted = new Date().toLocaleString('en-IN', {
         year: 'numeric',
@@ -1888,11 +1902,11 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         hour: '2-digit',
         minute: '2-digit',
       });
-      const updated = { ...payrollUser, lastLoginAt: nowFormatted };
+      const updated = sanitizeClientUser({ ...payrollUser, lastLoginAt: nowFormatted });
       setUsers((prev) => {
         const exists = prev.some((u) => u.id === updated.id);
         const next = exists
-          ? prev.map((u) => (u.id === updated.id ? { ...u, ...updated } : u))
+          ? prev.map((u) => (u.id === updated.id ? sanitizeClientUser({ ...u, ...updated }) : u))
           : [...prev, updated];
         try {
           localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(next));
@@ -1908,17 +1922,14 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Case 2: User exists in CRM users (may also be in payroll master)
     if (matchedUser) {
-      if (matchedUser.status === 'Inactive') {
+      if (
+        matchedUser.status === 'Inactive' ||
+        matchedPayrollMaster?.status === 'Inactive' ||
+        matchedPayrollMaster?.employmentStatus === 'Inactive'
+      ) {
         return {
           success: false,
           message: 'This user account is currently inactive. Contact Super Admin.',
-        };
-      }
-
-      if (!isPasswordValid) {
-        return {
-          success: false,
-          message: 'Invalid password. Hint: check your credentials or contact admin.',
         };
       }
 
@@ -1940,28 +1951,20 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         minute: '2-digit',
       });
 
-      const resolvedPassword =
-        cleanPassword ||
-        (matchedUser.password && matchedUser.password !== 'password123'
-          ? matchedUser.password
-          : matchedPayrollMaster?.password || matchedUser.password || 'password123');
-
-      const updatedUser: User = {
+      const updatedUser: User = sanitizeClientUser({
         ...matchedUser,
-        password: resolvedPassword,
-        tempPassword: resolvedPassword,
         accessScope: isPayrollOnly ? 'payroll_only' : 'all',
         lastLoginAt: nowFormatted,
-      };
+      });
       setUsers((prev) => {
         const exists = prev.some((u) => u.id === matchedUser.id);
         const next = exists
           ? prev.map((u) =>
               u.id === matchedUser.id
-                ? { ...updatedUser, accessScope: updatedUser.accessScope }
+                ? sanitizeClientUser({ ...updatedUser, accessScope: updatedUser.accessScope })
                 : u
             )
-          : [...prev, { ...updatedUser, accessScope: updatedUser.accessScope }];
+          : [...prev, sanitizeClientUser({ ...updatedUser, accessScope: updatedUser.accessScope })];
         try {
           localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(next));
         } catch {
@@ -1988,11 +1991,12 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       matchedUserIds.add(clean);
     }
 
-    // 1. Update employeeSalaryMasters in localStorage first & collect linked userId/email
+    // 1. Update employeeSalaryMasters on server & keep sanitized records in localStorage
     try {
       const savedMasters = localStorage.getItem('crm_ess_admin_employee_masters');
       if (savedMasters) {
         const mastersObj = JSON.parse(savedMasters);
+        const serverPatch: Record<string, any> = {};
         let updated = false;
         Object.keys(mastersObj).forEach((k) => {
           const m = mastersObj[k];
@@ -2012,12 +2016,12 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ) {
             if (mEmail) matchedEmails.add(mEmail);
             if (mUserId) matchedUserIds.add(mUserId);
-            mastersObj[k] = {
+            serverPatch[k] = {
               ...m,
               password: trimmedNewPass,
-              tempPassword: trimmedNewPass,
               mustChangePasswordOnFirstLogin: false,
             };
+            mastersObj[k] = sanitizeClientPayrollObj(m);
             updated = true;
           }
         });
@@ -2026,7 +2030,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           fetch('/api/payroll/masters', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ masters: mastersObj }),
+            body: JSON.stringify({ masters: serverPatch, patch: true }),
           }).catch(() => {});
           window.dispatchEvent(new CustomEvent('crm-payroll-masters-updated'));
         }
@@ -2035,8 +2039,8 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // ignore
     }
 
-    // 2. Update CRM users state AND localStorage synchronously so immediate login() succeeds
-    const updateUsersArray = (list: User[]): User[] =>
+    // 2. Send password update to backend /api/users/:id while keeping local state sanitized
+    const updateUsersArray = (list: User[], sendToBackend = false): User[] =>
       list.map((u) => {
         const uId = (u.id || '').trim().toLowerCase();
         const uEmail = (u.email || '').trim().toLowerCase();
@@ -2050,21 +2054,19 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           uEmailPrefix === clean ||
           uName === clean
         ) {
-          const updatedU: User = {
-            ...u,
-            password: trimmedNewPass,
-            tempPassword: trimmedNewPass,
-            mustChangePassword: false,
-            mustChangePasswordOnFirstLogin: false,
-          };
-          fetch(`/api/users/${u.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updatedU),
-          }).catch(() => {});
-          return updatedU;
+          if (sendToBackend) {
+            fetch(`/api/users/${u.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                ...sanitizeClientUser(u),
+                password: trimmedNewPass,
+              }),
+            }).catch(() => {});
+          }
+          return sanitizeClientUser(u);
         }
-        return u;
+        return sanitizeClientUser(u);
       });
 
     try {
@@ -2072,7 +2074,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (savedUsersRaw) {
         const parsed = JSON.parse(savedUsersRaw);
         if (Array.isArray(parsed)) {
-          localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updateUsersArray(parsed)));
+          localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updateUsersArray(parsed, false)));
         }
       }
     } catch {
@@ -2080,7 +2082,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     setUsers((prev) => {
-      const next = updateUsersArray(prev);
+      const next = updateUsersArray(prev, true);
       try {
         localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(next));
       } catch {
@@ -2093,13 +2095,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const currId = (currentUser.id || '').trim().toLowerCase();
     const currEmail = (currentUser.email || '').trim().toLowerCase();
     if (matchedUserIds.has(currId) || matchedEmails.has(currEmail)) {
-      setCurrentUser((prev) => ({
-        ...prev,
-        password: trimmedNewPass,
-        tempPassword: trimmedNewPass,
-        mustChangePassword: false,
-        mustChangePasswordOnFirstLogin: false,
-      }));
+      setCurrentUser((prev) => sanitizeClientUser(prev));
     }
 
     return true;
@@ -2117,7 +2113,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       if (!response.ok) return false;
       const data = await response.json();
-      if (!data?.success) return false;
+      if (!data?.success || !data?.authenticated) return false;
 
       const serverUser = data.user;
       const serverMaster = data.payrollMaster;
@@ -2128,15 +2124,13 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ? {
               id: serverMaster.userId,
               name: serverMaster.name || 'Employee',
-              username: serverMaster.email
-                ? String(serverMaster.email).split('@')[0]
-                : serverMaster.empCode || 'employee',
+              username:
+                serverMaster.username ||
+                (serverMaster.email
+                  ? String(serverMaster.email).split('@')[0]
+                  : serverMaster.empCode || 'employee'),
               email: serverMaster.email || '',
-              password: serverMaster.password || serverMaster.tempPassword || password,
-              tempPassword: serverMaster.tempPassword || serverMaster.password || password,
-              mustChangePasswordOnFirstLogin: Boolean(
-                serverMaster.mustChangePasswordOnFirstLogin
-              ),
+              mustChangePasswordOnFirstLogin: false,
               accessScope: serverMaster.accessType === 'payroll_only' ? 'payroll_only' : 'all',
               accessType: serverMaster.accessType || 'payroll_only',
               phone: serverMaster.phone || '',
@@ -2153,19 +2147,10 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         try {
           const raw = localStorage.getItem(STORAGE_KEYS.USERS);
           const parsed = raw ? JSON.parse(raw) : null;
-          if (Array.isArray(parsed) && parsed.length > 0) current = parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) current = parsed.map(sanitizeClientUser);
         } catch {
           // ignore
         }
-        const resolvedPass =
-          effectiveUser.password || effectiveUser.tempPassword || password;
-        const creds = {
-          password: resolvedPass,
-          tempPassword: effectiveUser.tempPassword || resolvedPass,
-          mustChangePasswordOnFirstLogin: Boolean(
-            effectiveUser.mustChangePasswordOnFirstLogin
-          ),
-        };
         const cleanEmail = (effectiveUser.email || '').trim().toLowerCase();
         const existsIdx = current.findIndex(
           (u) =>
@@ -2176,26 +2161,24 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           existsIdx >= 0
             ? current.map((u, i) =>
                 i === existsIdx
-                  ? {
+                  ? sanitizeClientUser({
                       ...u,
                       ...effectiveUser,
                       id: u.id,
-                      ...creds,
                       customPermissions:
                         effectiveUser.customPermissions ||
                         effectiveUser.custom_permissions ||
                         u.customPermissions,
-                    }
-                  : u
+                    })
+                  : sanitizeClientUser(u)
               )
             : [
-                ...current,
-                {
+                ...current.map(sanitizeClientUser),
+                sanitizeClientUser({
                   ...effectiveUser,
-                  ...creds,
                   customPermissions:
                     effectiveUser.customPermissions || effectiveUser.custom_permissions,
-                } as User,
+                }),
               ];
         try {
           localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(next));
@@ -2209,9 +2192,11 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         try {
           const raw = localStorage.getItem('crm_ess_admin_employee_masters');
           const masters: Record<string, any> = raw ? JSON.parse(raw) : {};
-          masters[serverMaster.userId] = masters[serverMaster.userId]
-            ? { ...masters[serverMaster.userId], ...serverMaster }
-            : serverMaster;
+          masters[serverMaster.userId] = sanitizeClientPayrollObj(
+            masters[serverMaster.userId]
+              ? { ...masters[serverMaster.userId], ...serverMaster }
+              : serverMaster
+          );
           localStorage.setItem('crm_ess_admin_employee_masters', JSON.stringify(masters));
         } catch {
           // ignore
@@ -2331,12 +2316,11 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const resolvedPass =
       userData.password?.trim() ||
       userData.tempPassword?.trim() ||
-      existingUser?.password ||
-      'password123';
+      undefined;
     const rawScope = String(userData.accessScope || existingUser?.accessScope || 'all');
     const normalizedScope: 'all' | 'payroll_only' =
       rawScope.toLowerCase() === 'payroll_only' ? 'payroll_only' : 'all';
-    const newUser: User = {
+    const baseUser: User = {
       ...existingUser,
       ...userData,
       id: resolvedId,
@@ -2347,10 +2331,9 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       email: userData.email?.trim() || existingUser?.email || '',
       avatar: userData.avatar || existingUser?.avatar || initials,
       status: userData.status || existingUser?.status || 'Active',
-      password: resolvedPass,
-      tempPassword: userData.tempPassword?.trim() || resolvedPass,
       accessScope: normalizedScope,
     };
+    const newUser = sanitizeClientUser(baseUser);
     setUsers((prev) => {
       const existingIdx = prev.findIndex(
         (u) =>
@@ -2359,7 +2342,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
       const nextUsers =
         existingIdx >= 0
-          ? prev.map((u, i) => (i === existingIdx ? { ...u, ...newUser, id: resolvedId } : u))
+          ? prev.map((u, i) => (i === existingIdx ? sanitizeClientUser({ ...u, ...newUser, id: resolvedId }) : u))
           : [...prev, newUser];
       try {
         localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(nextUsers));
@@ -2367,11 +2350,14 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return nextUsers;
     });
 
-    // Commit to Render PostgreSQL backend
+    // Commit to backend with password if provided so backend stores secure hash
     fetch('/api/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newUser),
+      body: JSON.stringify({
+        ...newUser,
+        ...(resolvedPass ? { password: resolvedPass } : {}),
+      }),
     }).catch(() => {});
 
     addAuditLog({
@@ -2400,11 +2386,14 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const rawScope = userData.accessScope ? String(userData.accessScope) : undefined;
     const normalizedPatch: Partial<User> = {
       ...userData,
-      ...(nextPass ? { password: nextPass, tempPassword: nextPass } : {}),
       ...(rawScope
         ? { accessScope: rawScope.toLowerCase() === 'payroll_only' ? 'payroll_only' : 'all' }
         : {}),
     };
+    delete (normalizedPatch as Record<string, unknown>).password;
+    delete (normalizedPatch as Record<string, unknown>).tempPassword;
+    delete (normalizedPatch as Record<string, unknown>).mustChangePassword;
+    delete (normalizedPatch as Record<string, unknown>).mustChangePasswordOnFirstLogin;
 
     setUsers((prev) => {
       const nextUsers = prev.map((u) => {
@@ -2424,7 +2413,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             : u.avatar && (u.avatar.startsWith('data:image') || u.avatar.startsWith('http') || u.avatar.startsWith('/'))
             ? u.avatar
             : u.avatar || initials;
-        const updated = { ...u, ...normalizedPatch, avatar: nextAvatar };
+        const updated = sanitizeClientUser({ ...u, ...normalizedPatch, avatar: nextAvatar });
         if (currentUser.id === id) {
           setCurrentUser(updated);
           try {
@@ -2446,6 +2435,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const parsedMasters = JSON.parse(rawMasters);
         if (parsedMasters && typeof parsedMasters === 'object') {
           let changed = false;
+          const serverMastersPatch: Record<string, any> = {};
           const cleanTargetEmail = targetEmail.toLowerCase();
           for (const [k, m] of Object.entries(parsedMasters) as Array<[string, any]>) {
             if (
@@ -2456,21 +2446,20 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   m.email &&
                   String(m.email).trim().toLowerCase() === cleanTargetEmail))
             ) {
-              parsedMasters[k] = {
+              const updatedMaster = sanitizeClientPayrollObj({
                 ...m,
                 ...(normalizedPatch.name ? { name: normalizedPatch.name } : {}),
+                ...(normalizedPatch.username ? { username: normalizedPatch.username } : {}),
                 ...(normalizedPatch.email ? { email: normalizedPatch.email } : {}),
-                ...(nextPass
-                  ? {
-                      password: nextPass,
-                      tempPassword: nextPass,
-                      mustChangePasswordOnFirstLogin: false,
-                    }
-                  : {}),
                 ...(normalizedPatch.role ? { role: normalizedPatch.role } : {}),
                 ...(normalizedPatch.department ? { department: normalizedPatch.department } : {}),
                 ...(normalizedPatch.designation ? { designation: normalizedPatch.designation } : {}),
                 ...(normalizedPatch.status ? { status: normalizedPatch.status } : {}),
+              });
+              parsedMasters[k] = updatedMaster;
+              serverMastersPatch[k] = {
+                ...updatedMaster,
+                ...(nextPass ? { password: nextPass } : {}),
               };
               changed = true;
             }
@@ -2480,7 +2469,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             fetch('/api/payroll/masters', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ masters: parsedMasters, patch: true }),
+              body: JSON.stringify({ masters: serverMastersPatch, patch: true }),
             }).catch(() => {});
             window.dispatchEvent(new CustomEvent('crm-payroll-masters-updated'));
           }
@@ -2490,11 +2479,14 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // ignore
     }
 
-    // Commit update to Render PostgreSQL backend
+    // Commit update to backend (including password if admin explicitly reset it)
     fetch(`/api/users/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(normalizedPatch),
+      body: JSON.stringify({
+        ...normalizedPatch,
+        ...(nextPass ? { password: nextPass } : {}),
+      }),
     }).catch(() => {});
 
     addAuditLog({
