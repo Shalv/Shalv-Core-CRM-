@@ -790,9 +790,20 @@ function runMockQuery(sql: string, _params: any[] = []) {
   return { rows: [], rowCount: 0, fields: [] };
 }
 
+export const RENDER_DATABASE_URL =
+  'postgresql://postgresqlcrm_go7i_user:oRrcJSWfNAr7rC41KSRIcS8VphhDPBEt@dpg-db2iikpsrm7s73bhre6g-a.oregon-postgres.render.com/postgresqlcrm_go7i';
+
+const isTestMode = () => process.env.CRM_TEST_MODE === 'true';
+const getEffectiveDatabaseUrl = () => {
+  if (isTestMode()) {
+    return (process.env.DATABASE_URL || '').trim();
+  }
+  return (process.env.DATABASE_URL || RENDER_DATABASE_URL).trim();
+};
+
 let db: { query: (sql: string, params?: any[]) => Promise<any>; connect: () => Promise<any> };
 try {
-  let connStr = (process.env.DATABASE_URL || '').trim();
+  let connStr = getEffectiveDatabaseUrl();
   if (!connStr) {
     throw new Error('DATABASE_URL not set');
   }
@@ -847,7 +858,7 @@ try {
 // JSON file when no DATABASE_URL is configured (development).
 // ---------------------------------------------------------------------------
 const STATE_TABLE = 'crm_state_store';
-const isDatabaseActive = () => Boolean(process.env.DATABASE_URL);
+const isDatabaseActive = () => Boolean(getEffectiveDatabaseUrl());
 
 function buildPersistedStoreObject() {
   relinkUsersAndPayrollMasters();
@@ -894,6 +905,199 @@ async function flushStateToDatabase() {
        ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload, updated_at = CURRENT_TIMESTAMP`,
       [payload]
     );
+    void syncRelationalTablesFromState();
+  } catch {
+    // ignore
+  }
+}
+
+async function syncRelationalTablesFromState() {
+  if (!isDatabaseActive()) return;
+  try {
+    for (const u of MOCK_TABLES.users || []) {
+      if (!u || !u.id) continue;
+      await db
+        .query(
+          `INSERT INTO users (id, name, username, email, phone, role, department, designation, status, location)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           ON CONFLICT (id) DO UPDATE SET
+             name = EXCLUDED.name,
+             username = EXCLUDED.username,
+             email = EXCLUDED.email,
+             phone = EXCLUDED.phone,
+             role = EXCLUDED.role,
+             department = EXCLUDED.department,
+             designation = EXCLUDED.designation,
+             status = EXCLUDED.status,
+             location = EXCLUDED.location`,
+          [
+            u.id,
+            u.name || 'User',
+            u.username || null,
+            u.email || `${u.id}@coreenact.com`,
+            u.phone || null,
+            u.role || 'Sales Executive',
+            u.department || 'Sales',
+            u.designation || null,
+            u.status || 'Active',
+            u.location || 'New Delhi',
+          ]
+        )
+        .catch(() => {});
+    }
+
+    for (const p of MOCK_TABLES.products || []) {
+      if (!p || !p.id) continue;
+      await db
+        .query(
+          `INSERT INTO products (id, code, name, type, category, uom, hsn_sac, gst_rate, cost_price, selling_price)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           ON CONFLICT (id) DO UPDATE SET
+             name = EXCLUDED.name,
+             code = EXCLUDED.code,
+             type = EXCLUDED.type,
+             gst_rate = EXCLUDED.gst_rate,
+             selling_price = EXCLUDED.selling_price`,
+          [
+            p.id,
+            p.code || p.id,
+            p.name || 'Product',
+            p.type || 'Service',
+            p.category || null,
+            p.uom || 'License',
+            p.hsn_sac || null,
+            Number(p.gst_rate ?? 18),
+            Number(p.cost_price ?? 0),
+            Number(p.selling_price ?? 0),
+          ]
+        )
+        .catch(() => {});
+    }
+
+    for (const l of MOCK_TABLES.leads || []) {
+      if (!l || !l.id) continue;
+      await db
+        .query(
+          `INSERT INTO leads (id, lead_number, company_name, contact_person, mobile, email, status, estimated_value)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           ON CONFLICT (id) DO UPDATE SET
+             company_name = EXCLUDED.company_name,
+             contact_person = EXCLUDED.contact_person,
+             status = EXCLUDED.status,
+             estimated_value = EXCLUDED.estimated_value`,
+          [
+            l.id,
+            l.lead_number || l.leadNumber || l.id,
+            l.company_name || l.companyName || 'N/A',
+            l.contact_person || l.contactPerson || 'N/A',
+            l.mobile || l.phone || 'N/A',
+            l.email || null,
+            l.status || 'New',
+            Number(l.estimated_value ?? l.estimatedValue ?? 0),
+          ]
+        )
+        .catch(() => {});
+    }
+
+    for (const c of MOCK_TABLES.customers || []) {
+      if (!c || !c.id) continue;
+      await db
+        .query(
+          `INSERT INTO customers (id, customer_code, company_name, contact_name, email, phone, state, gstin, status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           ON CONFLICT (id) DO UPDATE SET
+             company_name = EXCLUDED.company_name,
+             contact_name = EXCLUDED.contact_name,
+             email = EXCLUDED.email,
+             phone = EXCLUDED.phone,
+             status = EXCLUDED.status`,
+          [
+            c.id,
+            c.customer_code || c.customerCode || String(c.id),
+            c.company_name || c.companyName || c.name || 'Customer',
+            c.contact_name || c.contactPerson || null,
+            c.email || null,
+            c.phone || null,
+            c.state || null,
+            c.gstin || null,
+            c.status || 'Active',
+          ]
+        )
+        .catch(() => {});
+    }
+
+    for (const o of MOCK_TABLES.sales_orders || []) {
+      if (!o || !o.id) continue;
+      await db
+        .query(
+          `INSERT INTO sales_orders (id, order_no, order_date, customer_name, currency, status, subtotal, grand_total)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           ON CONFLICT (id) DO UPDATE SET
+             customer_name = EXCLUDED.customer_name,
+             status = EXCLUDED.status,
+             grand_total = EXCLUDED.grand_total`,
+          [
+            o.id,
+            o.order_no || o.orderNumber || String(o.id),
+            o.order_date || o.orderDate || new Date().toISOString().split('T')[0],
+            o.customer_name || o.customerName || 'N/A',
+            o.currency || 'INR',
+            o.status || 'Confirmed',
+            Number(o.subtotal ?? 0),
+            Number(o.grand_total ?? o.totalAmount ?? 0),
+          ]
+        )
+        .catch(() => {});
+    }
+
+    for (const inv of MOCK_TABLES.finance_invoices || []) {
+      if (!inv || !inv.id) continue;
+      await db
+        .query(
+          `INSERT INTO finance_invoices (id, invoice_no, invoice_type, customer_name, invoice_date, due_date, subtotal, grand_total, amount_paid, status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           ON CONFLICT (id) DO UPDATE SET
+             customer_name = EXCLUDED.customer_name,
+             grand_total = EXCLUDED.grand_total,
+             amount_paid = EXCLUDED.amount_paid,
+             status = EXCLUDED.status`,
+          [
+            inv.id,
+            inv.invoice_no || inv.invoiceNumber || String(inv.id),
+            inv.invoice_type || inv.type || 'Tax Invoice',
+            inv.customer_name || inv.customerName || 'N/A',
+            inv.invoice_date || inv.date || new Date().toISOString().split('T')[0],
+            inv.due_date || inv.dueDate || new Date().toISOString().split('T')[0],
+            Number(inv.subtotal ?? 0),
+            Number(inv.grand_total ?? inv.totalAmount ?? 0),
+            Number(inv.amount_paid ?? inv.paidAmount ?? 0),
+            inv.status || 'Draft',
+          ]
+        )
+        .catch(() => {});
+    }
+
+    for (const pay of MOCK_TABLES.finance_payments || []) {
+      if (!pay || !pay.id) continue;
+      await db
+        .query(
+          `INSERT INTO finance_payments (id, invoice_id, payment_date, amount, payment_stage, payment_mode, reference_no)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           ON CONFLICT (id) DO UPDATE SET
+             amount = EXCLUDED.amount,
+             payment_mode = EXCLUDED.payment_mode`,
+          [
+            pay.id,
+            pay.invoice_id || pay.invoiceId || 1,
+            pay.payment_date || pay.date || new Date().toISOString().split('T')[0],
+            Number(pay.amount ?? 0),
+            pay.payment_stage || 'Payment',
+            pay.payment_mode || pay.mode || 'NEFT',
+            pay.reference_no || pay.referenceNumber || null,
+          ]
+        )
+        .catch(() => {});
+    }
   } catch {
     // ignore
   }
@@ -978,18 +1182,19 @@ app.get('/api/database/status', async (_req: Request, res: Response) => {
       ORDER BY table_name;
     `);
 
-    const tableStats: Array<{ tableName: string; rowCount: number }> = [];
-    for (const row of tablesRes.rows) {
-      try {
-        const countRes = await pool.query(`SELECT COUNT(*) as cnt FROM "${row.table_name}"`);
-        tableStats.push({
-          tableName: row.table_name,
-          rowCount: parseInt(countRes.rows[0]?.cnt || '0', 10),
-        });
-      } catch {
-        tableStats.push({ tableName: row.table_name, rowCount: 0 });
-      }
-    }
+    const tableStats = await Promise.all(
+      tablesRes.rows.map(async (row: any) => {
+        try {
+          const countRes = await pool.query(`SELECT COUNT(*) as cnt FROM "${row.table_name}"`);
+          return {
+            tableName: row.table_name,
+            rowCount: parseInt(countRes.rows[0]?.cnt || '0', 10),
+          };
+        } catch {
+          return { tableName: row.table_name, rowCount: 0 };
+        }
+      })
+    );
 
     res.json({
       connected: true,
@@ -3401,6 +3606,8 @@ async function startServer() {
     if (!hydrated) {
       // First boot against an empty table: seed it from current in-memory/file state
       await flushStateToDatabase();
+    } else {
+      void syncRelationalTablesFromState();
     }
   }
 

@@ -27,7 +27,11 @@
       "location": "New Delhi",
       "created_at": "2026-09-01T09:00:00Z",
       "accessScope": "all",
-      "avatar": ""
+      "avatar": "",
+      "customPermissions": null,
+      "last_login_at": null,
+      "custom_permissions": null,
+      "updated_at": "2026-10-06T17:06:56.585Z"
     },
     {
       "id": "usr-2",
@@ -43,7 +47,11 @@
       "location": "New Delhi",
       "created_at": "2026-09-01T09:05:00Z",
       "accessScope": "all",
-      "avatar": ""
+      "avatar": "",
+      "customPermissions": null,
+      "last_login_at": null,
+      "custom_permissions": null,
+      "updated_at": "2026-10-06T17:06:56.773Z"
     },
     {
       "id": "usr-3",
@@ -59,7 +67,11 @@
       "location": "Mumbai",
       "created_at": "2026-09-01T09:10:00Z",
       "accessScope": "all",
-      "avatar": ""
+      "avatar": "",
+      "customPermissions": null,
+      "last_login_at": null,
+      "custom_permissions": null,
+      "updated_at": "2026-10-06T17:06:56.959Z"
     },
     {
       "id": "usr-4",
@@ -75,7 +87,11 @@
       "location": "Bengaluru",
       "created_at": "2026-09-01T09:15:00Z",
       "accessScope": "all",
-      "avatar": ""
+      "avatar": "",
+      "customPermissions": null,
+      "last_login_at": null,
+      "custom_permissions": null,
+      "updated_at": "2026-10-06T17:06:57.147Z"
     },
     {
       "id": "usr-5",
@@ -91,7 +107,11 @@
       "location": "Ahmedabad",
       "created_at": "2026-09-01T09:20:00Z",
       "accessScope": "all",
-      "avatar": ""
+      "avatar": "",
+      "customPermissions": null,
+      "last_login_at": null,
+      "custom_permissions": null,
+      "updated_at": "2026-10-06T17:06:57.337Z"
     },
     {
       "id": "usr-6",
@@ -107,7 +127,11 @@
       "location": "New Delhi",
       "created_at": "2026-09-01T09:25:00Z",
       "accessScope": "all",
-      "avatar": ""
+      "avatar": "",
+      "customPermissions": null,
+      "last_login_at": null,
+      "custom_permissions": null,
+      "updated_at": "2026-10-06T17:06:57.524Z"
     },
     {
       "id": "usr-7",
@@ -123,11 +147,136 @@
       "location": "Pune",
       "created_at": "2026-09-01T09:30:00Z",
       "accessScope": "all",
-      "avatar": ""
+      "avatar": "",
+      "customPermissions": null,
+      "last_login_at": null,
+      "custom_permissions": null,
+      "updated_at": "2026-10-06T17:06:57.713Z"
+    },
+    {
+      "id": "employee-1",
+      "name": "Employee",
+      "username": "employee",
+      "email": "employee@example.com",
+      "passwordHash": "$2b$08$XyEH7sDzPL577j1lHk2VR.X3tYovmoEI/GYDZmRzYlJcmhYl8m9/K",
+      "accessScope": "payroll_only",
+      "accessType": "payroll_only",
+      "empCode": "EMP-001",
+      "phone": "",
+      "role": "Sales Executive",
+      "department": "Operations",
+      "designation": "Employee",
+      "status": "Active",
+      "location": "Mumbai HQ",
+      "created_at": "2026-10-11T14:33:49.195Z"
+    },
+    {
+      "id": "usr-crm-new",
+      "name": "Neha Kapoor",
+      "username": "neha.kapoor",
+      "email": "neha.kapoor@coreenact.com",
+      "passwordHash": "$2b$08$eIXJbZP0xAXG1916gVJV/uNz/dB4dQ4rfEZyU4bgPVkqa2YtLa3lu",
+      "accessScope": "all",
+      "accessType": "crm_and_payroll",
+      "phone": "9811122233",
+      "role": "Sales Executive",
+      "department": "Sales",
+      "designation": "",
+      "status": "Active",
+      "avatar": "",
+      "location": "",
+      "reportingManager": "",
+      "assignedTerritory": "",
+      "custom_permissions": {},
+      "customPermissions": {},
+      "created_at": "2026-10-11T14:33:49.979Z",
+      "lastLoginAt": "2026-10-11T14:33:53.072Z"
+    },
+    {
+      "id": "emp-pay-901",
+      "name": "Vikram Malhotra",
+      "username": "vikram.malhotra",
+      "email": "vikram.malhotra@coreenact.com",
+      "passwordHash": "$2b$08$8xdppwP/4EgMgQHzmyYnK.QA0cjK0DITK6sIQbSkglVFmjCQk.PP2",
+      "accessScope": "payroll_only",
+      "accessType": "payroll_only",
+      "empCode": "EMP-099",
+      "phone": "",
+      "role": "Support",
+      "department": "Technical Support & AMC",
+      "designation": "Support Engineer",
+      "status": "Active",
+      "location": "Mumbai HQ",
+      "created_at": "2026-10-11T14:33:56.411Z",
+      "lastLoginAt": "2026-10-11T14:34:00.164Z"
     }
   ],
-  "payroll_masters": [],
-  "payrollMasters": {},
+  "payroll_masters": [
+    {
+      "userId": "emp-pay-901",
+      "empCode": "EMP-099",
+      "name": "Vikram Malhotra",
+      "email": "vikram.malhotra@coreenact.com",
+      "username": "vikram.malhotra",
+      "role": "Support",
+      "department": "Technical Support & AMC",
+      "designation": "Support Engineer",
+      "joiningDate": "2026-10-01",
+      "employmentStatus": "Active",
+      "monthlyGross": 65000,
+      "basicPercent": 50,
+      "hraPercent": 25,
+      "pfApplicable": true,
+      "esiApplicable": false,
+      "professionalTax": 200,
+      "tdsPercent": 5,
+      "panNumber": "ABCDE1234F",
+      "uanNumber": "100900100900",
+      "bankName": "HDFC Bank",
+      "accountNumber": "501002345678",
+      "ifscCode": "HDFC0001234",
+      "leaveBalance": {
+        "casualLeave": 12,
+        "sickLeave": 8,
+        "earnedLeave": 15
+      },
+      "status": "Active",
+      "passwordHash": "$2b$08$8xdppwP/4EgMgQHzmyYnK.QA0cjK0DITK6sIQbSkglVFmjCQk.PP2"
+    }
+  ],
+  "payrollMasters": {
+    "emp-pay-901": {
+      "userId": "emp-pay-901",
+      "empCode": "EMP-099",
+      "name": "Vikram Malhotra",
+      "email": "vikram.malhotra@coreenact.com",
+      "username": "vikram.malhotra",
+      "role": "Support",
+      "department": "Technical Support & AMC",
+      "designation": "Support Engineer",
+      "joiningDate": "2026-10-01",
+      "employmentStatus": "Active",
+      "monthlyGross": 65000,
+      "basicPercent": 50,
+      "hraPercent": 25,
+      "pfApplicable": true,
+      "esiApplicable": false,
+      "professionalTax": 200,
+      "tdsPercent": 5,
+      "panNumber": "ABCDE1234F",
+      "uanNumber": "100900100900",
+      "bankName": "HDFC Bank",
+      "accountNumber": "501002345678",
+      "ifscCode": "HDFC0001234",
+      "leaveBalance": {
+        "casualLeave": 12,
+        "sickLeave": 8,
+        "earnedLeave": 15
+      },
+      "status": "Active",
+      "passwordHash": "$2b$08$8xdppwP/4EgMgQHzmyYnK.QA0cjK0DITK6sIQbSkglVFmjCQk.PP2"
+    }
+  },
   "deletedPayrollMasterIds": [],
   "payrollLoans": [],
   "deletedLoanIds": [],
@@ -183,7 +332,18 @@
   },
   "payrollOrgMasters": null,
   "payrollAttendance": {},
-  "payrollLeaves": {},
+  "payrollLeaves": {
+    "employee-1": [
+      {
+        "id": "lv1",
+        "employeeId": "employee-1",
+        "startDate": "2026-10-01",
+        "endDate": "2026-10-01",
+        "days": 1,
+        "status": "Approved"
+      }
+    ]
+  },
   "payrollClaims": {},
   "payrollStatutory": {},
   "payrollIntegrationConfig": {
@@ -200,7 +360,7 @@
     "syncReimbursements": true,
     "autoPushAttendanceAndLeaves": true,
     "fetchedGrossSalaryOverride": null,
-    "lastSyncedAt": "11 Oct 2026, 07:53 pm",
+    "lastSyncedAt": "11 Oct 2026, 06:03 pm",
     "lastFetchedAt": "Not linked yet",
     "lastPushedAt": "Not linked yet"
   },
@@ -6467,7 +6627,11 @@
         "location": "New Delhi",
         "created_at": "2026-09-01T09:00:00Z",
         "accessScope": "all",
-        "avatar": ""
+        "avatar": "",
+        "customPermissions": null,
+        "last_login_at": null,
+        "custom_permissions": null,
+        "updated_at": "2026-10-06T17:06:56.585Z"
       },
       {
         "id": "usr-2",
@@ -6482,7 +6646,11 @@
         "location": "New Delhi",
         "created_at": "2026-09-01T09:05:00Z",
         "accessScope": "all",
-        "avatar": ""
+        "avatar": "",
+        "customPermissions": null,
+        "last_login_at": null,
+        "custom_permissions": null,
+        "updated_at": "2026-10-06T17:06:56.773Z"
       },
       {
         "id": "usr-3",
@@ -6497,7 +6665,11 @@
         "location": "Mumbai",
         "created_at": "2026-09-01T09:10:00Z",
         "accessScope": "all",
-        "avatar": ""
+        "avatar": "",
+        "customPermissions": null,
+        "last_login_at": null,
+        "custom_permissions": null,
+        "updated_at": "2026-10-06T17:06:56.959Z"
       },
       {
         "id": "usr-4",
@@ -6512,7 +6684,11 @@
         "location": "Bengaluru",
         "created_at": "2026-09-01T09:15:00Z",
         "accessScope": "all",
-        "avatar": ""
+        "avatar": "",
+        "customPermissions": null,
+        "last_login_at": null,
+        "custom_permissions": null,
+        "updated_at": "2026-10-06T17:06:57.147Z"
       },
       {
         "id": "usr-5",
@@ -6527,7 +6703,11 @@
         "location": "Ahmedabad",
         "created_at": "2026-09-01T09:20:00Z",
         "accessScope": "all",
-        "avatar": ""
+        "avatar": "",
+        "customPermissions": null,
+        "last_login_at": null,
+        "custom_permissions": null,
+        "updated_at": "2026-10-06T17:06:57.337Z"
       },
       {
         "id": "usr-6",
@@ -6542,7 +6722,11 @@
         "location": "New Delhi",
         "created_at": "2026-09-01T09:25:00Z",
         "accessScope": "all",
-        "avatar": ""
+        "avatar": "",
+        "customPermissions": null,
+        "last_login_at": null,
+        "custom_permissions": null,
+        "updated_at": "2026-10-06T17:06:57.524Z"
       },
       {
         "id": "usr-7",
@@ -6557,7 +6741,65 @@
         "location": "Pune",
         "created_at": "2026-09-01T09:30:00Z",
         "accessScope": "all",
-        "avatar": ""
+        "avatar": "",
+        "customPermissions": null,
+        "last_login_at": null,
+        "custom_permissions": null,
+        "updated_at": "2026-10-06T17:06:57.713Z"
+      },
+      {
+        "id": "employee-1",
+        "name": "Employee",
+        "username": "employee",
+        "email": "employee@example.com",
+        "accessScope": "payroll_only",
+        "accessType": "payroll_only",
+        "empCode": "EMP-001",
+        "phone": "",
+        "role": "Sales Executive",
+        "department": "Operations",
+        "designation": "Employee",
+        "status": "Active",
+        "location": "Mumbai HQ",
+        "created_at": "2026-10-11T14:33:49.195Z"
+      },
+      {
+        "id": "usr-crm-new",
+        "name": "Neha Kapoor",
+        "username": "neha.kapoor",
+        "email": "neha.kapoor@coreenact.com",
+        "accessScope": "all",
+        "accessType": "crm_and_payroll",
+        "phone": "9811122233",
+        "role": "Sales Executive",
+        "department": "Sales",
+        "designation": "",
+        "status": "Active",
+        "avatar": "",
+        "location": "",
+        "reportingManager": "",
+        "assignedTerritory": "",
+        "custom_permissions": {},
+        "customPermissions": {},
+        "created_at": "2026-10-11T14:33:49.979Z",
+        "lastLoginAt": "2026-10-11T14:33:53.072Z"
+      },
+      {
+        "id": "emp-pay-901",
+        "name": "Vikram Malhotra",
+        "username": "vikram.malhotra",
+        "email": "vikram.malhotra@coreenact.com",
+        "accessScope": "payroll_only",
+        "accessType": "payroll_only",
+        "empCode": "EMP-099",
+        "phone": "",
+        "role": "Support",
+        "department": "Technical Support & AMC",
+        "designation": "Support Engineer",
+        "status": "Active",
+        "location": "Mumbai HQ",
+        "created_at": "2026-10-11T14:33:56.411Z",
+        "lastLoginAt": "2026-10-11T14:34:00.164Z"
       }
     ],
     "milestoneTemplates": []
@@ -6595,5 +6837,5 @@
       "updated_at": "2026-10-10T07:21:10.792Z"
     }
   ],
-  "updatedAt": "2026-10-11T14:26:18.167Z"
+  "updatedAt": "2026-10-11T14:36:01.975Z"
 }
