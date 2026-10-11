@@ -76,4 +76,30 @@ test('SQL mutations cannot bypass application relationship validation',async()=>
  assert.equal((await call('POST','/api/database/query',{sql:'DELETE FROM customers'})).code,400);
  assert.equal((await call('POST','/api/database/query',{sql:'SELECT * FROM users; DELETE FROM customers'})).code,400);
 });
+test('Users created from CRM Masters and Payroll Master can log in with email, username, or empCode and persist across state sync',async()=>{
+ const crmUser={id:'usr-crm-new',name:'Neha Kapoor',username:'neha.kapoor',email:'neha.kapoor@coreenact.com',password:'Neha@2026',tempPassword:'Neha@2026',phone:'9811122233',role:'Sales Executive',status:'Active',accessScope:'all'};
+ const addRes=await call('POST','/api/users',{user:crmUser});
+ assert.equal(addRes.code,200);
+ const authByUsername=await call('POST','/api/auth/verify',{identifier:'neha.kapoor',password:'Neha@2026'});
+ assert.equal(authByUsername.body.authenticated,true);
+ assert.equal(authByUsername.body.user.id,'usr-crm-new');
+ const authByEmail=await call('POST','/api/auth/verify',{identifier:'neha.kapoor@coreenact.com',password:'Neha@2026'});
+ assert.equal(authByEmail.body.authenticated,true);
+
+ const payrollMaster={userId:'emp-pay-901',empCode:'EMP-099',name:'Vikram Malhotra',email:'vikram.malhotra@coreenact.com',username:'vikram.malhotra',role:'Support',department:'Technical Support & AMC',designation:'Support Engineer',joiningDate:'2026-10-01',employmentStatus:'Active',monthlyGross:65000,basicPercent:50,hraPercent:25,pfApplicable:true,esiApplicable:false,professionalTax:200,tdsPercent:5,panNumber:'ABCDE1234F',uanNumber:'100900100900',bankName:'HDFC Bank',accountNumber:'501002345678',ifscCode:'HDFC0001234',leaveBalance:{casualLeave:12,sickLeave:8,earnedLeave:15},tempPassword:'Vikram@99',mustChangePassword:false};
+ const payRes=await call('POST','/api/payroll/masters',{masters:[payrollMaster]});
+ assert.equal(payRes.code,200);
+
+ const authByEmpCode=await call('POST','/api/auth/verify',{identifier:'EMP-099',password:'Vikram@99'});
+ assert.equal(authByEmpCode.body.authenticated,true);
+ assert.equal(authByEmpCode.body.user.email,'vikram.malhotra@coreenact.com');
+
+ const authPayrollEmail=await call('POST','/api/auth/verify',{identifier:'vikram.malhotra@coreenact.com',password:'Vikram@99'});
+ assert.equal(authPayrollEmail.body.authenticated,true);
+
+ const stateAfter=await call('GET','/api/state');
+ assert.equal(stateAfter.body.snapshot.users.some((u:any)=>u.email==='neha.kapoor@coreenact.com'),true);
+ assert.equal(stateAfter.body.snapshot.users.some((u:any)=>u.email==='vikram.malhotra@coreenact.com'),true);
+});
 after(()=>{fs.rmSync(folder,{recursive:true,force:true});});
+

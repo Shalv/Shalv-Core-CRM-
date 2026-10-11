@@ -888,7 +888,6 @@ function getCurrentSnapshot(): Snapshot {
   relinkUsersAndPayrollMasters();
   const slices = PERSISTED_CRM_STATE.crmSlices || {};
   return {
-    users: MOCK_TABLES.users,
     customers: Array.isArray(slices.customers) ? slices.customers : [],
     contacts: Array.isArray(slices.contacts) ? slices.contacts : [],
     leads: Array.isArray(slices.leads) ? slices.leads : [],
@@ -931,7 +930,7 @@ app.post('/api/auth/verify', async (req: Request, res: Response) => {
     const identifier = String(req.body?.identifier ?? '').trim().toLowerCase();
     const password = String(req.body?.password ?? '').trim();
     if (!identifier || !password) {
-      return res.status(400).json({ success: false, message: 'Identifier and password are required.' });
+      return res.status(400).json({ success: false, authenticated: false, message: 'Identifier and password are required.' });
     }
 
     const norm = (v: any) => String(v ?? '').trim().toLowerCase();
@@ -989,7 +988,7 @@ app.post('/api/auth/verify', async (req: Request, res: Response) => {
       }
     }
     if (!user && !master) {
-      return res.status(404).json({ success: false, message: 'No user account found.' });
+      return res.status(404).json({ success: false, authenticated: false, message: 'No user account found.' });
     }
 
     const valid = new Set<string>(
@@ -998,7 +997,7 @@ app.post('/api/auth/verify', async (req: Request, res: Response) => {
         .map((p) => String(p).trim())
     );
     if (valid.size > 0 && !valid.has(password)) {
-      return res.status(401).json({ success: false, message: 'Invalid password.' });
+      return res.status(401).json({ success: false, authenticated: false, message: 'Invalid password.' });
     }
     const resolvedUser = user || (master ? {
       id: master.userId,
@@ -1017,7 +1016,7 @@ app.post('/api/auth/verify', async (req: Request, res: Response) => {
       status: master.status || 'Active',
       location: master.location || 'Mumbai HQ',
     } : null);
-    return res.json({ success: true, user: resolvedUser, payrollMaster: master || null });
+    return res.json({ success: true, authenticated: true, user: resolvedUser, payrollMaster: master || null });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err?.message || 'Verification failed.' });
   }
@@ -1191,7 +1190,7 @@ app.get('/api/users', async (_req: Request, res: Response) => {
 });
 
 app.post('/api/users', async (req: Request, res: Response) => {
-  const u = req.body;
+  const u = req.body?.user && typeof req.body.user === 'object' ? req.body.user : req.body;
   const cleanEmail = u.email ? String(u.email).trim().toLowerCase() : '';
   const existingByIdIdx = u.id
     ? MOCK_TABLES.users.findIndex((row) => String(row.id) === String(u.id))
@@ -1291,7 +1290,7 @@ app.post('/api/users', async (req: Request, res: Response) => {
 
 app.put('/api/users/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
-  const u = req.body;
+  const u = req.body?.user && typeof req.body.user === 'object' ? req.body.user : req.body;
   const cleanEmail = u.email ? String(u.email).trim().toLowerCase() : '';
   const byIdIdx = MOCK_TABLES.users.findIndex((row) => String(row.id) === String(id));
   const byEmailIdx =
@@ -1400,7 +1399,14 @@ app.get('/api/payroll/masters', (_req: Request, res: Response) => {
 });
 
 app.post('/api/payroll/masters', async (req: Request, res: Response) => {
-  const masters = req.body?.masters;
+  const rawMasters = req.body?.masters;
+  const masters: Record<string, any> | undefined = Array.isArray(rawMasters)
+    ? Object.fromEntries(
+        rawMasters
+          .filter((m) => m && m.userId)
+          .map((m) => [String(m.userId), m])
+      )
+    : rawMasters;
   const deletedUserIds = Array.isArray(req.body?.deletedUserIds)
     ? (req.body.deletedUserIds as any[]).filter((id) => typeof id === 'string' && id)
     : [];

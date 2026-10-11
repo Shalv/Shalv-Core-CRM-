@@ -35,6 +35,7 @@ import {
   KeyRound,
   Lock,
   Landmark,
+  ArrowRightLeft,
 } from 'lucide-react';
 import { UserAvatar } from '../common/UserAvatar';
 import { BrandLogo } from '../common/BrandLogo';
@@ -112,6 +113,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
     canEdit,
     changeEmployeePassword,
     updateUser,
+    updateCurrentUserProfile,
   } = useCrm();
 
   // If accessed as a dedicated Payroll Login session (from login link) or by a Payroll-Only / non-admin employee,
@@ -1765,6 +1767,29 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                   )}
                 </button>
               </div>
+            )}
+
+            {asDedicatedPage && (
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete('portal');
+                    url.searchParams.delete('email');
+                    url.searchParams.delete('emp');
+                    window.history.replaceState({}, '', url.toString());
+                  } catch {
+                    // ignore
+                  }
+                  updateCurrentUserProfile({ accessScope: 'all' });
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1f7e9e] hover:bg-[#17647e] text-white font-semibold text-xs cursor-pointer"
+                title="Open full CRM Enterprise Workspace"
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5" />
+                <span>CRM Workspace</span>
+              </button>
             )}
 
             {/* Self-service Change Password (visible to every logged-in user) */}
