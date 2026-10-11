@@ -1,35 +1,29 @@
-# Enact360 — fixed deployment package
+# Deploy this revision to Vercel
 
-## Vercel setup
+This package uses Vercel Build Output API v3. The build generates one Node 22 backend function with its dependencies bundled, plus the static frontend. There is no source `api/index.js` or `api/index.ts` in this revision. Do not copy those files from an older ZIP.
 
-1. Extract this ZIP and upload its contents to your Git repository. The root must contain `package.json`, `server.ts`, `api/index.ts`, `backend`, `src`, and `vercel.json`. Replace the old application files; remove old `api/index.js`, `api/[...path].js`, and `api/[...path].ts` if your repository still contains them.
-2. In Vercel, choose Node 22.x, framework Vite, build command `npm run build`, and output directory `dist`.
-3. In Vercel Settings → Environment Variables, import the included private `.env` file. It contains your Render **external** database URL with port 5432 and a generated `AUTH_SECRET`. Apply the values to Production. Uploading source to Git does not set Vercel environment variables. `.env` is ignored by Git and must not be committed.
-4. Redeploy. Render must allow connections from your Vercel deployment. This package does not change Render networking or your existing hosted Vercel settings.
-5. Open `/api/health`: expect JSON with `database: connected`. Sign in, then confirm `/api/state` returns saved application JSON. A 503 means database/configuration access failed; records are not silently saved to an in-memory fallback.
+1. Replace your repository contents with this extracted package, including the new `vercel.json`, `package.json`, lockfile, `backend`, `scripts`, and `src`. The repository root must contain `package.json`. The build removes a legacy `api` folder automatically, but a clean replacement avoids obsolete files.
+2. Keep `DATABASE_URL` and `AUTH_SECRET` set for Production in Vercel. Their exact values are in the private `.env` supplied in the ZIP. Import that file through Settings → Environment Variables if you have not already done so. Do not commit `.env` to Git.
+3. Redeploy the new commit. `vercel.json` selects the custom build, Node 22, and `.vercel/output`; do not set the output directory to `dist` for this revision. The build log should say: `Vercel deployment output built: one bundled Node 22 function and static frontend.`
+4. Visit `/api/health`. Connected storage should return JSON with `database: connected`. A JSON 503 points to missing environment variables or unavailable PostgreSQL. It does not mean data was saved in memory. Render must permit access from Vercel.
+5. Sign in with `admin` or `admin@coreenact.com` and `password123` if using the bundled initial data. An existing database password takes precedence. Password changes are made from the profile card and saved as bcrypt hashes.
 
-Keep one AUTH_SECRET value across deployments. Changing it invalidates existing sessions. Use a separate database for preview deployments if you enable previews.
+The function initializes inside a guarded request entry. Initialization exceptions return JSON with `BACKEND_INITIALIZATION_FAILED`, with the exception logged privately in Vercel Runtime Logs. Malformed JSON returns HTTP 400. Database failures return HTTP 503. These diagnostics make configuration failures visible; they do not simulate successful database access.
 
-## Login
+## Data
 
-For the bundled initial data, use username **admin** (or **admin@coreenact.com**) and password **password123**. If the existing PostgreSQL state has a changed password, that saved password takes precedence. Change the password from the profile card after deployment. New accounts use the password supplied by the administrator immediately; no first-login password-reset step is required. Passwords are stored as bcrypt hashes. Login requires server verification and uses an HttpOnly cookie with an eight-hour token expiry.
+One PostgreSQL database stores the authoritative snapshot in `crm_state_store`, row `app`. An existing state row is preserved. An empty database is seeded from `backend/initial-store.json`, which contains the data from the uploaded package and is bundled privately into the backend. Runtime table APIs use projections of that snapshot. Do not run the old destructive SQL/seed scripts against an existing database.
 
-## Data and migration
+The database page provides an authenticated administrator CRM JSON export. Use PostgreSQL backup tools for a full database/payroll backup.
 
-The application uses one PostgreSQL database. Its authoritative application snapshot is stored in `crm_state_store`, row `app`; the server creates this table if needed. Existing rows in this table are preserved. If the row is absent, `backend/initial-store.json` seeds it using the data from your uploaded package. This seed file contains private business data and password hashes, and is server-only.
+## Local checks
 
-Legacy relational SQL tables are retained but are not a second source of application truth. Runtime table APIs and the SQL explorer use projections of the saved application snapshot. The explorer supports `SELECT * FROM table` and `SELECT COUNT(*) as cnt FROM table`; use psql for arbitrary database queries. Do not rerun the old destructive SQL/seed scripts against an existing database. An authenticated administrator can export the CRM snapshot through the database page as JSON. This export is not a complete PostgreSQL or payroll backup; use PostgreSQL backup tools for that purpose.
+Use Node 22.12 or newer within Node 22.x. Run `npm ci` and `npm run check`. Use `npm run dev` locally, or `npm run build` and `npm start` for local production mode. The private `.env` connects local development to the supplied Render database, so local modifications use that database too.
 
-## Run locally
+The ZIP includes a prebuilt `.vercel/output` for inspection. Git deployments regenerate it. If deploying with Vercel CLI, build in the linked project after setting the intended environment and use Vercel's prebuilt deployment workflow.
 
-Use Node 22.12 or newer. Run `npm ci`, then `npm run dev`. The included `.env` connects to your Render database, so local changes use that database too. To serve production locally, run `npm run build`, then `npm start`. Run `npm run check` for TypeScript, regression tests, and the production frontend build.
+## Providers and limits
 
-## Other integrations
+PostgreSQL credentials are configured in the private `.env`. Outlook, Google Maps, OAuth, and other provider integrations need their own credentials and provider setup. No deployment to your Vercel account is performed by creating this ZIP.
 
-Only the PostgreSQL credentials were supplied. Outlook email/OAuth, Google Maps, and any other external provider need their own credentials and provider-side setup. Set the applicable keys from `.env.example` as server environment variables. This package cannot make those services functional using PostgreSQL credentials. Unconfigured email reports failure rather than claiming delivery.
-
-## Verification and remaining live checks
-
-TypeScript validation, the production build, and 33 automated checks passed. Tests cover linked financial records, separate document sequences, payroll calculations, sync conflicts/offline retries, concurrent database transactions, failed commits, deleted users, serverless HTTP routing, login, user creation, password changes, and basic access restrictions. Database connections in regression tests are simulated. Actual Render connectivity could not be confirmed from the editing environment because the database hostname could not be resolved. The hosted application has not been deployed or tested live.
-
-After deploying, verify saving from two browser sessions, log out/in with a newly created user, change a password and retry the old/new passwords, and create representative sales, invoice/payment, support, and payroll records. These checks establish behavior in your actual hosting and provider environment; this package is not a guarantee that every possible business workflow is defect-free.
+See FIX_REPORT.md for verification. The generated function is tested independently of the source and node_modules, including failure cases. Actual Vercel/Render networking and acceptance testing remain necessary after deployment. Platform failures, unrelated repository contents, and unavailable providers cannot be guaranteed away by a ZIP.

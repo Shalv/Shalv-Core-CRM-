@@ -1,6 +1,6 @@
 import initialStore from './backend/initial-store.json';
-import { postgresStateMiddleware } from './backend/postgresState';
-import express, { Request, Response, NextFunction } from 'express';
+import { postgresStateMiddleware } from './backend/postgresState.ts';
+import express, { type Request, type Response, type NextFunction } from 'express';
 import dotenv from 'dotenv';
 import { Pool } from 'pg';
 import nodemailer from 'nodemailer';
@@ -16,7 +16,7 @@ import {
   reconcileSnapshot,
   same,
   type Snapshot,
-} from './src/shared/integrity';
+} from './src/shared/integrity.ts';
 
 dotenv.config({quiet:true});
 
@@ -3374,6 +3374,13 @@ app.get('/api/sync/pull', async (_req: Request, res: Response) => {
   }
 });
 
+app.use('/api', (_req, res) => res.status(404).json({success:false,message:'API endpoint not found.'}));
+app.use((error: any, _req: Request, res: Response, _next: NextFunction) => {
+  console.error('Enact360 request failed:', error?.message || 'Unknown error');
+  if (res.headersSent) return res.end();
+  res.status(error?.status === 400 ? 400 : 500).json({success:false,message:error?.status === 400 ? 'Invalid request body.' : 'The server could not process this request. See Vercel Runtime Logs.'});
+});
+
 // ============================================================================
 // Frontend Integration (Vite Middleware in Dev, Static in Production)
 // ============================================================================
@@ -3383,7 +3390,7 @@ async function startServer() {
   // the platform routes requests straight into the exported Express app handler
   // and serves the Vite build from its own CDN. Binding a port crashes the
   // function with FUNCTION_INVOCATION_FAILED.
-  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  if (process.env.CRM_SERVERLESS === 'true' || process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
     return;
   }
 

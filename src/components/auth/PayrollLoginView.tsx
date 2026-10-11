@@ -58,8 +58,8 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
             'Invalid Employee Code or password. Please verify your credentials or check with your HR Administrator.'
         );
       }
-    } catch {
-      setError('Authentication failed. Please verify credentials and try again.');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Authentication failed.');
     } finally {
       setLoading(false);
     }

@@ -1678,9 +1678,11 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier, password }),
       });
-      if (!response.ok) return false;
+      if (!response.headers.get('content-type')?.includes('application/json')) {
+        throw new Error(`The application backend returned HTTP ${response.status}. Check Vercel Runtime Logs for /api/auth/verify.`);
+      }
       const data = await response.json();
-      if (!data?.success || !data?.authenticated) return false;
+      if (!response.ok || !data?.success || !data?.authenticated) throw new Error(data.message || `Sign-in API returned HTTP ${response.status}.`);
 
       const serverUser = data.user;
       const serverMaster = data.payrollMaster;
@@ -1770,8 +1772,9 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
       return true;
-    } catch {
-      return false;
+    } catch (error) {
+      if (error instanceof TypeError) throw new Error('The login server could not be reached. Check your connection and Vercel deployment.');
+      throw error;
     }
   };
 

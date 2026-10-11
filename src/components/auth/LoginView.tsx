@@ -675,8 +675,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
     setStatus('loading');
     sim.current.linkT = 260;
 
-    const verified = await syncCredentialsFromServer(email, password);
-    const res = verified ? login(email, password) : {success:false, message:'Sign-in failed. Check your credentials and server connection.'};
+    let res: {success:boolean; message?:string};
+    try {
+      const verified = await syncCredentialsFromServer(email, password);
+      res = verified ? login(email, password) : {success:false, message:'Sign-in could not be verified.'};
+    } catch (error) {
+      setStatus('idle');
+      setErrors({password:error instanceof Error ? error.message : 'Sign-in failed.'});
+      return;
+    }
 
     if (!res.success) {
       setStatus('idle');
