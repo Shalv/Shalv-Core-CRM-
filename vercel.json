@@ -1,17 +1,8 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api"
-    },
-    {
-      "source": "/auth/(.*)",
-      "destination": "/api"
-    },
-    {
-      "source": "/((?!api/|auth/).*)",
-      "destination": "/index.html"
-    }
-  ]
+  "framework": null,
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build",
+  "outputDirectory": ".vercel/output"
 }
