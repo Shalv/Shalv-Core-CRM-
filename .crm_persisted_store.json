@@ -200,7 +200,7 @@
     "syncReimbursements": true,
     "autoPushAttendanceAndLeaves": true,
     "fetchedGrossSalaryOverride": null,
-    "lastSyncedAt": "10 Oct 2026, 12:51 pm",
+    "lastSyncedAt": "11 Oct 2026, 07:53 pm",
     "lastFetchedAt": "Not linked yet",
     "lastPushedAt": "Not linked yet"
   },
@@ -6595,5 +6595,5 @@
       "updated_at": "2026-10-10T07:21:10.792Z"
     }
   ],
-  "updatedAt": "2026-10-11T12:41:46.534Z"
+  "updatedAt": "2026-10-11T14:26:18.167Z"
 }
