@@ -729,6 +729,25 @@ export const isDuplicateEmpCode = (
   );
 };
 
+export const sanitizeClientPayrollMaster = (
+  record: EmployeeSalaryMasterRecord
+): EmployeeSalaryMasterRecord => {
+  const {
+    password: _p,
+    tempPassword: _tp,
+    mustChangePasswordOnFirstLogin: _m1,
+    ...rest
+  } = record as EmployeeSalaryMasterRecord & Record<string, unknown>;
+  delete (rest as Record<string, unknown>).passwordHash;
+  delete (rest as Record<string, unknown>).mustChangePassword;
+  delete (rest as Record<string, unknown>).forcePasswordReset;
+  delete (rest as Record<string, unknown>).firstLogin;
+  return {
+    ...rest,
+    mustChangePasswordOnFirstLogin: false,
+  };
+};
+
 export const buildDefaultSalaryMasterRecord = (
   user: Partial<User> & { id: string; role?: string; empCode?: string; monthlyGross?: number },
   idx = 0,
@@ -744,17 +763,17 @@ export const buildDefaultSalaryMasterRecord = (
           existingMasters,
           idx > 0 ? [`EMP-${String(100 + idx).padStart(3, '0')}`] : []
         );
-  const randomPass = user.password || user.tempPassword || generateRandomPassword();
+  const explicitPass = user.password?.trim() || user.tempPassword?.trim() || undefined;
   const effectiveRole = user.role || 'Sales Executive';
   const gross = typeof user.monthlyGross === 'number' && Number.isFinite(user.monthlyGross) ? Math.max(0, user.monthlyGross) : 0;
   return {
     userId: user.id,
     empCode: resolvedEmpCode,
     name: user.name || 'Employee',
+    username: user.username || (user.email ? user.email.split('@')[0] : undefined),
     email: user.email || '',
-    password: randomPass,
-    tempPassword: randomPass,
-    mustChangePasswordOnFirstLogin: user.mustChangePasswordOnFirstLogin ?? true,
+    ...(explicitPass ? { password: explicitPass } : {}),
+    mustChangePasswordOnFirstLogin: false,
     accessType: user.accessScope === 'payroll_only' ? 'payroll_only' : (user.accessType || 'crm_and_payroll'),
     phone: user.phone || '+91 98200 00000',
     role: effectiveRole,
@@ -805,7 +824,13 @@ export const loadEmployeeSalaryMasters = (
     if (saved) {
       const parsed = JSON.parse(saved) as Record<string, EmployeeSalaryMasterRecord>;
       if (parsed && typeof parsed === 'object') {
-        return parsed;
+        const sanitized: Record<string, EmployeeSalaryMasterRecord> = {};
+        for (const [k, v] of Object.entries(parsed)) {
+          if (v && typeof v === 'object') {
+            sanitized[k] = sanitizeClientPayrollMaster(v);
+          }
+        }
+        return sanitized;
       }
     }
   } catch {
@@ -834,13 +859,21 @@ export const saveEmployeeSalaryMasters = (
         // ignore
       }
     }
-    const nextJson = JSON.stringify(masters);
-    if (prevJson === nextJson) return;
+    const sanitizedForStorage: Record<string, EmployeeSalaryMasterRecord> = {};
+    let hasExplicitPasswordUpdate = false;
+    for (const [k, v] of Object.entries(masters || {})) {
+      if (v && typeof v === 'object') {
+        if (v.password || v.tempPassword) {
+          hasExplicitPasswordUpdate = true;
+        }
+        sanitizedForStorage[k] = sanitizeClientPayrollMaster(v);
+      }
+    }
+    const nextJson = JSON.stringify(sanitizedForStorage);
+    if (prevJson === nextJson && !hasExplicitPasswordUpdate) return;
     localStorage.setItem(PAYROLL_MASTERS_STORAGE_KEY, nextJson);
-    // Upsert-safe save: server merges per userId and applies delete tombstones,
-    // so a stale full-map snapshot from one tab can never wipe or swap another
-    // employee's salary structure. `clearedUserIds` explicitly un-archives a
-    // re-enrolled employee on the server.
+    // Upsert-safe save: server merges per userId, hashes any newly provided password,
+    // and applies delete tombstones.
     fetch('/api/payroll/masters', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
