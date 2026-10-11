@@ -49,13 +49,8 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
     setLoading(true);
 
     try {
-      let res = login(cleanInput, password, { portalMode: 'payroll' });
-
-      if (!res.success && !/inactive/i.test(res.message || '')) {
-        if (await syncCredentialsFromServer(cleanInput, password)) {
-          res = login(cleanInput, password, { portalMode: 'payroll' });
-        }
-      }
+      const verified = await syncCredentialsFromServer(cleanInput, password);
+      const res = verified ? login(cleanInput, password, {portalMode:'payroll'}) : {success:false, message:'Sign-in failed. Check your credentials and server connection.'};
 
       if (!res.success) {
         setError(

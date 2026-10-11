@@ -533,11 +533,6 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEYS.ROLE_PERMISSIONS, JSON.stringify(rolePermissions));
-      fetch('/api/sync/push', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sliceKey: 'rolePermissions', sliceValue: rolePermissions }),
-      }).catch(() => {});
     } catch (e) { /* ignore */ }
   }, [rolePermissions]);
 
@@ -1020,7 +1015,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (s.rolePermissions) setRolePermissions(s.rolePermissions);
     if (s.users) {
       setUsers((prev) => {
-        const next = mergeUserRecords(prev, s.users);
+        const next = s.users.map(sanitizeClientUser);
         try {
           localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(next));
         } catch {
@@ -1059,7 +1054,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     status: syncStatus,
     retry: retrySync,
     reloadSaved: reloadSavedSync,
-  } = useApplicationSync(currentSnapshot, applySnapshot);
+  } = useApplicationSync(currentSnapshot, applySnapshot, isAuthenticated);
 
   const hasRemoteConflict = syncStatus.state === 'conflict';
   const conflictMessage = syncStatus.state === 'conflict' ? syncStatus.message : undefined;
@@ -1067,14 +1062,6 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const dismissConflict = () => { retrySync(); };
   const lastSyncedAt = syncStatus.state === 'saved' ? new Date().toISOString() : null;
 
-  // Helper to push any state slice update to backend persistence
-  const pushSliceToBackend = (sliceKey: string, sliceValue: any) => {
-    fetch('/api/sync/push', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sliceKey, sliceValue }),
-    }).catch(() => {});
-  };
 
   // Sync state to localStorage & Backend
   useEffect(() => {
@@ -1088,566 +1075,146 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const cleanUsers = users.map(sanitizeClientUser);
     localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(cleanUsers));
-    fetch('/api/sync/push', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ users: cleanUsers }),
-    }).catch(() => {});
   }, [users]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.STATES, JSON.stringify(states));
-    pushSliceToBackend('states', states);
   }, [states]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
-    pushSliceToBackend('products', products);
   }, [products]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.TAX_RATES, JSON.stringify(taxRates));
-    pushSliceToBackend('taxRates', taxRates);
   }, [taxRates]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.PAYMENT_TERMS, JSON.stringify(paymentTerms));
-    pushSliceToBackend('paymentTerms', paymentTerms);
   }, [paymentTerms]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.CONTACTS, JSON.stringify(contacts));
-    pushSliceToBackend('contacts', contacts);
   }, [contacts]);
 
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEYS.SUPPLIER_COMPANY, JSON.stringify(supplierCompany));
-      pushSliceToBackend('supplierCompany', supplierCompany);
-    } catch (e) {
+      } catch (e) {
       console.warn('Could not persist supplierCompany to localStorage:', e);
     }
   }, [supplierCompany]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.LEADS, JSON.stringify(leads));
-    pushSliceToBackend('leads', leads);
   }, [leads]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.OPPORTUNITIES, JSON.stringify(opportunities));
-    pushSliceToBackend('opportunities', opportunities);
   }, [opportunities]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
-    pushSliceToBackend('customers', customers);
   }, [customers]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
-    pushSliceToBackend('orders', orders);
   }, [orders]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.PURCHASE_ORDERS, JSON.stringify(purchaseOrders));
-    pushSliceToBackend('purchaseOrders', purchaseOrders);
   }, [purchaseOrders]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.AMC_CONTRACTS, JSON.stringify(amcContracts));
-    pushSliceToBackend('amcContracts', amcContracts);
   }, [amcContracts]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.SUPPORT_TICKETS, JSON.stringify(supportTickets));
-    pushSliceToBackend('supportTickets', supportTickets);
   }, [supportTickets]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.CHANGE_REQUESTS, JSON.stringify(changeRequests));
-    pushSliceToBackend('changeRequests', changeRequests);
   }, [changeRequests]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.LICENSE_TYPES, JSON.stringify(licenseTypes));
-    pushSliceToBackend('licenseTypes', licenseTypes);
   }, [licenseTypes]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.MILESTONES, JSON.stringify(milestones));
-    pushSliceToBackend('milestones', milestones);
   }, [milestones]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.INVOICES, JSON.stringify(invoices));
-    pushSliceToBackend('invoices', invoices);
   }, [invoices]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.PAYMENTS, JSON.stringify(payments));
-    pushSliceToBackend('payments', payments);
   }, [payments]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.LEDGER, JSON.stringify(ledgerEntries));
-    pushSliceToBackend('ledgerEntries', ledgerEntries);
   }, [ledgerEntries]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(activities));
-    pushSliceToBackend('activities', activities);
   }, [activities]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications));
-    pushSliceToBackend('notifications', notifications);
   }, [notifications]);
 
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEYS.OUTLOOK_EMAIL_CONFIG, JSON.stringify(outlookEmailConfig));
-      pushSliceToBackend('outlookEmailConfig', outlookEmailConfig);
-    } catch (e) {
+      } catch (e) {
       /* ignore */
     }
   }, [outlookEmailConfig]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.AUDIT, JSON.stringify(auditLogs));
-    pushSliceToBackend('auditLogs', auditLogs);
   }, [auditLogs]);
 
-  // Synchronize initial state with live Render PostgreSQL database & persistent backend store
+  // Refresh payroll caches from the same authoritative database after sign-in.
   useEffect(() => {
-    let localMasters: Record<string, any> = {};
-    let localLoans: any[] = [];
-    let localPolicy: any = null;
-    let localOrgMasters: any = null;
-    let localIntegrationConfig: any = null;
-    const localAttendance: Record<string, any> = {};
-    const localLeaves: Record<string, any> = {};
-    const localClaims: Record<string, any> = {};
-    const localStatutory: Record<string, any> = {};
-
-    try {
-      const rawLocal = localStorage.getItem('crm_ess_admin_employee_masters');
-      if (rawLocal) {
-        const parsedMasters = JSON.parse(rawLocal) || {};
-        for (const [k, v] of Object.entries(parsedMasters)) {
-          if (v && typeof v === 'object') {
-            localMasters[k] = sanitizeClientPayrollObj(v);
-          }
-        }
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    void fetch('/api/sync/pull').then(async res => {
+      if (!res.ok) throw new Error('Payroll data could not load');
+      return res.json();
+    }).then(({data}) => {
+      if (cancelled || !data) return;
+      const entries: Array<[string, any]> = [
+        ['crm_ess_admin_employee_masters', data.payrollMasters || {}],
+        ['crm_ess_employee_loans', data.payrollLoans || []],
+        ['crm_ess_admin_policy_master', data.payrollPolicy],
+        ['crm_payroll_org_masters', data.payrollOrgMasters],
+        ['crm_payroll_integration_config', data.payrollIntegrationConfig],
+        ['crm_payroll_deleted_master_ids', data.deletedPayrollMasterIds || []],
+      ];
+      for (const [key,value] of entries) {
+        if (value == null) localStorage.removeItem(key);
+        else localStorage.setItem(key,JSON.stringify(value));
       }
-      const rawLoans = localStorage.getItem('crm_ess_employee_loans');
-      if (rawLoans) localLoans = JSON.parse(rawLoans) || [];
-      const rawPolicy = localStorage.getItem('crm_ess_admin_policy_master');
-      if (rawPolicy) localPolicy = JSON.parse(rawPolicy) || null;
-      const rawOrg = localStorage.getItem('crm_payroll_org_masters');
-      if (rawOrg) localOrgMasters = JSON.parse(rawOrg) || null;
-      const rawInt = localStorage.getItem('crm_payroll_integration_config');
-      if (rawInt) localIntegrationConfig = JSON.parse(rawInt) || null;
-
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (!k || !k.startsWith('crm_ess_')) continue;
-        const mAtt = k.match(/^crm_ess_(.+)_attendance$/);
-        if (mAtt) {
-          const val = localStorage.getItem(k);
-          if (val) localAttendance[mAtt[1]] = JSON.parse(val);
-        }
-        const mLv = k.match(/^crm_ess_(.+)_leaves$/);
-        if (mLv) {
-          const val = localStorage.getItem(k);
-          if (val) localLeaves[mLv[1]] = JSON.parse(val);
-        }
-        const mCl = k.match(/^crm_ess_(.+)_claims$/);
-        if (mCl) {
-          const val = localStorage.getItem(k);
-          if (val) localClaims[mCl[1]] = JSON.parse(val);
-        }
-        const mSt = k.match(/^crm_ess_(.+)_statutory$/);
-        if (mSt) {
-          const val = localStorage.getItem(k);
-          if (val) localStatutory[mSt[1]] = JSON.parse(val);
-        }
+      for (const [slice,suffix] of [['payrollAttendance','attendance'],['payrollLeaves','leaves'],['payrollClaims','claims'],['payrollStatutory','statutory']]) {
+        const existing=Object.keys(localStorage).filter(k=>k.startsWith('crm_ess_') && k.endsWith('_'+suffix));
+        for(const key of existing) localStorage.removeItem(key);
+        for(const [id,value] of Object.entries(data[slice] || {})) localStorage.setItem(`crm_ess_${id}_${suffix}`,JSON.stringify(value));
       }
-    } catch {
-      // ignore
-    }
-
-    const PAYROLL_DELETED_MASTERS_KEY = 'crm_payroll_deleted_master_ids';
-    let localDeletedMasterIds: string[] = [];
-    try {
-      const rawDel = localStorage.getItem(PAYROLL_DELETED_MASTERS_KEY);
-      const parsedDel = rawDel ? JSON.parse(rawDel) : [];
-      if (Array.isArray(parsedDel)) localDeletedMasterIds = parsedDel.filter(Boolean);
-    } catch {
-      // ignore
-    }
-
-    fetch('/api/sync/push', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        users,
-        payrollMasters: localMasters,
-        deletedMasterUserIds: localDeletedMasterIds.length > 0 ? localDeletedMasterIds : undefined,
-        payrollLoans: localLoans.length > 0 ? localLoans : undefined,
-        payrollPolicy: localPolicy || undefined,
-        payrollOrgMasters: localOrgMasters || undefined,
-        payrollAttendance: Object.keys(localAttendance).length > 0 ? localAttendance : undefined,
-        payrollLeaves: Object.keys(localLeaves).length > 0 ? localLeaves : undefined,
-        payrollClaims: Object.keys(localClaims).length > 0 ? localClaims : undefined,
-        payrollStatutory: Object.keys(localStatutory).length > 0 ? localStatutory : undefined,
-        payrollIntegrationConfig: localIntegrationConfig || undefined,
-        crmSlices: {
-          states,
-          products,
-          taxRates,
-          paymentTerms,
-          contacts,
-          supplierCompany,
-          leads,
-          opportunities,
-          customers,
-          orders,
-          purchaseOrders,
-          amcContracts,
-          supportTickets,
-          changeRequests,
-          licenseTypes,
-          milestones,
-          invoices,
-          payments,
-          ledgerEntries,
-          activities,
-          notifications,
-          outlookEmailConfig,
-          auditLogs,
-        },
-      }),
+      window.dispatchEvent(new CustomEvent('crm-payroll-masters-updated'));
+      window.dispatchEvent(new CustomEvent('crm-payroll-loans-updated'));
     }).catch(() => {});
+    return () => {cancelled=true;};
+  }, [isAuthenticated]);
 
-    fetch('/api/sync/pull')
-      .then((res) => {
-        if (!res.ok) throw new Error('Backend offline');
-        return res.json();
-      })
-      .then((payload) => {
-        if (payload?.success && payload?.data) {
-          const { data } = payload;
-          if (Array.isArray(data.users) && data.users.length > 0) {
-            setUsers((prevUsers) => {
-              const nextList = mergeUserRecords(prevUsers, data.users);
-              try {
-                localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(nextList));
-              } catch {
-                // ignore
-              }
-              return nextList;
-            });
-          }
-
-          if (data.payrollMasters && typeof data.payrollMasters === 'object') {
-            const serverMasters = data.payrollMasters as Record<string, any>;
-            if (Object.keys(serverMasters).length > 0) {
-              try {
-                const rawLocal = localStorage.getItem('crm_ess_admin_employee_masters');
-                const currentLocal: Record<string, any> = rawLocal ? JSON.parse(rawLocal) : {};
-                const rawUsers = localStorage.getItem(STORAGE_KEYS.USERS);
-                const knownUsersList: User[] = rawUsers ? JSON.parse(rawUsers) : users;
-
-                const resolveCanonicalUserId = (m: any): string => {
-                  const rawId = String(m?.userId || '').trim();
-                  const rawEmail = String(m?.email || '').trim().toLowerCase();
-                  if (rawId && knownUsersList.some((u) => u.id === rawId)) {
-                    return rawId;
-                  }
-                  if (rawEmail) {
-                    const byEmail = knownUsersList.find(
-                      (u) => u.email && u.email.trim().toLowerCase() === rawEmail
-                    );
-                    if (byEmail) return byEmail.id;
-                  }
-                  return rawId;
-                };
-
-                const mergedMasters: Record<string, any> = {};
-                const keyByEmail = new Map<string, string>();
-                const keyByCode = new Map<string, string>();
-
-                for (const m of Object.values(currentLocal)) {
-                  if (!m || !m.userId) continue;
-                  const canonicalId = resolveCanonicalUserId(m);
-                  const normalized = sanitizeClientPayrollObj({ ...m, userId: canonicalId });
-                  mergedMasters[canonicalId] = normalized;
-                  if (normalized.email) {
-                    keyByEmail.set(String(normalized.email).trim().toLowerCase(), canonicalId);
-                  }
-                  if (normalized.empCode) {
-                    keyByCode.set(String(normalized.empCode).trim().toUpperCase(), canonicalId);
-                  }
-                }
-
-                for (const m of Object.values(serverMasters)) {
-                  if (!m || !m.userId) continue;
-                  const emailLower = m.email ? String(m.email).trim().toLowerCase() : '';
-                  const codeUpper = m.empCode ? String(m.empCode).trim().toUpperCase() : '';
-                  const canonicalId =
-                    mergedMasters[m.userId]
-                      ? String(m.userId)
-                      : (emailLower && keyByEmail.get(emailLower)) ||
-                        (codeUpper && keyByCode.get(codeUpper)) ||
-                        resolveCanonicalUserId(m);
-                  if (!canonicalId) continue;
-                  const existingLocal = mergedMasters[canonicalId];
-                  mergedMasters[canonicalId] = sanitizeClientPayrollObj(
-                    existingLocal
-                      ? { ...m, ...existingLocal, userId: canonicalId }
-                      : { ...m, userId: canonicalId }
-                  );
-                  if (emailLower) keyByEmail.set(emailLower, canonicalId);
-                  if (codeUpper) keyByCode.set(codeUpper, canonicalId);
-                }
-
-                // Apply delete tombstones (local + server) so an employee removed on
-                // any device never reappears and rebinds to another user's login
-                const tombstones = new Set<string>([
-                  ...localDeletedMasterIds,
-                  ...(Array.isArray(data.deletedPayrollMasterIds)
-                    ? data.deletedPayrollMasterIds.map(String)
-                    : []),
-                ]);
-                for (const id of tombstones) {
-                  if (id && mergedMasters[id]) delete mergedMasters[id];
-                }
-                if (tombstones.size > 0) {
-                  try {
-                    localStorage.setItem(
-                      PAYROLL_DELETED_MASTERS_KEY,
-                      JSON.stringify(Array.from(tombstones))
-                    );
-                  } catch {
-                    // ignore
-                  }
-                }
-
-                localStorage.setItem(
-                  'crm_ess_admin_employee_masters',
-                  JSON.stringify(mergedMasters)
-                );
-                window.dispatchEvent(new CustomEvent('crm-payroll-masters-updated'));
-              } catch {
-                // ignore
-              }
-            }
-          }
-
-          if (Array.isArray(data.payrollLoans) || Array.isArray(data.deletedLoanIds)) {
-            try {
-              const delSet = new Set<string>(
-                Array.isArray(data.deletedLoanIds) ? data.deletedLoanIds : []
-              );
-              const rawLoans = localStorage.getItem('crm_ess_employee_loans');
-              const currentLoans: any[] = rawLoans ? JSON.parse(rawLoans) : [];
-              const loanMap = new Map<string, any>();
-              for (const ln of currentLoans) {
-                if (ln && ln.id && !delSet.has(ln.id)) {
-                  loanMap.set(ln.id, ln);
-                }
-              }
-              if (Array.isArray(data.payrollLoans)) {
-                for (const ln of data.payrollLoans) {
-                  if (!ln || !ln.id || delSet.has(ln.id)) continue;
-                  const localLn = loanMap.get(ln.id);
-                  if (!localLn) {
-                    loanMap.set(ln.id, ln);
-                  } else {
-                    const srvUpdated = Number(ln.updatedAt || 0);
-                    const locUpdated = Number(localLn.updatedAt || 0);
-                    const srvAuditLen = Array.isArray(ln.auditTrail) ? ln.auditTrail.length : 0;
-                    const locAuditLen = Array.isArray(localLn.auditTrail)
-                      ? localLn.auditTrail.length
-                      : 0;
-                    if (srvUpdated >= locUpdated && srvAuditLen >= locAuditLen) {
-                      loanMap.set(ln.id, ln);
-                    }
-                  }
-                }
-              }
-              const mergedLoans = Array.from(loanMap.values());
-              localStorage.setItem('crm_ess_employee_loans', JSON.stringify(mergedLoans));
-              window.dispatchEvent(new CustomEvent('crm-payroll-loans-updated'));
-            } catch {
-              // ignore
-            }
-          }
-
-          if (data.payrollPolicy && typeof data.payrollPolicy === 'object') {
-            try {
-              if (!localStorage.getItem('crm_ess_admin_policy_master')) {
-                localStorage.setItem(
-                  'crm_ess_admin_policy_master',
-                  JSON.stringify(data.payrollPolicy)
-                );
-                window.dispatchEvent(new CustomEvent('crm-payroll-masters-updated'));
-              }
-            } catch {
-              // ignore
-            }
-          }
-
-          if (data.payrollOrgMasters && typeof data.payrollOrgMasters === 'object') {
-            try {
-              if (!localStorage.getItem('crm_payroll_org_masters')) {
-                localStorage.setItem(
-                  'crm_payroll_org_masters',
-                  JSON.stringify(data.payrollOrgMasters)
-                );
-                window.dispatchEvent(new CustomEvent('crm-payroll-org-masters-updated'));
-              }
-            } catch {
-              // ignore
-            }
-          }
-
-          if (data.payrollAttendance && typeof data.payrollAttendance === 'object') {
-            try {
-              for (const [empId, att] of Object.entries(data.payrollAttendance)) {
-                const key = `crm_ess_${empId}_attendance`;
-                if (!localStorage.getItem(key) && att) {
-                  localStorage.setItem(key, JSON.stringify(att));
-                }
-              }
-            } catch {
-              // ignore
-            }
-          }
-
-          if (data.payrollLeaves && typeof data.payrollLeaves === 'object') {
-            try {
-              for (const [empId, lvs] of Object.entries(data.payrollLeaves)) {
-                const key = `crm_ess_${empId}_leaves`;
-                if (!localStorage.getItem(key) && Array.isArray(lvs)) {
-                  localStorage.setItem(key, JSON.stringify(lvs));
-                }
-              }
-            } catch {
-              // ignore
-            }
-          }
-
-          if (data.payrollClaims && typeof data.payrollClaims === 'object') {
-            try {
-              for (const [empId, cls] of Object.entries(data.payrollClaims)) {
-                const key = `crm_ess_${empId}_claims`;
-                if (!localStorage.getItem(key) && Array.isArray(cls)) {
-                  localStorage.setItem(key, JSON.stringify(cls));
-                }
-              }
-            } catch {
-              // ignore
-            }
-          }
-
-          if (data.payrollStatutory && typeof data.payrollStatutory === 'object') {
-            try {
-              for (const [empId, st] of Object.entries(data.payrollStatutory)) {
-                const key = `crm_ess_${empId}_statutory`;
-                if (!localStorage.getItem(key) && st) {
-                  localStorage.setItem(key, JSON.stringify(st));
-                }
-              }
-            } catch {
-              // ignore
-            }
-          }
-
-          if (data.companySetup && data.companySetup.logo_url) {
-            setSupplierCompany((prevComp) => ({
-              ...prevComp,
-              logoUrl: prevComp.logoUrl || data.companySetup.logo_url,
-            }));
-          }
-
-          if (data.crmSlices && typeof data.crmSlices === 'object') {
-            const s = data.crmSlices;
-            const mergeById = <T extends { id: string }>(localArr: T[], serverArr: any): T[] => {
-              if (!Array.isArray(serverArr) || serverArr.length === 0) return localArr;
-              const map = new Map<string, T>();
-              for (const item of serverArr) {
-                if (item && item.id) map.set(String(item.id), item);
-              }
-              for (const item of localArr) {
-                if (item && item.id) map.set(String(item.id), { ...map.get(String(item.id)), ...item });
-              }
-              return Array.from(map.values());
-            };
-            if (Array.isArray(s.leads) && s.leads.length > 0) {
-              setLeads((prev) => mergeById(prev, s.leads));
-            }
-            if (Array.isArray(s.opportunities) && s.opportunities.length > 0) {
-              setOpportunities((prev) => mergeById(prev, s.opportunities));
-            }
-            if (Array.isArray(s.customers) && s.customers.length > 0) {
-              setCustomers((prev) => mergeById(prev, s.customers));
-            }
-            if (Array.isArray(s.contacts) && s.contacts.length > 0) {
-              setContacts((prev) => mergeById(prev, s.contacts));
-            }
-            if (Array.isArray(s.products) && s.products.length > 0) {
-              setProducts((prev) => mergeById(prev, s.products));
-            }
-            if (Array.isArray(s.orders) && s.orders.length > 0) {
-              setOrders((prev) => mergeById(prev, s.orders));
-            }
-            if (Array.isArray(s.purchaseOrders) && s.purchaseOrders.length > 0) {
-              setPurchaseOrders((prev) => mergeById(prev, s.purchaseOrders));
-            }
-            if (Array.isArray(s.amcContracts) && s.amcContracts.length > 0) {
-              setAmcContracts((prev) => mergeById(prev, s.amcContracts));
-            }
-            if (Array.isArray(s.supportTickets) && s.supportTickets.length > 0) {
-              setSupportTickets((prev) => mergeById(prev, s.supportTickets));
-            }
-            if (Array.isArray(s.changeRequests) && s.changeRequests.length > 0) {
-              setChangeRequests((prev) => mergeById(prev, s.changeRequests));
-            }
-            if (Array.isArray(s.licenseTypes) && s.licenseTypes.length > 0) {
-              setLicenseTypes((prev) => mergeById(prev, s.licenseTypes));
-            }
-            if (Array.isArray(s.milestones) && s.milestones.length > 0) {
-              setMilestones((prev) => mergeById(prev, s.milestones));
-            }
-            if (Array.isArray(s.invoices) && s.invoices.length > 0) {
-              setInvoices((prev) => mergeById(prev, s.invoices));
-            }
-            if (Array.isArray(s.payments) && s.payments.length > 0) {
-              setPayments((prev) => mergeById(prev, s.payments));
-            }
-            if (Array.isArray(s.ledgerEntries) && s.ledgerEntries.length > 0) {
-              setLedgerEntries((prev) => mergeById(prev, s.ledgerEntries));
-            }
-            if (Array.isArray(s.activities) && s.activities.length > 0) {
-              setActivities((prev) => mergeById(prev, s.activities));
-            }
-            if (Array.isArray(s.states) && s.states.length > 0) {
-              setStates((prev) => mergeById(prev, s.states));
-            }
-            if (Array.isArray(s.taxRates) && s.taxRates.length > 0) {
-              setTaxRates((prev) => mergeById(prev, s.taxRates));
-            }
-            if (Array.isArray(s.paymentTerms) && s.paymentTerms.length > 0) {
-              setPaymentTerms((prev) => mergeById(prev, s.paymentTerms));
-            }
-          }
-        }
-      })
-      .catch(() => {
-        // Fallback to local storage state
-      });
+  useEffect(() => {
+    void fetch('/api/auth/session').then(async response => {
+      if (!response.ok) {setIsAuthenticated(false); return;}
+      const data = await response.json();
+      if (data.user) {setCurrentUser(sanitizeClientUser(data.user)); setIsAuthenticated(true);}
+    }).catch(() => setIsAuthenticated(false));
   }, []);
 
   // Authentication & User Login Profile Methods
@@ -2226,6 +1793,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logout = () => {
+    void fetch('/api/auth/logout', {method:'POST'});
     setIsAuthenticated(false);
   };
 

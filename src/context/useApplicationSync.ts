@@ -11,7 +11,8 @@ async function readState(response: Response) {
 }
 const PENDING_KEY='crm_pending_transaction_v2';
 /** One coherent transaction for all CRM slices. Server data loads before any background write. */
-export function useApplicationSync(snapshot:Snapshot, apply:(snapshot:Snapshot)=>void) {
+export function useApplicationSync(snapshot:Snapshot, apply:(snapshot:Snapshot)=>void, enabled=true) {
+  const enabledRef=useRef(enabled); enabledRef.current=enabled;
   const latest=useRef(snapshot); latest.current=snapshot;
   const applyRef=useRef(apply); applyRef.current=apply;
   const base=useRef<Snapshot | null>(null);
@@ -22,7 +23,7 @@ export function useApplicationSync(snapshot:Snapshot, apply:(snapshot:Snapshot)=
   const tickRef=useRef<()=>Promise<void>>(async()=>{});
   const hydrate=(value:Snapshot)=>{ latest.current=value; applyRef.current(value); };
   tickRef.current=async()=> {
-    if(busy.current || blocked.current || stopped.current) return;
+    if(!enabledRef.current || busy.current || blocked.current || stopped.current) return;
     busy.current=true;
     try {
       if(!base.current) {
@@ -31,18 +32,8 @@ export function useApplicationSync(snapshot:Snapshot, apply:(snapshot:Snapshot)=
         const remote=data.snapshot as Snapshot;
         let local:Snapshot;
         if(data.initialized===false) {
-          const mergedUsers=new Map<string,any>();
-          for(const u of remote.users || []) {
-            if(u && u.id) mergedUsers.set(String(u.id),u);
-          }
-          for(const u of latest.current.users || []) {
-            if(u && u.id) {
-              const prev=mergedUsers.get(String(u.id));
-              const pass=(u.password && u.password!=='password123') ? u.password : (prev?.password || u.password || 'password123');
-              mergedUsers.set(String(u.id),prev ? {...prev,...u,password:pass,tempPassword:u.tempPassword || prev?.tempPassword || pass} : u);
-            }
-          }
-          local=reconcileSnapshot({...remote,...latest.current,users:Array.from(mergedUsers.values())});
+          // Existing server credentials and user identities always remain authoritative.
+          local=reconcileSnapshot({...remote,...latest.current,users:remote.users});
         } else {
           local=reconcileSnapshot({...latest.current,...remote});
         }
@@ -103,6 +94,10 @@ export function useApplicationSync(snapshot:Snapshot, apply:(snapshot:Snapshot)=
       setStatus(s=>({...s,state:'offline',message:base.current ? 'Connection unavailable. Changes remain queued; reconnect to save.' : `Saved data could not load. ${error instanceof Error && error.message !== 'Failed to fetch' ? error.message : 'The application server could not be reached. Start it with npm run dev, or npm run build followed by npm start.'} Editing will unlock after saved data loads.`}));
     } finally { busy.current=false; }
   };
+  useEffect(()=> {
+    if (!enabled) {base.current=null; setReady(false); return;}
+    void tickRef.current();
+  }, [enabled]);
   useEffect(()=> {
     stopped.current=false;
     void tickRef.current();

@@ -91,26 +91,26 @@ export const PostgresDatabaseView: React.FC = () => {
     fetchHealthAndStats();
   }, []);
 
-  // Download postgres_dump.sql
+  // Download enact360-data.json
   const handleDownloadPostgresSql = () => {
-    fetch('/postgres_dump.sql')
+    fetch('/api/database/export')
       .then((res) => {
         if (!res.ok) throw new Error('File not found');
         return res.text();
       })
       .then((text) => {
-        const blob = new Blob([text], { type: 'application/sql' });
+        const blob = new Blob([text], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'postgres_dump.sql';
+        a.download = 'enact360-data.json';
         a.click();
         URL.revokeObjectURL(url);
       })
       .catch(() => {
         const a = document.createElement('a');
-        a.href = '/postgres_dump.sql';
-        a.download = 'postgres_dump.sql';
+        a.href = '/api/database/export';
+        a.download = 'enact360-data.json';
         a.click();
       });
   };
@@ -123,7 +123,7 @@ export const PostgresDatabaseView: React.FC = () => {
   };
 
   const handleCopyScript = () => {
-    fetch('/postgres_dump.sql')
+    fetch('/api/database/export')
       .then((res) => res.text())
       .then((text) => {
         navigator.clipboard.writeText(text);
@@ -140,7 +140,7 @@ export const PostgresDatabaseView: React.FC = () => {
     const host = dbHealth?.host || 'localhost';
     const user = dbHealth?.databaseUser || 'postgres';
     const dbName = dbHealth?.databaseName || 'enact360_crm';
-    const psqlCmd = `PGPASSWORD=<YOUR_DB_PASSWORD> psql -h ${host} -U ${user} -d ${dbName}`;
+    const psqlCmd = `PGPASSWORD=YOUR_DB_PASSWORD psql -h ${host} -U ${user} -d ${dbName}`;
     navigator.clipboard.writeText(psqlCmd);
     setCopiedPsql(true);
     setTimeout(() => setCopiedPsql(false), 2000);
@@ -369,7 +369,7 @@ export const PostgresDatabaseView: React.FC = () => {
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition cursor-pointer shadow-md"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>Download SQL Dump</span>
+              <span>Download Data Dump</span>
             </button>
             <button
               onClick={handleCopyScript}
@@ -711,7 +711,7 @@ export const PostgresDatabaseView: React.FC = () => {
           <div className="p-4 bg-slate-900 rounded-xl text-emerald-400 text-xs font-mono space-y-2">
             <span className="text-slate-400 block text-[11px] font-sans">Command Line Connection (psql):</span>
             <div className="overflow-x-auto select-all p-2 bg-slate-950 rounded border border-slate-800">
-              PGPASSWORD=oRrcJSWfNAr7rC41KSRIcS8VphhDPBEt psql -h dpg-db2iikpsrm7s73bhre6g-a.oregon-postgres.render.com -U postgresqlcrm_go7i_user -d postgresqlcrm_go7i
+              PGPASSWORD=YOUR_DB_PASSWORD psql -h dpg-db2iikpsrm7s73bhre6g-a.oregon-postgres.render.com -U postgresqlcrm_go7i_user -d postgresqlcrm_go7i
             </div>
             <div className="flex justify-end pt-1">
               <button
@@ -730,7 +730,7 @@ export const PostgresDatabaseView: React.FC = () => {
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold text-slate-900 font-mono">postgres_dump.sql</h3>
+              <h3 className="text-sm font-bold text-slate-900 font-mono">enact360-data.json</h3>
             </div>
             <button
               onClick={handleDownloadPostgresSql}
@@ -741,121 +741,16 @@ export const PostgresDatabaseView: React.FC = () => {
             </button>
           </div>
           <pre className="bg-slate-900 text-slate-200 p-4 rounded-xl text-xs font-mono overflow-x-auto max-h-96">
-            {`-- PostgreSQL Schema & Data for Enact360
--- Target: Render PostgreSQL (postgresqlcrm_go7i)
--- Host: dpg-db2iikpsrm7s73bhre6g-a.oregon-postgres.render.com
+            {`Application data is saved in PostgreSQL crm_state_store (row app).
+The download button exports the current CRM snapshot as JSON.
+Use PostgreSQL backup tools for a complete database/payroll backup.
 
-CREATE TABLE IF NOT EXISTS users (
-  id VARCHAR(80) PRIMARY KEY,
-  name VARCHAR(190) NOT NULL,
-  username VARCHAR(100),
-  email VARCHAR(190) NOT NULL UNIQUE,
-  phone VARCHAR(50),
-  role VARCHAR(60) NOT NULL DEFAULT 'Sales Executive',
-  department VARCHAR(60) NOT NULL DEFAULT 'Sales',
-  designation VARCHAR(100),
-  status VARCHAR(20) DEFAULT 'Active',
-  avatar VARCHAR(255),
-  location VARCHAR(100),
-  last_login_at TIMESTAMPTZ,
-  custom_permissions JSONB,
-  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-);
+Database explorer supports application projections:
+SELECT * FROM users;
+SELECT * FROM leads;
+SELECT COUNT(*) as cnt FROM customers;
 
-CREATE TABLE IF NOT EXISTS customers (
-  id SERIAL PRIMARY KEY,
-  customer_code VARCHAR(30) NOT NULL UNIQUE,
-  company_name VARCHAR(190) NOT NULL,
-  website VARCHAR(190),
-  industry VARCHAR(100),
-  contact_name VARCHAR(140) NOT NULL,
-  email VARCHAR(190),
-  phone VARCHAR(30) NOT NULL,
-  address TEXT,
-  country VARCHAR(100) DEFAULT 'India',
-  state VARCHAR(100),
-  city VARCHAR(100),
-  state_code VARCHAR(10),
-  gstin VARCHAR(20),
-  status VARCHAR(20) DEFAULT 'Active'
-);
-
-CREATE TABLE IF NOT EXISTS finance_invoices (
-  id SERIAL PRIMARY KEY,
-  invoice_no VARCHAR(40) NOT NULL UNIQUE,
-  invoice_type VARCHAR(40) NOT NULL,
-  customer_id INT REFERENCES customers(id),
-  customer_name VARCHAR(190) NOT NULL,
-  invoice_date DATE NOT NULL,
-  due_date DATE,
-  status VARCHAR(30) DEFAULT 'Draft',
-  subtotal NUMERIC(14,2) DEFAULT 0.00,
-  taxable_amount NUMERIC(14,2) DEFAULT 0.00,
-  grand_total NUMERIC(14,2) DEFAULT 0.00,
-  amount_paid NUMERIC(14,2) DEFAULT 0.00
-);
-
-CREATE TABLE IF NOT EXISTS payroll_loan_applications (
-  id VARCHAR(40) PRIMARY KEY,
-  employee_id VARCHAR(80) NOT NULL REFERENCES users(id),
-  emp_code VARCHAR(30) NOT NULL,
-  loan_type VARCHAR(60) NOT NULL,
-  requested_amount NUMERIC(14,2) NOT NULL,
-  approved_amount NUMERIC(14,2) DEFAULT 0.00,
-  interest_rate_annual NUMERIC(6,2) DEFAULT 0.00,
-  calculation_method VARCHAR(50) NOT NULL,
-  requested_tenure_months INT NOT NULL,
-  approved_tenure_months INT DEFAULT 1,
-  emi_start_month VARCHAR(10) NOT NULL,
-  repayment_frequency VARCHAR(40) DEFAULT 'Monthly Payroll Deduction',
-  monthly_emi_amount NUMERIC(14,2) DEFAULT 0.00,
-  total_payable_amount NUMERIC(14,2) DEFAULT 0.00,
-  disbursement_date DATE,
-  disbursement_mode VARCHAR(50),
-  disbursement_ref VARCHAR(80) UNIQUE,
-  disbursed_amount NUMERIC(14,2) DEFAULT 0.00,
-  total_recovered_amount NUMERIC(14,2) DEFAULT 0.00,
-  outstanding_balance NUMERIC(14,2) DEFAULT 0.00,
-  status VARCHAR(50) NOT NULL DEFAULT 'Pending HR Verification',
-  hr_approval JSONB,
-  manager_approval JSONB,
-  finance_approval JSONB,
-  exit_settlement JSONB,
-  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS payroll_loan_emi_schedule (
-  id VARCHAR(60) PRIMARY KEY,
-  loan_id VARCHAR(40) NOT NULL REFERENCES payroll_loan_applications(id) ON DELETE CASCADE,
-  instalment_no INT NOT NULL,
-  payroll_month_key VARCHAR(10) NOT NULL,
-  due_date DATE NOT NULL,
-  opening_balance NUMERIC(14,2) NOT NULL,
-  principal_component NUMERIC(14,2) NOT NULL,
-  interest_component NUMERIC(14,2) NOT NULL,
-  total_emi NUMERIC(14,2) NOT NULL,
-  deducted_amount NUMERIC(14,2) DEFAULT 0.00,
-  shortfall_amount NUMERIC(14,2) DEFAULT 0.00,
-  closing_balance NUMERIC(14,2) NOT NULL,
-  status VARCHAR(40) NOT NULL DEFAULT 'Scheduled',
-  payroll_run_ref VARCHAR(80),
-  UNIQUE(loan_id, payroll_month_key)
-);
-
-CREATE TABLE IF NOT EXISTS payroll_loan_ledger (
-  id VARCHAR(60) PRIMARY KEY,
-  loan_id VARCHAR(40) NOT NULL REFERENCES payroll_loan_applications(id) ON DELETE CASCADE,
-  entry_date DATE NOT NULL,
-  entry_type VARCHAR(50) NOT NULL,
-  description TEXT NOT NULL,
-  debit_amount NUMERIC(14,2) DEFAULT 0.00,
-  credit_amount NUMERIC(14,2) DEFAULT 0.00,
-  running_balance NUMERIC(14,2) NOT NULL,
-  reference_no VARCHAR(80),
-  recorded_by VARCHAR(140) NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-);`}
+Arbitrary database SQL should be run using psql by an administrator.`}
           </pre>
         </div>
       )}

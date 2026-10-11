@@ -1,20 +1,7 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Enact360 CRM / ERP
 
-# Run and deploy your AI Studio app
+Complete corrected source package with Vercel frontend/API routing and a PostgreSQL-backed application snapshot. Start with **START_HERE.md** for deployment, credentials, migration behavior, and validation limits.
 
-This contains everything you need to run your app locally.
+The private `.env` contains the database credentials supplied for this request and a generated server session secret. Import it into Vercel Environment Variables; do not commit it to Git. Provider credentials for email, OAuth, and maps must be supplied separately.
 
-View your app in AI Studio: https://ai.studio/apps/6d7abdaa-3190-4131-ac88-d89cb9f751be
-
-## Run Locally
-
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+Run `npm ci` and `npm run check`. Tests use simulated database responses, not the live Render database.

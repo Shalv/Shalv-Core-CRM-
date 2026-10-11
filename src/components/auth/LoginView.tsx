@@ -675,15 +675,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
     setStatus('loading');
     sim.current.linkT = 260;
 
-    let res = login(email, password);
-
-    // The browser's cached user list can be stale (new domain/device, password changed
-    // elsewhere). Re-check against the server's saved data before rejecting.
-    if (!res.success && !/inactive/i.test(res.message || '')) {
-      if (await syncCredentialsFromServer(email, password)) {
-        res = login(email, password);
-      }
-    }
+    const verified = await syncCredentialsFromServer(email, password);
+    const res = verified ? login(email, password) : {success:false, message:'Sign-in failed. Check your credentials and server connection.'};
 
     if (!res.success) {
       setStatus('idle');

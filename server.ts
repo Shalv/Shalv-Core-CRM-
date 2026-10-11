@@ -1,3 +1,5 @@
+import initialStore from './backend/initial-store.json';
+import { postgresStateMiddleware } from './backend/postgresState';
 import express, { Request, Response, NextFunction } from 'express';
 import dotenv from 'dotenv';
 import { Pool } from 'pg';
@@ -16,12 +18,12 @@ import {
   type Snapshot,
 } from './src/shared/integrity';
 
-dotenv.config();
+dotenv.config({quiet:true});
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const AUTH_TOKEN_SECRET = process.env.AUTH_SECRET || 'enact360-crm-auth-hmac-secret-2026';
+const AUTH_TOKEN_SECRET = process.env.AUTH_SECRET || crypto.randomBytes(32).toString('hex');
 
 export function isBcryptHash(value: unknown): value is string {
   return typeof value === 'string' && /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(value);
@@ -54,7 +56,7 @@ export function verifyPasswordHash(plainPassword: string, storedHash?: string): 
 }
 
 export function issueAuthToken(userId: string): string {
-  const payload = Buffer.from(String(userId), 'utf8').toString('base64url');
+  const payload = Buffer.from(JSON.stringify({id:String(userId),expires:Date.now()+8*60*60*1000}), 'utf8').toString('base64url');
   const sig = crypto.createHmac('sha256', AUTH_TOKEN_SECRET).update(payload).digest('base64url');
   return `${payload}.${sig}`;
 }
@@ -66,9 +68,10 @@ export function verifyAuthToken(token?: string | null): string | null {
   if (parts.length !== 2) return null;
   const [payload, sig] = parts;
   const expectedSig = crypto.createHmac('sha256', AUTH_TOKEN_SECRET).update(payload).digest('base64url');
-  if (sig !== expectedSig) return null;
+  if (sig.length !== expectedSig.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig))) return null;
   try {
-    return Buffer.from(payload, 'base64url').toString('utf8');
+    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    return parsed.expires > Date.now() && typeof parsed.id === 'string' ? parsed.id : null;
   } catch {
     return null;
   }
@@ -128,22 +131,6 @@ app.set('trust proxy', 1);
 // Parse JSON and URL-encoded bodies
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
-
-// Durable writes: any mutating request that changed the store (users, passwords,
-// payroll masters, ...) is committed to Postgres BEFORE the response is sent, so a
-// later cold start / another serverless instance cannot revert it (e.g. back to the
-// default password).
-app.use((req: Request, res: Response, next: NextFunction) => {
-  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
-  const originalEnd = res.end.bind(res) as (...args: any[]) => Response;
-  (res as any).end = (...args: any[]) => {
-    if (!stateDirty || !isDatabaseActive()) return originalEnd(...args);
-    stateDirty = false;
-    flushStateToDatabase().finally(() => originalEnd(...args));
-    return res;
-  };
-  next();
-});
 
 // Database connection with in-memory mock fallback for AI Studio environment
 const MOCK_TABLES: Record<string, any[]> = {
@@ -705,10 +692,10 @@ function loadPersistedStore() {
 // Set whenever the in-memory store changes; the response hook below flushes it to
 // Postgres before the HTTP response is finished (required on Vercel, where the
 // filesystem is read-only/ephemeral and a function may freeze right after replying).
-let stateDirty = false;
 
 function savePersistedStore() {
-  stateDirty = true;
+  transactionWriter?.();
+  if (!isTestMode()) return;
   try {
     relinkUsersAndPayrollMasters();
     syncMockTablesFromState();
@@ -747,7 +734,8 @@ function savePersistedStore() {
   }
 }
 
-loadPersistedStore();
+if (isTestMode()) loadPersistedStore();
+else applyParsedStore(initialStore);
 
 function runMockQuery(sql: string, _params: any[] = []) {
   const normalized = sql.trim().replace(/\s+/g, ' ');
@@ -790,72 +778,27 @@ function runMockQuery(sql: string, _params: any[] = []) {
   return { rows: [], rowCount: 0, fields: [] };
 }
 
-export const RENDER_DATABASE_URL =
-  'postgresql://postgresqlcrm_go7i_user:oRrcJSWfNAr7rC41KSRIcS8VphhDPBEt@dpg-db2iikpsrm7s73bhre6g-a.oregon-postgres.render.com/postgresqlcrm_go7i';
-
-const isTestMode = () => process.env.CRM_TEST_MODE === 'true';
-const getEffectiveDatabaseUrl = () => {
-  if (isTestMode()) {
-    return (process.env.DATABASE_URL || '').trim();
-  }
-  return (process.env.DATABASE_URL || RENDER_DATABASE_URL).trim();
+function isTestMode() { return process.env.CRM_TEST_MODE === 'true'; }
+const getEffectiveDatabaseUrl = () => (process.env.DATABASE_URL || '').trim();
+const livePool = getEffectiveDatabaseUrl() ? new Pool({
+  connectionString: getEffectiveDatabaseUrl(),
+  ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: false },
+  max: 3, idleTimeoutMillis: 10000, connectionTimeoutMillis: 8000,
+}) : null;
+livePool?.on('error', () => console.error('PostgreSQL connection unavailable'));
+// Legacy table APIs project the authoritative PostgreSQL snapshot. They never
+// use independently written relational tables or silently fall back after errors.
+const db = {
+  query: async (sql: string, params: any[] = []) => runMockQuery(sql, params),
+  connect: async () => ({ query: async (sql: string, params: any[] = []) => runMockQuery(sql, params), release() {} }),
 };
-
-let db: { query: (sql: string, params?: any[]) => Promise<any>; connect: () => Promise<any> };
-try {
-  let connStr = getEffectiveDatabaseUrl();
-  if (!connStr) {
-    throw new Error('DATABASE_URL not set');
-  }
-  // Auto-correct OCR ambiguity ('l' vs capital 'I') in the Render password
-  if (connStr.includes('KSRlcS8VphhDPBEt')) {
-    connStr = connStr.replace('KSRlcS8VphhDPBEt', 'KSRIcS8VphhDPBEt');
-  }
-  const pgPool = new Pool({
-    connectionString: connStr,
-    ssl: { rejectUnauthorized: false },
-    max: 10,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000,
-  });
-  pgPool.on('error', (err) => {
-    console.warn('PostgreSQL client error (falling back to mock):', err.message);
-  });
-  pgPool.query('ALTER TABLE users ALTER COLUMN avatar TYPE TEXT;').catch(() => {});
-  db = {
-    query: async (sql: string, params: any[] = []) => {
-      try {
-        return await pgPool.query(sql, params);
-      } catch (err: any) {
-        console.warn('PostgreSQL query error (falling back to mock):', err.message);
-        return runMockQuery(sql, params);
-      }
-    },
-    connect: async () => {
-      try {
-        return await pgPool.connect();
-      } catch (err: any) {
-        console.warn('PostgreSQL connect error (falling back to mock):', err.message);
-        return { query: async (sql: string, params: any[] = []) => runMockQuery(sql, params), release: () => {} };
-      }
-    },
-  };
-} catch {
-  console.warn('DB not connected — mock active');
-  db = {
-    query: async (sql: string, params: any[] = []) => runMockQuery(sql, params),
-    connect: async () => ({
-      query: async (sql: string, params: any[] = []) => runMockQuery(sql, params),
-      release: () => {},
-    }),
-  };
-}
+let transactionWriter: (() => void) | null = null;
 
 // ---------------------------------------------------------------------------
-// Durable store mirror: the whole CRM/Payroll store (incl. ESS payroll masters
+// Durable store: the whole CRM/Payroll store (incl. ESS payroll masters
 // and admin-set passwords) is persisted as a single JSON blob in Postgres so it
 // survives Vercel's ephemeral filesystem / cold starts. Falls back to the local
-// JSON file when no DATABASE_URL is configured (development).
+// JSON file only in isolated regression tests.
 // ---------------------------------------------------------------------------
 const STATE_TABLE = 'crm_state_store';
 const isDatabaseActive = () => Boolean(getEffectiveDatabaseUrl());
@@ -886,362 +829,32 @@ function buildPersistedStoreObject() {
   };
 }
 
-async function ensureStateTable() {
-  try {
-    await db.query(
-      `CREATE TABLE IF NOT EXISTS ${STATE_TABLE} (id text PRIMARY KEY, payload text, updated_at timestamp DEFAULT CURRENT_TIMESTAMP)`
-    );
-  } catch {
-    // ignore
-  }
-}
-
 async function flushStateToDatabase() {
-  if (!isDatabaseActive()) return;
-  try {
-    const payload = JSON.stringify(buildPersistedStoreObject());
-    await db.query(
-      `INSERT INTO ${STATE_TABLE} (id, payload, updated_at) VALUES ('app', $1, CURRENT_TIMESTAMP)
-       ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload, updated_at = CURRENT_TIMESTAMP`,
-      [payload]
-    );
-    void syncRelationalTablesFromState();
-  } catch {
-    // ignore
-  }
+  // The HTTP transaction owns persistence; explicit legacy flush calls only mark it.
+  transactionWriter?.();
 }
 
-async function syncRelationalTablesFromState() {
-  if (!isDatabaseActive()) return;
-  try {
-    for (const u of MOCK_TABLES.users || []) {
-      if (!u || !u.id) continue;
-      const email = u.email || `${u.id}@coreenact.com`;
-      const existing = await db
-        .query('SELECT id FROM users WHERE email = $1 OR id = $2 LIMIT 1', [email, u.id])
-        .catch(() => ({ rows: [] }));
-      if (existing.rows && existing.rows.length > 0) {
-        await db
-          .query(
-            `UPDATE users SET
-               name = $1,
-               username = $2,
-               phone = $3,
-               role = $4,
-               department = $5,
-               designation = $6,
-               status = $7,
-               location = $8
-             WHERE id = $9`,
-            [
-              u.name || 'User',
-              u.username || null,
-              u.phone || null,
-              u.role || 'Sales Executive',
-              u.department || 'Sales',
-              u.designation || null,
-              u.status || 'Active',
-              u.location || 'New Delhi',
-              existing.rows[0].id,
-            ]
-          )
-          .catch(() => {});
-      } else {
-        await db
-          .query(
-            `INSERT INTO users (id, name, username, email, phone, role, department, designation, status, location)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-             ON CONFLICT (id) DO UPDATE SET
-               name = EXCLUDED.name,
-               username = EXCLUDED.username,
-               phone = EXCLUDED.phone,
-               role = EXCLUDED.role,
-               department = EXCLUDED.department,
-               designation = EXCLUDED.designation,
-               status = EXCLUDED.status,
-               location = EXCLUDED.location`,
-            [
-              u.id,
-              u.name || 'User',
-              u.username || null,
-              email,
-              u.phone || null,
-              u.role || 'Sales Executive',
-              u.department || 'Sales',
-              u.designation || null,
-              u.status || 'Active',
-              u.location || 'New Delhi',
-            ]
-          )
-          .catch(() => {});
-      }
-    }
+async function hydrateStoreFromDatabase() { return true; }
 
-    for (const p of MOCK_TABLES.products || []) {
-      if (!p || !p.id) continue;
-      const code = p.code || p.id;
-      const existing = await db
-        .query('SELECT id FROM products WHERE code = $1 OR id = $2 LIMIT 1', [code, p.id])
-        .catch(() => ({ rows: [] }));
-      if (existing.rows && existing.rows.length > 0) {
-        await db
-          .query(
-            `UPDATE products SET
-               name = $1,
-               type = $2,
-               category = $3,
-               uom = $4,
-               hsn_sac = $5,
-               gst_rate = $6,
-               cost_price = $7,
-               selling_price = $8
-             WHERE id = $9`,
-            [
-              p.name || 'Product',
-              p.type || 'Service',
-              p.category || null,
-              p.uom || 'License',
-              p.hsn_sac || null,
-              Number(p.gst_rate ?? 18),
-              Number(p.cost_price ?? 0),
-              Number(p.selling_price ?? 0),
-              existing.rows[0].id,
-            ]
-          )
-          .catch(() => {});
-      } else {
-        await db
-          .query(
-            `INSERT INTO products (id, code, name, type, category, uom, hsn_sac, gst_rate, cost_price, selling_price)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-             ON CONFLICT (id) DO UPDATE SET
-               name = EXCLUDED.name,
-               code = EXCLUDED.code,
-               type = EXCLUDED.type,
-               gst_rate = EXCLUDED.gst_rate,
-               selling_price = EXCLUDED.selling_price`,
-            [
-              p.id,
-              code,
-              p.name || 'Product',
-              p.type || 'Service',
-              p.category || null,
-              p.uom || 'License',
-              p.hsn_sac || null,
-              Number(p.gst_rate ?? 18),
-              Number(p.cost_price ?? 0),
-              Number(p.selling_price ?? 0),
-            ]
-          )
-          .catch(() => {});
-      }
-    }
-
-    for (const l of MOCK_TABLES.leads || []) {
-      if (!l || !l.id) continue;
-      const leadNum = l.lead_number || l.leadNumber || l.id;
-      const existing = await db
-        .query('SELECT id FROM leads WHERE lead_number = $1 OR id = $2 LIMIT 1', [leadNum, l.id])
-        .catch(() => ({ rows: [] }));
-      if (existing.rows && existing.rows.length > 0) {
-        await db
-          .query(
-            `UPDATE leads SET
-               company_name = $1,
-               contact_person = $2,
-               mobile = $3,
-               email = $4,
-               status = $5,
-               estimated_value = $6
-             WHERE id = $7`,
-            [
-              l.company_name || l.companyName || 'N/A',
-              l.contact_person || l.contactPerson || 'N/A',
-              l.mobile || l.phone || 'N/A',
-              l.email || null,
-              l.status || 'New',
-              Number(l.estimated_value ?? l.estimatedValue ?? 0),
-              existing.rows[0].id,
-            ]
-          )
-          .catch(() => {});
-      } else {
-        await db
-          .query(
-            `INSERT INTO leads (id, lead_number, company_name, contact_person, mobile, email, status, estimated_value)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-             ON CONFLICT (id) DO UPDATE SET
-               company_name = EXCLUDED.company_name,
-               contact_person = EXCLUDED.contact_person,
-               status = EXCLUDED.status,
-               estimated_value = EXCLUDED.estimated_value`,
-            [
-              l.id,
-              leadNum,
-              l.company_name || l.companyName || 'N/A',
-              l.contact_person || l.contactPerson || 'N/A',
-              l.mobile || l.phone || 'N/A',
-              l.email || null,
-              l.status || 'New',
-              Number(l.estimated_value ?? l.estimatedValue ?? 0),
-            ]
-          )
-          .catch(() => {});
-      }
-    }
-
-    for (const c of MOCK_TABLES.customers || []) {
-      if (!c || !c.id) continue;
-      const custCode = c.customer_code || c.customerCode || String(c.id);
-      const existing = await db
-        .query('SELECT id FROM customers WHERE customer_code = $1 LIMIT 1', [custCode])
-        .catch(() => ({ rows: [] }));
-      if (existing.rows && existing.rows.length > 0) {
-        await db
-          .query(
-            `UPDATE customers SET
-               company_name = $1,
-               contact_name = $2,
-               email = $3,
-               phone = $4,
-               status = $5
-             WHERE id = $6`,
-            [
-              c.company_name || c.companyName || c.name || 'Customer',
-              c.contact_name || c.contactPerson || null,
-              c.email || null,
-              c.phone || null,
-              c.status || 'Active',
-              existing.rows[0].id,
-            ]
-          )
-          .catch(() => {});
-      } else {
-        const numericId = typeof c.id === 'number' ? c.id : parseInt(String(c.id).replace(/\D/g, ''), 10) || null;
-        if (numericId !== null) {
-          await db
-            .query(
-              `INSERT INTO customers (id, customer_code, company_name, contact_name, email, phone, state, gstin, status)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-               ON CONFLICT (id) DO UPDATE SET
-                 company_name = EXCLUDED.company_name,
-                 contact_name = EXCLUDED.contact_name,
-                 email = EXCLUDED.email,
-                 phone = EXCLUDED.phone,
-                 status = EXCLUDED.status`,
-              [
-                numericId,
-                custCode,
-                c.company_name || c.companyName || c.name || 'Customer',
-                c.contact_name || c.contactPerson || null,
-                c.email || null,
-                c.phone || null,
-                c.state || null,
-                c.gstin || null,
-                c.status || 'Active',
-              ]
-            )
-            .catch(() => {});
-        }
-      }
-    }
-
-    for (const o of MOCK_TABLES.sales_orders || []) {
-      if (!o || !o.id) continue;
-      const orderNo = o.order_no || o.orderNumber || String(o.id);
-      const existing = await db
-        .query('SELECT id FROM sales_orders WHERE order_no = $1 LIMIT 1', [orderNo])
-        .catch(() => ({ rows: [] }));
-      if (existing.rows && existing.rows.length > 0) {
-        await db
-          .query(
-            `UPDATE sales_orders SET
-               customer_name = $1,
-               status = $2,
-               grand_total = $3
-             WHERE id = $4`,
-            [
-              o.customer_name || o.customerName || 'N/A',
-              o.status || 'Confirmed',
-              Number(o.grand_total ?? o.totalAmount ?? 0),
-              existing.rows[0].id,
-            ]
-          )
-          .catch(() => {});
-      }
-    }
-
-    for (const inv of MOCK_TABLES.finance_invoices || []) {
-      if (!inv || !inv.id) continue;
-      const invNo = inv.invoice_no || inv.invoiceNumber || String(inv.id);
-      const existing = await db
-        .query('SELECT id FROM finance_invoices WHERE invoice_no = $1 LIMIT 1', [invNo])
-        .catch(() => ({ rows: [] }));
-      if (existing.rows && existing.rows.length > 0) {
-        await db
-          .query(
-            `UPDATE finance_invoices SET
-               customer_name = $1,
-               grand_total = $2,
-               amount_paid = $3,
-               status = $4
-             WHERE id = $5`,
-            [
-              inv.customer_name || inv.customerName || 'N/A',
-              Number(inv.grand_total ?? inv.totalAmount ?? 0),
-              Number(inv.amount_paid ?? inv.paidAmount ?? 0),
-              inv.status || 'Draft',
-              existing.rows[0].id,
-            ]
-          )
-          .catch(() => {});
-      }
-    }
-
-    for (const pay of MOCK_TABLES.finance_payments || []) {
-      if (!pay || !pay.id) continue;
-      const numInvId = typeof pay.invoice_id === 'number' ? pay.invoice_id : parseInt(String(pay.invoice_id).replace(/\D/g, ''), 10) || 1;
-      await db
-        .query(
-          `INSERT INTO finance_payments (id, invoice_id, payment_date, amount, payment_stage, payment_mode, reference_no)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
-           ON CONFLICT (id) DO UPDATE SET
-             amount = EXCLUDED.amount,
-             payment_mode = EXCLUDED.payment_mode`,
-          [
-            pay.id,
-            numInvId,
-            pay.payment_date || pay.date || new Date().toISOString().split('T')[0],
-            Number(pay.amount ?? 0),
-            pay.payment_stage || 'Payment',
-            pay.payment_mode || pay.mode || 'NEFT',
-            pay.reference_no || pay.referenceNumber || null,
-          ]
-        )
-        .catch(() => {});
-    }
-  } catch {
-    // ignore
-  }
-}
-
-async function hydrateStoreFromDatabase() {
-  if (!isDatabaseActive()) return false;
-  try {
-    await ensureStateTable();
-    const res = await db.query(`SELECT payload FROM ${STATE_TABLE} WHERE id = 'app' LIMIT 1`);
-    const blob = res?.rows?.[0]?.payload;
-    if (blob) {
-      const parsed = typeof blob === 'string' ? JSON.parse(blob) : blob;
-      applyParsedStore(parsed);
-      console.log('Store hydrated from crm_state_store (database)');
-      return true;
-    }
-  } catch {
-    // ignore
-  }
-  return false;
-}
+// Serialize shared legacy state and reload it under a cross-instance database lock.
+app.use('/api', (req, res, next) => {
+  if (isTestMode()) return next();
+  if (!livePool || !process.env.AUTH_SECRET) return res.status(503).json({success:false, message:'Configure DATABASE_URL and AUTH_SECRET on the server.'});
+  return durableMiddleware!(req, res, next);
+});
+const durableMiddleware = livePool ? postgresStateMiddleware(livePool, {
+  capture: buildPersistedStoreObject,
+  restore: (value) => {
+    for (const key of Object.keys(PERSISTED_CRM_STATE)) delete PERSISTED_CRM_STATE[key];
+    Object.assign(PERSISTED_CRM_STATE, {
+      payrollMasters: {}, deletedPayrollMasterIds: [], deletedLoanIds: [],
+      payrollLoans: [], crmSlices: {}, ...value,
+    });
+    MOCK_TABLES.users = value.users || [];
+    applyParsedStore(value);
+  },
+  setWriter: writer => { transactionWriter = writer; },
+}) : null;
 
 const pool = db;
 export { app, db };
@@ -1259,14 +872,34 @@ async function query(sql: string, params: any[] = []) {
 // Database & Health APIs
 // ============================================================================
 
+function sessionToken(req: Request) {
+  return req.headers?.authorization || req.headers?.cookie?.split(';').map(x=>x.trim()).find(x=>x.startsWith('crm_session='))?.slice(12);
+}
+app.use('/api', (req, res, next) => {
+  if (isTestMode() || ['/health','/auth/login','/auth/verify','/auth/logout'].includes(req.path)) return next();
+  const id = verifyAuthToken(sessionToken(req));
+  const account = MOCK_TABLES.users.find(u => String(u.id) === id);
+  if (!account || String(account.status).toLowerCase() === 'inactive') return res.status(401).json({success:false,message:'Please sign in again.'});
+  (req as any).account = account;
+  const admin = ['Super Admin','Administrator'].includes(account.role);
+  if ((req.path.startsWith('/database') || ((req.path.startsWith('/users') || req.path === '/notifications/email-config' || req.path.startsWith('/payroll/masters')) && req.method !== 'GET')) && !admin) return res.status(403).json({success:false,message:'Administrator permission required.'});
+  if (req.method !== 'GET' && req.headers.origin && new URL(req.headers.origin).host !== req.get('host')) return res.status(403).json({success:false,message:'Request origin is not allowed.'});
+  next();
+});
+app.get('/api/auth/session', (req,res) => res.json({success:true,user:sanitizeUserForClient((req as any).account)}));
+app.get('/api/database/export', (_req,res) => {
+  res.type('application/json').attachment('enact360-data.json').send(JSON.stringify(getCurrentSnapshot(),null,2));
+});
+app.post('/api/auth/logout', (_req, res) => {res.clearCookie('crm_session',{path:'/'});res.json({success:true});});
+
 // 1. Health check & live database stats
 app.get('/api/health', async (_req: Request, res: Response) => {
   try {
     const start = Date.now();
-    const dbRes = await pool.query('SELECT NOW() as current_time, current_database() as db, current_user as usr;');
+    const dbRes = await livePool!.query('SELECT NOW() as current_time, current_database() as db, current_user as usr;');
     const latency = Date.now() - start;
 
-    const tablesRes = await pool.query(`
+    const tablesRes = await livePool!.query(`
       SELECT table_name 
       FROM information_schema.tables 
       WHERE table_schema = 'public' 
@@ -1297,7 +930,7 @@ app.get('/api/health', async (_req: Request, res: Response) => {
 // 2. Database status & table row counts
 app.get('/api/database/status', async (_req: Request, res: Response) => {
   try {
-    const tablesRes = await pool.query(`
+    const tablesRes = await livePool!.query(`
       SELECT table_name 
       FROM information_schema.tables 
       WHERE table_schema = 'public' 
@@ -1307,7 +940,7 @@ app.get('/api/database/status', async (_req: Request, res: Response) => {
     const tableStats = await Promise.all(
       tablesRes.rows.map(async (row: any) => {
         try {
-          const countRes = await pool.query(`SELECT COUNT(*) as cnt FROM "${row.table_name}"`);
+          const countRes = await livePool!.query(`SELECT COUNT(*) as cnt FROM "${row.table_name}"`);
           return {
             tableName: row.table_name,
             rowCount: parseInt(countRes.rows[0]?.cnt || '0', 10),
@@ -1364,6 +997,9 @@ app.post('/api/database/query', async (req: Request, res: Response) => {
   }
 
   try {
+    if (!/^SELECT\s+\*\s+FROM\s+"?[a-z_]+"?\s*;?$/i.test(sql.trim()) && !/^SELECT\s+COUNT\(\*\)\s+as\s+cnt\s+FROM\s+"?[a-z_]+"?\s*;?$/i.test(sql.trim())) {
+      return res.status(400).json({success:false,error:'Explorer supports SELECT * FROM table and SELECT COUNT(*) as cnt FROM table for application projections. Use psql for other database queries.'});
+    }
     const result = await query(sql);
     res.json({
       success: true,
@@ -1547,6 +1183,7 @@ async function handleAuthLogin(req: Request, res: Response) {
     const sanitizedMaster = master ? sanitizePayrollMasterForClient(master) : null;
     const token = issueAuthToken(String(sanitizedUser.id));
 
+    res.cookie?.('crm_session', token, {httpOnly:true, secure:process.env.NODE_ENV === 'production' || Boolean(process.env.VERCEL), sameSite:'lax', maxAge:8*60*60*1000, path:'/'});
     return res.json({
       success: true,
       authenticated: true,
@@ -1576,7 +1213,7 @@ app.post('/api/auth/change-password', async (req: Request, res: Response) => {
     const rawAuthHeader =
       (req.headers?.authorization as string | undefined) ||
       (req.headers?.['x-auth-token'] as string | undefined) ||
-      req.body?.authToken;
+      req.body?.authToken || sessionToken(req);
     const tokenUserId = rawAuthHeader ? verifyAuthToken(rawAuthHeader) : null;
     if (rawAuthHeader && !tokenUserId) {
       return res.status(401).json({
@@ -1793,6 +1430,18 @@ app.post('/api/state', async (req: Request, res: Response) => {
         : undefined;
 
     const current = getCurrentSnapshot();
+    const actor = (req as any).account;
+    if (actor && !['Super Admin','Administrator'].includes(actor.role)) {
+      const protectedUsers = (rows:any[]) => rows.map(u => {
+        const copy={...u};
+        if(String(u.id)===String(actor.id)) for(const key of ['name','avatar','phone','location','lastLoginAt']) delete copy[key];
+        return copy;
+      });
+      if (explicitIncomingPasswordByUserId.size || !same(protectedUsers(sanitizedIncoming.users || []), protectedUsers(current.users || [])) || !same(sanitizedIncoming.rolePermissions, current.rolePermissions)) {
+        return res.status(403).json({success:false,message:'User accounts and permissions require an administrator.'});
+      }
+    }
+
     let candidate: Snapshot = sanitizedIncoming;
     if (PERSISTED_CRM_STATE.stateInitialized && sanitizedBase && !force) {
       const merged = mergeSnapshots(sanitizedBase, sanitizedIncoming, current);
@@ -2719,6 +2368,13 @@ app.post('/api/sync/push', async (req: Request, res: Response) => {
     replacePayrollMasters,
     deletedMasterUserIds,
   } = req.body || {};
+  const actor=(req as any).account;
+  if(actor && !['Super Admin','Administrator'].includes(actor.role) && (pushedUsers || pushedMasters || pushedCrmSlices || sliceKey === 'rolePermissions' || replaceUsers || replacePayrollMasters || deletedMasterUserIds)) {
+    return res.status(403).json({success:false,message:'Administrator permission required.'});
+  }
+  if(pushedCrmSlices || sliceKey) {
+    return res.status(409).json({success:false,message:'CRM records must use /api/state with a baseline snapshot.'});
+  }
 
   if (Array.isArray(pushedUsers)) {
     if (replaceUsers) {
@@ -3723,16 +3379,6 @@ app.get('/api/sync/pull', async (_req: Request, res: Response) => {
 // ============================================================================
 
 async function startServer() {
-  if (isDatabaseActive()) {
-    const hydrated = await hydrateStoreFromDatabase();
-    if (!hydrated) {
-      // First boot against an empty table: seed it from current in-memory/file state
-      await flushStateToDatabase();
-    } else {
-      void syncRelationalTablesFromState();
-    }
-  }
-
   // On serverless (Vercel/Lambda) we must never bind a port or serve statics:
   // the platform routes requests straight into the exported Express app handler
   // and serves the Vite build from its own CDN. Binding a port crashes the

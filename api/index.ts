@@ -1,4 +1,4 @@
-import app, { serverReady } from '../server';
+import app, { serverReady } from '../server.ts';
 
 export default async function handler(req: any, res: any) {
   if (req.url) {
