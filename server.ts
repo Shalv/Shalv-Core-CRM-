@@ -916,169 +916,291 @@ async function syncRelationalTablesFromState() {
   try {
     for (const u of MOCK_TABLES.users || []) {
       if (!u || !u.id) continue;
-      await db
-        .query(
-          `INSERT INTO users (id, name, username, email, phone, role, department, designation, status, location)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-           ON CONFLICT (id) DO UPDATE SET
-             name = EXCLUDED.name,
-             username = EXCLUDED.username,
-             email = EXCLUDED.email,
-             phone = EXCLUDED.phone,
-             role = EXCLUDED.role,
-             department = EXCLUDED.department,
-             designation = EXCLUDED.designation,
-             status = EXCLUDED.status,
-             location = EXCLUDED.location`,
-          [
-            u.id,
-            u.name || 'User',
-            u.username || null,
-            u.email || `${u.id}@coreenact.com`,
-            u.phone || null,
-            u.role || 'Sales Executive',
-            u.department || 'Sales',
-            u.designation || null,
-            u.status || 'Active',
-            u.location || 'New Delhi',
-          ]
-        )
-        .catch(() => {});
+      const email = u.email || `${u.id}@coreenact.com`;
+      const existing = await db
+        .query('SELECT id FROM users WHERE email = $1 OR id = $2 LIMIT 1', [email, u.id])
+        .catch(() => ({ rows: [] }));
+      if (existing.rows && existing.rows.length > 0) {
+        await db
+          .query(
+            `UPDATE users SET
+               name = $1,
+               username = $2,
+               phone = $3,
+               role = $4,
+               department = $5,
+               designation = $6,
+               status = $7,
+               location = $8
+             WHERE id = $9`,
+            [
+              u.name || 'User',
+              u.username || null,
+              u.phone || null,
+              u.role || 'Sales Executive',
+              u.department || 'Sales',
+              u.designation || null,
+              u.status || 'Active',
+              u.location || 'New Delhi',
+              existing.rows[0].id,
+            ]
+          )
+          .catch(() => {});
+      } else {
+        await db
+          .query(
+            `INSERT INTO users (id, name, username, email, phone, role, department, designation, status, location)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+             ON CONFLICT (id) DO UPDATE SET
+               name = EXCLUDED.name,
+               username = EXCLUDED.username,
+               phone = EXCLUDED.phone,
+               role = EXCLUDED.role,
+               department = EXCLUDED.department,
+               designation = EXCLUDED.designation,
+               status = EXCLUDED.status,
+               location = EXCLUDED.location`,
+            [
+              u.id,
+              u.name || 'User',
+              u.username || null,
+              email,
+              u.phone || null,
+              u.role || 'Sales Executive',
+              u.department || 'Sales',
+              u.designation || null,
+              u.status || 'Active',
+              u.location || 'New Delhi',
+            ]
+          )
+          .catch(() => {});
+      }
     }
 
     for (const p of MOCK_TABLES.products || []) {
       if (!p || !p.id) continue;
-      await db
-        .query(
-          `INSERT INTO products (id, code, name, type, category, uom, hsn_sac, gst_rate, cost_price, selling_price)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-           ON CONFLICT (id) DO UPDATE SET
-             name = EXCLUDED.name,
-             code = EXCLUDED.code,
-             type = EXCLUDED.type,
-             gst_rate = EXCLUDED.gst_rate,
-             selling_price = EXCLUDED.selling_price`,
-          [
-            p.id,
-            p.code || p.id,
-            p.name || 'Product',
-            p.type || 'Service',
-            p.category || null,
-            p.uom || 'License',
-            p.hsn_sac || null,
-            Number(p.gst_rate ?? 18),
-            Number(p.cost_price ?? 0),
-            Number(p.selling_price ?? 0),
-          ]
-        )
-        .catch(() => {});
+      const code = p.code || p.id;
+      const existing = await db
+        .query('SELECT id FROM products WHERE code = $1 OR id = $2 LIMIT 1', [code, p.id])
+        .catch(() => ({ rows: [] }));
+      if (existing.rows && existing.rows.length > 0) {
+        await db
+          .query(
+            `UPDATE products SET
+               name = $1,
+               type = $2,
+               category = $3,
+               uom = $4,
+               hsn_sac = $5,
+               gst_rate = $6,
+               cost_price = $7,
+               selling_price = $8
+             WHERE id = $9`,
+            [
+              p.name || 'Product',
+              p.type || 'Service',
+              p.category || null,
+              p.uom || 'License',
+              p.hsn_sac || null,
+              Number(p.gst_rate ?? 18),
+              Number(p.cost_price ?? 0),
+              Number(p.selling_price ?? 0),
+              existing.rows[0].id,
+            ]
+          )
+          .catch(() => {});
+      } else {
+        await db
+          .query(
+            `INSERT INTO products (id, code, name, type, category, uom, hsn_sac, gst_rate, cost_price, selling_price)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+             ON CONFLICT (id) DO UPDATE SET
+               name = EXCLUDED.name,
+               code = EXCLUDED.code,
+               type = EXCLUDED.type,
+               gst_rate = EXCLUDED.gst_rate,
+               selling_price = EXCLUDED.selling_price`,
+            [
+              p.id,
+              code,
+              p.name || 'Product',
+              p.type || 'Service',
+              p.category || null,
+              p.uom || 'License',
+              p.hsn_sac || null,
+              Number(p.gst_rate ?? 18),
+              Number(p.cost_price ?? 0),
+              Number(p.selling_price ?? 0),
+            ]
+          )
+          .catch(() => {});
+      }
     }
 
     for (const l of MOCK_TABLES.leads || []) {
       if (!l || !l.id) continue;
-      await db
-        .query(
-          `INSERT INTO leads (id, lead_number, company_name, contact_person, mobile, email, status, estimated_value)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-           ON CONFLICT (id) DO UPDATE SET
-             company_name = EXCLUDED.company_name,
-             contact_person = EXCLUDED.contact_person,
-             status = EXCLUDED.status,
-             estimated_value = EXCLUDED.estimated_value`,
-          [
-            l.id,
-            l.lead_number || l.leadNumber || l.id,
-            l.company_name || l.companyName || 'N/A',
-            l.contact_person || l.contactPerson || 'N/A',
-            l.mobile || l.phone || 'N/A',
-            l.email || null,
-            l.status || 'New',
-            Number(l.estimated_value ?? l.estimatedValue ?? 0),
-          ]
-        )
-        .catch(() => {});
+      const leadNum = l.lead_number || l.leadNumber || l.id;
+      const existing = await db
+        .query('SELECT id FROM leads WHERE lead_number = $1 OR id = $2 LIMIT 1', [leadNum, l.id])
+        .catch(() => ({ rows: [] }));
+      if (existing.rows && existing.rows.length > 0) {
+        await db
+          .query(
+            `UPDATE leads SET
+               company_name = $1,
+               contact_person = $2,
+               mobile = $3,
+               email = $4,
+               status = $5,
+               estimated_value = $6
+             WHERE id = $7`,
+            [
+              l.company_name || l.companyName || 'N/A',
+              l.contact_person || l.contactPerson || 'N/A',
+              l.mobile || l.phone || 'N/A',
+              l.email || null,
+              l.status || 'New',
+              Number(l.estimated_value ?? l.estimatedValue ?? 0),
+              existing.rows[0].id,
+            ]
+          )
+          .catch(() => {});
+      } else {
+        await db
+          .query(
+            `INSERT INTO leads (id, lead_number, company_name, contact_person, mobile, email, status, estimated_value)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             ON CONFLICT (id) DO UPDATE SET
+               company_name = EXCLUDED.company_name,
+               contact_person = EXCLUDED.contact_person,
+               status = EXCLUDED.status,
+               estimated_value = EXCLUDED.estimated_value`,
+            [
+              l.id,
+              leadNum,
+              l.company_name || l.companyName || 'N/A',
+              l.contact_person || l.contactPerson || 'N/A',
+              l.mobile || l.phone || 'N/A',
+              l.email || null,
+              l.status || 'New',
+              Number(l.estimated_value ?? l.estimatedValue ?? 0),
+            ]
+          )
+          .catch(() => {});
+      }
     }
 
     for (const c of MOCK_TABLES.customers || []) {
       if (!c || !c.id) continue;
-      await db
-        .query(
-          `INSERT INTO customers (id, customer_code, company_name, contact_name, email, phone, state, gstin, status)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-           ON CONFLICT (id) DO UPDATE SET
-             company_name = EXCLUDED.company_name,
-             contact_name = EXCLUDED.contact_name,
-             email = EXCLUDED.email,
-             phone = EXCLUDED.phone,
-             status = EXCLUDED.status`,
-          [
-            c.id,
-            c.customer_code || c.customerCode || String(c.id),
-            c.company_name || c.companyName || c.name || 'Customer',
-            c.contact_name || c.contactPerson || null,
-            c.email || null,
-            c.phone || null,
-            c.state || null,
-            c.gstin || null,
-            c.status || 'Active',
-          ]
-        )
-        .catch(() => {});
+      const custCode = c.customer_code || c.customerCode || String(c.id);
+      const existing = await db
+        .query('SELECT id FROM customers WHERE customer_code = $1 LIMIT 1', [custCode])
+        .catch(() => ({ rows: [] }));
+      if (existing.rows && existing.rows.length > 0) {
+        await db
+          .query(
+            `UPDATE customers SET
+               company_name = $1,
+               contact_name = $2,
+               email = $3,
+               phone = $4,
+               status = $5
+             WHERE id = $6`,
+            [
+              c.company_name || c.companyName || c.name || 'Customer',
+              c.contact_name || c.contactPerson || null,
+              c.email || null,
+              c.phone || null,
+              c.status || 'Active',
+              existing.rows[0].id,
+            ]
+          )
+          .catch(() => {});
+      } else {
+        const numericId = typeof c.id === 'number' ? c.id : parseInt(String(c.id).replace(/\D/g, ''), 10) || null;
+        if (numericId !== null) {
+          await db
+            .query(
+              `INSERT INTO customers (id, customer_code, company_name, contact_name, email, phone, state, gstin, status)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+               ON CONFLICT (id) DO UPDATE SET
+                 company_name = EXCLUDED.company_name,
+                 contact_name = EXCLUDED.contact_name,
+                 email = EXCLUDED.email,
+                 phone = EXCLUDED.phone,
+                 status = EXCLUDED.status`,
+              [
+                numericId,
+                custCode,
+                c.company_name || c.companyName || c.name || 'Customer',
+                c.contact_name || c.contactPerson || null,
+                c.email || null,
+                c.phone || null,
+                c.state || null,
+                c.gstin || null,
+                c.status || 'Active',
+              ]
+            )
+            .catch(() => {});
+        }
+      }
     }
 
     for (const o of MOCK_TABLES.sales_orders || []) {
       if (!o || !o.id) continue;
-      await db
-        .query(
-          `INSERT INTO sales_orders (id, order_no, order_date, customer_name, currency, status, subtotal, grand_total)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-           ON CONFLICT (id) DO UPDATE SET
-             customer_name = EXCLUDED.customer_name,
-             status = EXCLUDED.status,
-             grand_total = EXCLUDED.grand_total`,
-          [
-            o.id,
-            o.order_no || o.orderNumber || String(o.id),
-            o.order_date || o.orderDate || new Date().toISOString().split('T')[0],
-            o.customer_name || o.customerName || 'N/A',
-            o.currency || 'INR',
-            o.status || 'Confirmed',
-            Number(o.subtotal ?? 0),
-            Number(o.grand_total ?? o.totalAmount ?? 0),
-          ]
-        )
-        .catch(() => {});
+      const orderNo = o.order_no || o.orderNumber || String(o.id);
+      const existing = await db
+        .query('SELECT id FROM sales_orders WHERE order_no = $1 LIMIT 1', [orderNo])
+        .catch(() => ({ rows: [] }));
+      if (existing.rows && existing.rows.length > 0) {
+        await db
+          .query(
+            `UPDATE sales_orders SET
+               customer_name = $1,
+               status = $2,
+               grand_total = $3
+             WHERE id = $4`,
+            [
+              o.customer_name || o.customerName || 'N/A',
+              o.status || 'Confirmed',
+              Number(o.grand_total ?? o.totalAmount ?? 0),
+              existing.rows[0].id,
+            ]
+          )
+          .catch(() => {});
+      }
     }
 
     for (const inv of MOCK_TABLES.finance_invoices || []) {
       if (!inv || !inv.id) continue;
-      await db
-        .query(
-          `INSERT INTO finance_invoices (id, invoice_no, invoice_type, customer_name, invoice_date, due_date, subtotal, grand_total, amount_paid, status)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-           ON CONFLICT (id) DO UPDATE SET
-             customer_name = EXCLUDED.customer_name,
-             grand_total = EXCLUDED.grand_total,
-             amount_paid = EXCLUDED.amount_paid,
-             status = EXCLUDED.status`,
-          [
-            inv.id,
-            inv.invoice_no || inv.invoiceNumber || String(inv.id),
-            inv.invoice_type || inv.type || 'Tax Invoice',
-            inv.customer_name || inv.customerName || 'N/A',
-            inv.invoice_date || inv.date || new Date().toISOString().split('T')[0],
-            inv.due_date || inv.dueDate || new Date().toISOString().split('T')[0],
-            Number(inv.subtotal ?? 0),
-            Number(inv.grand_total ?? inv.totalAmount ?? 0),
-            Number(inv.amount_paid ?? inv.paidAmount ?? 0),
-            inv.status || 'Draft',
-          ]
-        )
-        .catch(() => {});
+      const invNo = inv.invoice_no || inv.invoiceNumber || String(inv.id);
+      const existing = await db
+        .query('SELECT id FROM finance_invoices WHERE invoice_no = $1 LIMIT 1', [invNo])
+        .catch(() => ({ rows: [] }));
+      if (existing.rows && existing.rows.length > 0) {
+        await db
+          .query(
+            `UPDATE finance_invoices SET
+               customer_name = $1,
+               grand_total = $2,
+               amount_paid = $3,
+               status = $4
+             WHERE id = $5`,
+            [
+              inv.customer_name || inv.customerName || 'N/A',
+              Number(inv.grand_total ?? inv.totalAmount ?? 0),
+              Number(inv.amount_paid ?? inv.paidAmount ?? 0),
+              inv.status || 'Draft',
+              existing.rows[0].id,
+            ]
+          )
+          .catch(() => {});
+      }
     }
 
     for (const pay of MOCK_TABLES.finance_payments || []) {
       if (!pay || !pay.id) continue;
+      const numInvId = typeof pay.invoice_id === 'number' ? pay.invoice_id : parseInt(String(pay.invoice_id).replace(/\D/g, ''), 10) || 1;
       await db
         .query(
           `INSERT INTO finance_payments (id, invoice_id, payment_date, amount, payment_stage, payment_mode, reference_no)
@@ -1088,7 +1210,7 @@ async function syncRelationalTablesFromState() {
              payment_mode = EXCLUDED.payment_mode`,
           [
             pay.id,
-            pay.invoice_id || pay.invoiceId || 1,
+            numInvId,
             pay.payment_date || pay.date || new Date().toISOString().split('T')[0],
             Number(pay.amount ?? 0),
             pay.payment_stage || 'Payment',

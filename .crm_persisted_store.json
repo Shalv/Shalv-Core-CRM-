@@ -168,7 +168,12 @@
       "designation": "Employee",
       "status": "Active",
       "location": "Mumbai HQ",
-      "created_at": "2026-10-11T14:33:49.195Z"
+      "created_at": "2026-10-11T14:33:49.195Z",
+      "customPermissions": null,
+      "avatar": null,
+      "last_login_at": null,
+      "custom_permissions": null,
+      "updated_at": "2026-10-11T14:33:51.439Z"
     },
     {
       "id": "usr-crm-new",
@@ -190,7 +195,9 @@
       "custom_permissions": {},
       "customPermissions": {},
       "created_at": "2026-10-11T14:33:49.979Z",
-      "lastLoginAt": "2026-10-11T14:33:53.072Z"
+      "lastLoginAt": "2026-10-11T14:33:53.072Z",
+      "last_login_at": null,
+      "updated_at": "2026-10-11T14:33:50.255Z"
     },
     {
       "id": "emp-pay-901",
@@ -208,7 +215,12 @@
       "status": "Active",
       "location": "Mumbai HQ",
       "created_at": "2026-10-11T14:33:56.411Z",
-      "lastLoginAt": "2026-10-11T14:34:00.164Z"
+      "lastLoginAt": "2026-10-11T14:34:00.164Z",
+      "customPermissions": null,
+      "avatar": null,
+      "last_login_at": null,
+      "custom_permissions": null,
+      "updated_at": "2026-10-11T14:33:58.191Z"
     }
   ],
   "payroll_masters": [
@@ -331,7 +343,21 @@
     "loanDefaultInterestRate": 8.5
   },
   "payrollOrgMasters": null,
-  "payrollAttendance": {},
+  "payrollAttendance": {
+    "emp-pay-901": {
+      "date": "2026-10-11",
+      "punchedIn": false,
+      "punchInTime": null,
+      "punchOutTime": null,
+      "workMode": "Office HQ",
+      "locationSharingEnabled": false,
+      "punchInLocation": null,
+      "punchOutLocation": null,
+      "punchHistory": [],
+      "dailyRecords": {},
+      "dayLog": {}
+    }
+  },
   "payrollLeaves": {
     "employee-1": [
       {
@@ -342,10 +368,27 @@
         "days": 1,
         "status": "Approved"
       }
-    ]
+    ],
+    "emp-pay-901": []
   },
-  "payrollClaims": {},
-  "payrollStatutory": {},
+  "payrollClaims": {
+    "emp-pay-901": []
+  },
+  "payrollStatutory": {
+    "emp-pay-901": {
+      "empCode": "EMP-099",
+      "panNumber": "ABCDE1234F",
+      "uanNumber": "100900100900",
+      "pfAccountNo": "—",
+      "bankName": "HDFC Bank",
+      "ifscCode": "HDFC0001234",
+      "taxRegime": "New Tax Regime (Section 115BAC)",
+      "sec80CDeclared": 0,
+      "sec80DDeclared": 0,
+      "hraMonthlyRent": 0,
+      "npsContribution": 0
+    }
+  },
   "payrollIntegrationConfig": {
     "provider": "custom",
     "providerLabel": "Inbuilt CRM Payroll & ESS",
@@ -360,7 +403,7 @@
     "syncReimbursements": true,
     "autoPushAttendanceAndLeaves": true,
     "fetchedGrossSalaryOverride": null,
-    "lastSyncedAt": "11 Oct 2026, 06:03 pm",
+    "lastSyncedAt": "11 Oct 2026, 07:53 pm",
     "lastFetchedAt": "Not linked yet",
     "lastPushedAt": "Not linked yet"
   },
@@ -6761,7 +6804,12 @@
         "designation": "Employee",
         "status": "Active",
         "location": "Mumbai HQ",
-        "created_at": "2026-10-11T14:33:49.195Z"
+        "created_at": "2026-10-11T14:33:49.195Z",
+        "customPermissions": null,
+        "avatar": null,
+        "last_login_at": null,
+        "custom_permissions": null,
+        "updated_at": "2026-10-11T14:33:51.439Z"
       },
       {
         "id": "usr-crm-new",
@@ -6782,7 +6830,9 @@
         "custom_permissions": {},
         "customPermissions": {},
         "created_at": "2026-10-11T14:33:49.979Z",
-        "lastLoginAt": "2026-10-11T14:33:53.072Z"
+        "lastLoginAt": "2026-10-11T14:33:53.072Z",
+        "last_login_at": null,
+        "updated_at": "2026-10-11T14:33:50.255Z"
       },
       {
         "id": "emp-pay-901",
@@ -6799,7 +6849,12 @@
         "status": "Active",
         "location": "Mumbai HQ",
         "created_at": "2026-10-11T14:33:56.411Z",
-        "lastLoginAt": "2026-10-11T14:34:00.164Z"
+        "lastLoginAt": "2026-10-11T14:34:00.164Z",
+        "customPermissions": null,
+        "avatar": null,
+        "last_login_at": null,
+        "custom_permissions": null,
+        "updated_at": "2026-10-11T14:33:58.191Z"
       }
     ],
     "milestoneTemplates": []
@@ -6837,5 +6892,5 @@
       "updated_at": "2026-10-10T07:21:10.792Z"
     }
   ],
-  "updatedAt": "2026-10-11T14:36:01.975Z"
+  "updatedAt": "2026-10-11T14:40:19.142Z"
 }
