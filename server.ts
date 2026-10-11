@@ -368,15 +368,15 @@ function relinkUsersAndPayrollMasters() {
     const mEmail = m.email ? String(m.email).trim().toLowerCase() : '';
     const mUsername = m.username ? String(m.username).trim().toLowerCase() : '';
     const matchedUser =
-      MOCK_TABLES.users.find((u) => String(u.id) === mId) ||
+      (MOCK_TABLES.users || []).find((u) => u && String(u.id) === mId) ||
       (mEmail
-        ? MOCK_TABLES.users.find(
-            (u) => u.email && String(u.email).trim().toLowerCase() === mEmail
+        ? (MOCK_TABLES.users || []).find(
+            (u) => u && u.email && String(u.email).trim().toLowerCase() === mEmail
           )
         : undefined) ||
       (mUsername
-        ? MOCK_TABLES.users.find(
-            (u) => u.username && String(u.username).trim().toLowerCase() === mUsername
+        ? (MOCK_TABLES.users || []).find(
+            (u) => u && u.username && String(u.username).trim().toLowerCase() === mUsername
           )
         : undefined);
     const targetId = matchedUser ? String(matchedUser.id) : mId;
@@ -390,15 +390,15 @@ function relinkUsersAndPayrollMasters() {
       passwordHash: resolvedHash,
     });
     if (matchedUser) {
-      const uIdx = MOCK_TABLES.users.findIndex((u) => String(u.id) === targetId);
+      const uIdx = (MOCK_TABLES.users || []).findIndex((u) => u && String(u.id) === targetId);
       if (uIdx >= 0) {
         const currU = MOCK_TABLES.users[uIdx];
         const syncedHash = resolveRecordPasswordHash(m, currU, relinkedMasters[targetId]);
         MOCK_TABLES.users[uIdx] = stripPlaintextAndResetFlags({
           ...currU,
           passwordHash: syncedHash,
-          empCode: m.empCode || currU.empCode,
-          status: m.status || currU.status || 'Active',
+          empCode: m.empCode || currU?.empCode,
+          status: m.status || currU?.status || 'Active',
         });
         relinkedMasters[targetId].passwordHash = syncedHash;
       }
@@ -1080,7 +1080,7 @@ function getCurrentSnapshot(): Snapshot {
     licenseTypes: Array.isArray(slices.licenseTypes) ? slices.licenseTypes : [],
     ledgerEntries: Array.isArray(slices.ledgerEntries) ? slices.ledgerEntries : [],
     ...slices,
-    users: MOCK_TABLES.users.map(sanitizeUserForClient),
+    users: (Array.isArray(MOCK_TABLES.users) ? MOCK_TABLES.users : []).filter(Boolean).map(sanitizeUserForClient),
   };
 }
 
@@ -1406,9 +1406,20 @@ app.get('/api/state', async (_req: Request, res: Response) => {
         snapshot: getCurrentSnapshot(),
       });
     } catch {
-      return res.status(500).json({
-        success: false,
-        error: err?.message || 'Failed to read application state',
+      return res.json({
+        success: true,
+        initialized: false,
+        snapshot: {
+          users: (Array.isArray(MOCK_TABLES.users) ? MOCK_TABLES.users : []).filter(Boolean).map(sanitizeUserForClient),
+          customers: [],
+          contacts: [],
+          leads: [],
+          opportunities: [],
+          orders: [],
+          milestones: [],
+          invoices: [],
+          payments: [],
+        },
       });
     }
   }

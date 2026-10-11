@@ -581,7 +581,6 @@ export const generateRandomPassword = (length = 9): string => {
 export const getPayrollLoginLink = (email?: string): string => {
   if (typeof window === 'undefined') return '';
   const url = new URL(window.location.origin + window.location.pathname);
-  url.searchParams.set('portal', 'payroll');
   if (email && email.trim()) {
     url.searchParams.set('email', email.trim());
   }

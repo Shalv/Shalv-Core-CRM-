@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useCrm } from '../../context/CrmContext';
 import { BrandLogo } from '../common/BrandLogo';
-import { PayrollLoginView } from './PayrollLoginView';
 
 const COLORS = ['#2563EB', '#3B82F6', '#0EA5E9', '#60A5FA', '#38BDF8'];
 
@@ -489,13 +488,6 @@ export const LoginView: React.FC = () => {
   const sim = useRef({ link: 140, linkT: 140, speed: 1, speedT: 1, gather: false });
   const nudge = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Check URL query parameters for ?portal=payroll and ?email=...
-  const [isPayrollPortalMode, setIsPayrollPortalMode] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    const p = new URLSearchParams(window.location.search).get('portal');
-    return p === 'payroll';
-  });
-
   const [email, setEmail] = useState(() => {
     if (typeof window === 'undefined') return '';
     const e = new URLSearchParams(window.location.search).get('email');
@@ -508,7 +500,6 @@ export const LoginView: React.FC = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<'idle' | 'loading' | 'done'>('idle');
   const [infoNotice, setInfoNotice] = useState<string | null>(null);
-  const [linkCopiedToast, setLinkCopiedToast] = useState(false);
 
   // First-login password change state
   const [firstLoginTarget, setFirstLoginTarget] = useState<{
@@ -731,40 +722,6 @@ export const LoginView: React.FC = () => {
     }
   };
 
-  const handleCopyPortalLink = () => {
-    if (typeof window === 'undefined') return;
-    const url = new URL(window.location.origin + window.location.pathname);
-    url.searchParams.set('portal', 'payroll');
-    navigator.clipboard.writeText(url.toString()).then(() => {
-      setLinkCopiedToast(true);
-      setTimeout(() => setLinkCopiedToast(false), 2500);
-    });
-  };
-
-  const handleSwitchToPayrollPage = () => {
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.set('portal', 'payroll');
-      window.history.replaceState({}, '', url.toString());
-    }
-    setIsPayrollPortalMode(true);
-  };
-
-  const handleSwitchToCrmPage = () => {
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('portal');
-      url.searchParams.delete('email');
-      url.searchParams.delete('emp');
-      window.history.replaceState({}, '', url.toString());
-    }
-    setIsPayrollPortalMode(false);
-  };
-
-  if (isPayrollPortalMode) {
-    return <PayrollLoginView onSwitchToCrmLogin={handleSwitchToCrmPage} />;
-  }
-
   return (
     <div className="cl-root">
       <style>{css}</style>
@@ -933,62 +890,9 @@ export const LoginView: React.FC = () => {
               </div>
             ) : (
               <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsPayrollPortalMode(false);
-                        if (typeof window !== 'undefined') {
-                          const url = new URL(window.location.href);
-                          url.searchParams.delete('portal');
-                          window.history.replaceState({}, '', url.toString());
-                        }
-                      }}
-                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer ${
-                        !isPayrollPortalMode
-                          ? 'bg-white text-slate-900 shadow-2xs font-bold'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      CRM Enterprise
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsPayrollPortalMode(true);
-                        if (typeof window !== 'undefined') {
-                          const url = new URL(window.location.href);
-                          url.searchParams.set('portal', 'payroll');
-                          window.history.replaceState({}, '', url.toString());
-                        }
-                      }}
-                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer ${
-                        isPayrollPortalMode
-                          ? 'bg-blue-600 text-white shadow-2xs font-bold'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      Payroll &amp; ESS
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleCopyPortalLink}
-                    className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
-                    title="Copy direct Payroll Login Link"
-                  >
-                    {linkCopiedToast ? '✓ Link Copied!' : '🔗 Copy Payroll Link'}
-                  </button>
-                </div>
-
-                <h1 className="cl-h">
-                  {isPayrollPortalMode ? 'Sign in to Payroll & ESS' : `Sign in to ${companyName}`}
-                </h1>
+                <h1 className="cl-h">Sign in to {companyName}</h1>
                 <p className="cl-sub">
-                  {isPayrollPortalMode
-                    ? 'Employee Self-Service (ESS) & Payroll Portal. Enter your work email & password to access payslips, leaves, attendance & tax.'
-                    : 'Welcome back. Enter your credentials to access your workspace.'}
+                  Welcome back. Enter your credentials to access your workspace.
                 </p>
 
                 {infoNotice && (
@@ -999,13 +903,13 @@ export const LoginView: React.FC = () => {
 
                 <form onSubmit={submit} noValidate>
                   <div className="cl-field">
-                    <label htmlFor="email">Work email</label>
+                    <label htmlFor="email">Work email or username</label>
                     <div className="cl-input">
                       <input
                         id="email"
                         type="text"
                         autoComplete="username"
-                        placeholder="name@company.com"
+                        placeholder="name@company.com or username"
                         value={email}
                         aria-invalid={!!errors.email}
                         onChange={(e) => {
@@ -1028,11 +932,7 @@ export const LoginView: React.FC = () => {
                         id="password"
                         type={show ? 'text' : 'password'}
                         autoComplete="current-password"
-                        placeholder={
-                          isPayrollPortalMode
-                            ? 'Enter initial or saved password'
-                            : 'Enter your password'
-                        }
+                        placeholder="Enter your password"
                         value={password}
                         aria-invalid={!!errors.password}
                         className="with-toggle"
@@ -1087,33 +987,24 @@ export const LoginView: React.FC = () => {
                     className={'cl-btn' + (status === 'done' ? ' ok' : '')}
                     disabled={status !== 'idle'}
                   >
-                    {status === 'idle' && (isPayrollPortalMode ? 'Sign in to Payroll Portal' : 'Sign in')}
+                    {status === 'idle' && 'Sign in'}
                     {status === 'loading' && 'Signing in…'}
                     {status === 'done' && 'Signed in. Opening your workspace'}
                   </button>
                 </form>
 
                 <div className="mt-4 pt-3 border-t border-slate-200/60 flex flex-col gap-2 text-center">
-                  {!isPayrollPortalMode && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmail('admin@coreenact.com');
-                        setPassword('password123');
-                        setErrors({});
-                      }}
-                      className="text-xs font-semibold text-slate-700 hover:text-blue-700 py-1.5 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5"
-                    >
-                      <span>🔑 Fill Super Admin Credentials</span>
-                      <span className="font-mono text-[11px] text-slate-500 font-normal">(admin@coreenact.com / password123)</span>
-                    </button>
-                  )}
                   <button
                     type="button"
-                    onClick={handleSwitchToPayrollPage}
-                    className="text-xs font-semibold text-blue-700 hover:text-blue-900 hover:underline py-1 cursor-pointer"
+                    onClick={() => {
+                      setEmail('admin@coreenact.com');
+                      setPassword('password123');
+                      setErrors({});
+                    }}
+                    className="text-xs font-semibold text-slate-700 hover:text-blue-700 py-1.5 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5"
                   >
-                    → Open Separate Employee Payroll &amp; ESS Login Page
+                    <span>🔑 Fill Super Admin Credentials</span>
+                    <span className="font-mono text-[11px] text-slate-500 font-normal">(admin@coreenact.com / password123)</span>
                   </button>
 
                   <p className="cl-foot !m-0">
@@ -1123,9 +1014,7 @@ export const LoginView: React.FC = () => {
                       className="cl-link"
                       onClick={() =>
                         setInfoNotice(
-                          isPayrollPortalMode
-                            ? 'Your HR or Payroll Administrator can generate your employee credentials in Payroll Admin Master.'
-                            : 'Access requests can be approved by your team administrator in Masters & Administration.'
+                          'Your administrator can provision or update your user credentials in Masters & Administration.'
                         )
                       }
                     >

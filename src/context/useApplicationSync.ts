@@ -131,5 +131,13 @@ export function useApplicationSync(snapshot:Snapshot, apply:(snapshot:Snapshot)=
     localStorage.removeItem(PENDING_KEY);
     await tickRef.current();
   };
-  return {ready,status,retry:()=>void tickRef.current(),reloadSaved};
+  return {
+    ready,
+    status,
+    retry: () => {
+      blocked.current = false;
+      void tickRef.current();
+    },
+    reloadSaved,
+  };
 }

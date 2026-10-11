@@ -244,46 +244,17 @@ function MainAppContent() {
     setCurrentModule('payments');
   };
 
-  useEffect(() => {
-    const handleOpenPayrollLogin = (ev: Event) => {
-      const customEv = ev as CustomEvent<{ email?: string; empCode?: string }>;
-      try {
-        const url = new URL(window.location.origin + window.location.pathname);
-        url.searchParams.set('portal', 'payroll');
-        if (customEv.detail?.email) {
-          url.searchParams.set('email', customEv.detail.email);
-        }
-        if (customEv.detail?.empCode) {
-          url.searchParams.set('emp', customEv.detail.empCode);
-        }
-        window.history.replaceState({}, '', url.toString());
-      } catch {
-        // ignore
-      }
-      logout();
-    };
-    window.addEventListener('crm-open-payroll-login', handleOpenPayrollLogin);
-    return () => window.removeEventListener('crm-open-payroll-login', handleOpenPayrollLogin);
-  }, [logout]);
-
   if (!isAuthenticated) {
     return <LoginView />;
   }
 
-  // Dedicated full-page view for employees who ONLY have access to payroll (or logged in via Payroll Login Link)
+  // Dedicated full-page view for employees who ONLY have access to payroll
   if (
     currentUser.accessScope === 'payroll_only' &&
     currentUser.role !== 'Super Admin' &&
     currentUser.role !== 'Administrator'
   ) {
     const handlePayrollPortalSignOut = () => {
-      try {
-        const url = new URL(window.location.origin + window.location.pathname);
-        url.searchParams.set('portal', 'payroll');
-        window.history.replaceState({}, '', url.toString());
-      } catch {
-        // ignore
-      }
       logout();
     };
     return (

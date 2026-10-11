@@ -443,7 +443,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
     const link = getPayrollLoginLink(email);
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(link).then(() => {
-        setToastCopiedMessage('Direct Payroll Login Link copied to clipboard!');
+        setToastCopiedMessage('Workspace Login Link copied to clipboard!');
         setTimeout(() => setToastCopiedMessage(null), 3000);
       });
     }
@@ -4500,14 +4500,14 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
               <div className="bg-sky-50/70 p-3 rounded-lg border border-sky-200 space-y-1.5">
                 <label className="font-bold text-sky-950 uppercase tracking-wider text-[10px] flex items-center gap-1">
                   <ExternalLink className="w-3 h-3 text-[#1f7e9e]" />
-                  <span>Direct Payroll Portal Login Link</span>
+                  <span>Workspace Login Link</span>
                 </label>
                 <div className="p-2 bg-white rounded border border-sky-200 font-mono text-[11px] text-sky-900 break-all select-all">
                   {getPayrollLoginLink(credentialsModalTarget.email)}
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
                   <span className="text-[11px] text-slate-600">
-                    Opens the dedicated <strong>Payroll &amp; ESS Login Page</strong> and restricts access strictly to <strong>{credentialsModalTarget.name}</strong>&apos;s own information only.
+                    Single unified login for all users. <strong>{credentialsModalTarget.name}</strong> can sign in directly using this link.
                   </span>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
@@ -4517,24 +4517,6 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                     >
                       <Copy className="w-3 h-3" />
                       <span>Copy Login Link</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const targetEmail = credentialsModalTarget.email;
-                        const targetEmpCode = credentialsModalTarget.empCode;
-                        setCredentialsModalTarget(null);
-                        window.dispatchEvent(
-                          new CustomEvent('crm-open-payroll-login', {
-                            detail: { email: targetEmail, empCode: targetEmpCode },
-                          })
-                        );
-                      }}
-                      className="px-3 py-1 bg-[#1f7e9e] hover:bg-[#1a6b86] text-white rounded font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0"
-                      title="Open the separate Payroll Login Page bound to this employee's credentials"
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                      <span>Open Payroll Login Page</span>
                     </button>
                   </div>
                 </div>
