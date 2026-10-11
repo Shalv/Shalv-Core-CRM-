@@ -2,6 +2,8 @@ import express, { Request, Response, NextFunction } from 'express';
 import dotenv from 'dotenv';
 import { Pool } from 'pg';
 import nodemailer from 'nodemailer';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -18,6 +20,102 @@ dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const AUTH_TOKEN_SECRET = process.env.AUTH_SECRET || 'enact360-crm-auth-hmac-secret-2026';
+
+export function isBcryptHash(value: unknown): value is string {
+  return typeof value === 'string' && /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(value);
+}
+
+const initialSeedHashCache = new Map<string, string>();
+
+export function hashPassword(rawPassword: string, useSeedCache = false): string {
+  const trimmed = String(rawPassword || '').trim();
+  if (!trimmed) return '';
+  if (isBcryptHash(trimmed)) return trimmed;
+  if (useSeedCache && initialSeedHashCache.has(trimmed)) {
+    return initialSeedHashCache.get(trimmed)!;
+  }
+  const hashed = bcrypt.hashSync(trimmed, 8);
+  if (useSeedCache) {
+    initialSeedHashCache.set(trimmed, hashed);
+  }
+  return hashed;
+}
+
+export function verifyPasswordHash(plainPassword: string, storedHash?: string): boolean {
+  const plain = String(plainPassword || '').trim();
+  const hash = String(storedHash || '').trim();
+  if (!plain || !hash) return false;
+  if (isBcryptHash(hash)) {
+    return bcrypt.compareSync(plain, hash);
+  }
+  return plain === hash;
+}
+
+export function issueAuthToken(userId: string): string {
+  const payload = Buffer.from(String(userId), 'utf8').toString('base64url');
+  const sig = crypto.createHmac('sha256', AUTH_TOKEN_SECRET).update(payload).digest('base64url');
+  return `${payload}.${sig}`;
+}
+
+export function verifyAuthToken(token?: string | null): string | null {
+  if (!token || typeof token !== 'string') return null;
+  const trimmed = token.replace(/^Bearer\s+/i, '').trim();
+  const parts = trimmed.split('.');
+  if (parts.length !== 2) return null;
+  const [payload, sig] = parts;
+  const expectedSig = crypto.createHmac('sha256', AUTH_TOKEN_SECRET).update(payload).digest('base64url');
+  if (sig !== expectedSig) return null;
+  try {
+    return Buffer.from(payload, 'base64url').toString('utf8');
+  } catch {
+    return null;
+  }
+}
+
+export function sanitizeUserForClient<T extends Record<string, any> | null | undefined>(user: T): T {
+  if (!user || typeof user !== 'object') return user;
+  const clone: Record<string, any> = { ...user };
+  delete clone.password;
+  delete clone.tempPassword;
+  delete clone.temp_password;
+  delete clone.passwordHash;
+  delete clone.password_hash;
+  delete clone.mustChangePasswordOnFirstLogin;
+  delete clone.mustChangePassword;
+  delete clone.forcePasswordReset;
+  delete clone.firstLogin;
+  return clone as T;
+}
+
+export function sanitizePayrollMasterForClient<T extends Record<string, any> | null | undefined>(master: T): T {
+  if (!master || typeof master !== 'object') return master;
+  const clone: Record<string, any> = { ...master };
+  delete clone.password;
+  delete clone.tempPassword;
+  delete clone.temp_password;
+  delete clone.passwordHash;
+  delete clone.password_hash;
+  delete clone.mustChangePasswordOnFirstLogin;
+  delete clone.mustChangePassword;
+  delete clone.forcePasswordReset;
+  delete clone.firstLogin;
+  return clone as T;
+}
+
+export function sanitizePayrollMastersMapForClient(map: Record<string, any> | null | undefined): Record<string, any> {
+  if (!map || typeof map !== 'object') return {};
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(map)) {
+    if (v && typeof v === 'object') {
+      out[k] = sanitizePayrollMasterForClient(v);
+    }
+  }
+  return out;
+}
+
+const DEFAULT_SEED_PASSWORD_HASH = hashPassword('password123', true);
 
 const app = express();
 const port = parseInt(process.env.PORT || '3000', 10);
@@ -50,13 +148,13 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 // Database connection with in-memory mock fallback for AI Studio environment
 const MOCK_TABLES: Record<string, any[]> = {
   users: [
-    { id: 'usr-1', name: 'Shalv Sharma', username: 'admin', email: 'admin@coreenact.com', password: 'password123', tempPassword: 'password123', phone: '9810998290', role: 'Super Admin', department: 'Executive', designation: 'Managing Director / Super Admin', status: 'Active', location: 'New Delhi', created_at: '2026-09-01T09:00:00Z' },
-    { id: 'usr-2', name: 'Tabassum', username: 'tabassum', email: 'tabassum@coreenact.com', password: 'password123', tempPassword: 'password123', phone: '9810998291', role: 'Sales Manager', department: 'Sales', designation: 'Sales & Support Manager', status: 'Active', location: 'New Delhi', created_at: '2026-09-01T09:05:00Z' },
-    { id: 'usr-3', name: 'Rohan Verma', username: 'rohan', email: 'rohan.verma@coreenact.com', password: 'password123', tempPassword: 'password123', phone: '9810998292', role: 'Sales Executive', department: 'Sales', designation: 'Senior Account Executive', status: 'Active', location: 'Mumbai', created_at: '2026-09-01T09:10:00Z' },
-    { id: 'usr-4', name: 'Priya Nair', username: 'priya', email: 'priya.nair@coreenact.com', password: 'password123', tempPassword: 'password123', phone: '9810998293', role: 'Finance Manager', department: 'Finance', designation: 'Head of Billing & Receivables', status: 'Active', location: 'Bengaluru', created_at: '2026-09-01T09:15:00Z' },
-    { id: 'usr-5', name: 'Amit Patel', username: 'amit', email: 'amit.patel@coreenact.com', password: 'password123', tempPassword: 'password123', phone: '9810998294', role: 'Finance Executive', department: 'Finance', designation: 'Accounts & GST Officer', status: 'Active', location: 'Ahmedabad', created_at: '2026-09-01T09:20:00Z' },
-    { id: 'usr-6', name: 'Neha Gupta', username: 'neha', email: 'neha.gupta@coreenact.com', password: 'password123', tempPassword: 'password123', phone: '9810998295', role: 'Management/Viewer', department: 'Executive', designation: 'VP of Strategy (Read-Only)', status: 'Active', location: 'New Delhi', created_at: '2026-09-01T09:25:00Z' },
-    { id: 'usr-7', name: 'Vikram Malhotra', username: 'vikram', email: 'vikram.m@coreenact.com', password: 'password123', tempPassword: 'password123', phone: '9810998296', role: 'Administrator', department: 'Operations', designation: 'Operations Director', status: 'Active', location: 'Pune', created_at: '2026-09-01T09:30:00Z' },
+    { id: 'usr-1', name: 'Shalv Sharma', username: 'admin', email: 'admin@coreenact.com', passwordHash: DEFAULT_SEED_PASSWORD_HASH, phone: '9810998290', role: 'Super Admin', department: 'Executive', designation: 'Managing Director / Super Admin', status: 'Active', location: 'New Delhi', created_at: '2026-09-01T09:00:00Z' },
+    { id: 'usr-2', name: 'Tabassum', username: 'tabassum', email: 'tabassum@coreenact.com', passwordHash: DEFAULT_SEED_PASSWORD_HASH, phone: '9810998291', role: 'Sales Manager', department: 'Sales', designation: 'Sales & Support Manager', status: 'Active', location: 'New Delhi', created_at: '2026-09-01T09:05:00Z' },
+    { id: 'usr-3', name: 'Rohan Verma', username: 'rohan', email: 'rohan.verma@coreenact.com', passwordHash: DEFAULT_SEED_PASSWORD_HASH, phone: '9810998292', role: 'Sales Executive', department: 'Sales', designation: 'Senior Account Executive', status: 'Active', location: 'Mumbai', created_at: '2026-09-01T09:10:00Z' },
+    { id: 'usr-4', name: 'Priya Nair', username: 'priya', email: 'priya.nair@coreenact.com', passwordHash: DEFAULT_SEED_PASSWORD_HASH, phone: '9810998293', role: 'Finance Manager', department: 'Finance', designation: 'Head of Billing & Receivables', status: 'Active', location: 'Bengaluru', created_at: '2026-09-01T09:15:00Z' },
+    { id: 'usr-5', name: 'Amit Patel', username: 'amit', email: 'amit.patel@coreenact.com', passwordHash: DEFAULT_SEED_PASSWORD_HASH, phone: '9810998294', role: 'Finance Executive', department: 'Finance', designation: 'Accounts & GST Officer', status: 'Active', location: 'Ahmedabad', created_at: '2026-09-01T09:20:00Z' },
+    { id: 'usr-6', name: 'Neha Gupta', username: 'neha', email: 'neha.gupta@coreenact.com', passwordHash: DEFAULT_SEED_PASSWORD_HASH, phone: '9810998295', role: 'Management/Viewer', department: 'Executive', designation: 'VP of Strategy (Read-Only)', status: 'Active', location: 'New Delhi', created_at: '2026-09-01T09:25:00Z' },
+    { id: 'usr-7', name: 'Vikram Malhotra', username: 'vikram', email: 'vikram.m@coreenact.com', passwordHash: DEFAULT_SEED_PASSWORD_HASH, phone: '9810998296', role: 'Administrator', department: 'Operations', designation: 'Operations Director', status: 'Active', location: 'Pune', created_at: '2026-09-01T09:30:00Z' },
   ],
   payroll_masters: [],
   leads: [
@@ -157,121 +255,179 @@ const getPersistedStorePath = () =>
     ? path.resolve(process.env.CRM_STORE_PATH)
     : path.resolve(__dirname, '.crm_persisted_store.json');
 
+function resolveRecordPasswordHash(record: any, existingRecord?: any, fallbackRecord?: any): string {
+  const explicitPlain =
+    typeof record?.password === 'string' && record.password.trim()
+      ? record.password.trim()
+      : typeof record?.tempPassword === 'string' && record.tempPassword.trim()
+      ? record.tempPassword.trim()
+      : typeof record?.temp_password === 'string' && record.temp_password.trim()
+      ? record.temp_password.trim()
+      : '';
+  if (explicitPlain) {
+    return hashPassword(explicitPlain);
+  }
+  const explicitHash =
+    typeof record?.passwordHash === 'string' && record.passwordHash.trim()
+      ? record.passwordHash.trim()
+      : typeof record?.password_hash === 'string' && record.password_hash.trim()
+      ? record.password_hash.trim()
+      : '';
+  if (explicitHash) {
+    return hashPassword(explicitHash);
+  }
+  const prevHash =
+    existingRecord?.passwordHash ||
+    existingRecord?.password_hash ||
+    existingRecord?.password ||
+    existingRecord?.tempPassword ||
+    fallbackRecord?.passwordHash ||
+    fallbackRecord?.password_hash ||
+    fallbackRecord?.password ||
+    fallbackRecord?.tempPassword ||
+    '';
+  if (prevHash) {
+    return hashPassword(String(prevHash));
+  }
+  return DEFAULT_SEED_PASSWORD_HASH;
+}
+
+function stripPlaintextAndResetFlags(obj: Record<string, any>): Record<string, any> {
+  const clean = { ...obj };
+  delete clean.password;
+  delete clean.tempPassword;
+  delete clean.temp_password;
+  delete clean.password_hash;
+  delete clean.mustChangePasswordOnFirstLogin;
+  delete clean.mustChangePassword;
+  delete clean.forcePasswordReset;
+  delete clean.firstLogin;
+  return clean;
+}
+
 function relinkUsersAndPayrollMasters() {
-  // Deduplicate users across both crmSlices.users and MOCK_TABLES.users by ID first, then email
+  // Deduplicate users across both crmSlices.users and MOCK_TABLES.users by ID first, then email, then username
   const usersById = new Map<string, any>();
   const idByEmail = new Map<string, string>();
+  const idByUsername = new Map<string, string>();
   const sliceUsers = Array.isArray(PERSISTED_CRM_STATE.crmSlices?.users)
     ? PERSISTED_CRM_STATE.crmSlices.users
     : [];
-  const allCandidateUsers = [...sliceUsers, ...(MOCK_TABLES.users || [])];
+  // Process authoritative MOCK_TABLES.users first so their passwordHashes are registered before sanitized sliceUsers
+  const allCandidateUsers = [...(MOCK_TABLES.users || []), ...sliceUsers];
   for (const u of allCandidateUsers) {
     if (!u || !u.id) continue;
     const rawId = String(u.id);
     const emailLower = u.email ? String(u.email).trim().toLowerCase() : '';
+    const usernameLower = u.username ? String(u.username).trim().toLowerCase() : '';
     const canonicalId = usersById.has(rawId)
       ? rawId
-      : (emailLower && idByEmail.get(emailLower)) || rawId;
+      : (emailLower && idByEmail.get(emailLower)) ||
+        (usernameLower && idByUsername.get(usernameLower)) ||
+        rawId;
     const prev = usersById.get(canonicalId);
-    const pickPassword = (nextPass: any, prevPass: any) => {
-      const n = typeof nextPass === 'string' ? nextPass.trim() : '';
-      const p = typeof prevPass === 'string' ? prevPass.trim() : '';
-      if (n && n !== 'password123') return n;
-      if (p && p !== 'password123') return p;
-      return n || p || 'password123';
-    };
-    const resolvedPass = pickPassword(u.password || u.tempPassword, prev?.password || prev?.tempPassword);
-    const merged = prev
-      ? {
-          ...prev,
-          ...u,
-          id: canonicalId,
-          password: resolvedPass,
-          tempPassword: pickPassword(u.tempPassword || u.password, prev?.tempPassword || prev?.password),
-          customPermissions: u.customPermissions || u.custom_permissions || prev.customPermissions || prev.custom_permissions,
-        }
-      : {
-          ...u,
-          id: canonicalId,
-          password: resolvedPass,
-          tempPassword: u.tempPassword || resolvedPass,
-          customPermissions: u.customPermissions || u.custom_permissions,
-        };
+    const resolvedHash = resolveRecordPasswordHash(u, prev);
+    const merged = stripPlaintextAndResetFlags(
+      prev
+        ? {
+            ...prev,
+            ...u,
+            id: canonicalId,
+            username: u.username || prev.username || (emailLower ? emailLower.split('@')[0] : 'user'),
+            passwordHash: resolvedHash,
+            customPermissions:
+              u.customPermissions ||
+              u.custom_permissions ||
+              prev.customPermissions ||
+              prev.custom_permissions,
+          }
+        : {
+            ...u,
+            id: canonicalId,
+            username: u.username || (emailLower ? emailLower.split('@')[0] : 'user'),
+            passwordHash: resolvedHash,
+            customPermissions: u.customPermissions || u.custom_permissions,
+          }
+    );
     usersById.set(canonicalId, merged);
     if (emailLower) {
       idByEmail.set(emailLower, canonicalId);
     }
+    if (merged.username) {
+      idByUsername.set(String(merged.username).trim().toLowerCase(), canonicalId);
+    }
   }
   MOCK_TABLES.users = Array.from(usersById.values());
 
-  // Re-link payroll masters: match user by ID first, then email, and ensure every enrolled payroll employee has a corresponding user entry
+  // Re-link payroll masters: match user by ID first, then email, then username, and ensure every enrolled payroll employee has a corresponding user entry
   const rawMastersObj = PERSISTED_CRM_STATE.payrollMasters || {};
   const relinkedMasters: Record<string, any> = {};
   for (const m of Object.values(rawMastersObj) as any[]) {
     if (!m || !m.userId) continue;
     const mId = String(m.userId);
     const mEmail = m.email ? String(m.email).trim().toLowerCase() : '';
+    const mUsername = m.username ? String(m.username).trim().toLowerCase() : '';
     const matchedUser =
       MOCK_TABLES.users.find((u) => String(u.id) === mId) ||
       (mEmail
         ? MOCK_TABLES.users.find(
             (u) => u.email && String(u.email).trim().toLowerCase() === mEmail
           )
+        : undefined) ||
+      (mUsername
+        ? MOCK_TABLES.users.find(
+            (u) => u.username && String(u.username).trim().toLowerCase() === mUsername
+          )
         : undefined);
     const targetId = matchedUser ? String(matchedUser.id) : mId;
-    const mPass = m.password || m.tempPassword || matchedUser?.password || 'password123';
-    relinkedMasters[targetId] = {
+    const resolvedHash = resolveRecordPasswordHash(m, relinkedMasters[targetId], matchedUser);
+    const effectiveStatus = m.status || m.employmentStatus || matchedUser?.status || 'Active';
+    relinkedMasters[targetId] = stripPlaintextAndResetFlags({
       ...relinkedMasters[targetId],
       ...m,
       userId: targetId,
-      password: mPass,
-      tempPassword: m.tempPassword || mPass,
-    };
+      status: effectiveStatus,
+      passwordHash: resolvedHash,
+    });
     if (matchedUser) {
       const uIdx = MOCK_TABLES.users.findIndex((u) => String(u.id) === targetId);
       if (uIdx >= 0) {
         const currU = MOCK_TABLES.users[uIdx];
-        const syncedPass =
-          m.password && m.password !== 'password123'
-            ? m.password
-            : currU.password && currU.password !== 'password123'
-            ? currU.password
-            : mPass;
-        MOCK_TABLES.users[uIdx] = {
+        const syncedHash = resolveRecordPasswordHash(m, currU, relinkedMasters[targetId]);
+        MOCK_TABLES.users[uIdx] = stripPlaintextAndResetFlags({
           ...currU,
-          password: syncedPass,
-          tempPassword: syncedPass,
+          passwordHash: syncedHash,
           empCode: m.empCode || currU.empCode,
-        };
-        relinkedMasters[targetId].password = syncedPass;
-        relinkedMasters[targetId].tempPassword = syncedPass;
+          status: m.status || currU.status || 'Active',
+        });
+        relinkedMasters[targetId].passwordHash = syncedHash;
       }
-    } else if (m.status !== 'Inactive') {
-      MOCK_TABLES.users.push({
-        id: targetId,
-        name: m.name || 'Employee',
-        username: m.email ? String(m.email).split('@')[0] : m.empCode || 'employee',
-        email: m.email || '',
-        password: mPass,
-        tempPassword: mPass,
-        mustChangePasswordOnFirstLogin: Boolean(m.mustChangePasswordOnFirstLogin),
-        accessScope: m.accessType === 'payroll_only' ? 'payroll_only' : 'all',
-        accessType: m.accessType || 'payroll_only',
-        empCode: m.empCode,
-        phone: m.phone || '',
-        role: m.role || 'Sales Executive',
-        department: m.department || 'Operations',
-        designation: m.designation || m.role || 'Employee',
-        status: m.status || 'Active',
-        location: m.location || 'Mumbai HQ',
-        created_at: new Date().toISOString(),
-      });
+    } else if (effectiveStatus !== 'Inactive') {
+      MOCK_TABLES.users.push(
+        stripPlaintextAndResetFlags({
+          id: targetId,
+          name: m.name || 'Employee',
+          username: m.username || (m.email ? String(m.email).split('@')[0] : m.empCode || 'employee'),
+          email: m.email || '',
+          passwordHash: resolvedHash,
+          accessScope: m.accessType === 'payroll_only' ? 'payroll_only' : 'all',
+          accessType: m.accessType || 'payroll_only',
+          empCode: m.empCode,
+          phone: m.phone || '',
+          role: m.role || 'Sales Executive',
+          department: m.department || 'Operations',
+          designation: m.designation || m.role || 'Employee',
+          status: effectiveStatus,
+          location: m.location || 'Mumbai HQ',
+          created_at: new Date().toISOString(),
+        })
+      );
     }
   }
   PERSISTED_CRM_STATE.payrollMasters = relinkedMasters;
   MOCK_TABLES.payroll_masters = Object.values(relinkedMasters);
   if (PERSISTED_CRM_STATE.crmSlices && typeof PERSISTED_CRM_STATE.crmSlices === 'object') {
-    PERSISTED_CRM_STATE.crmSlices.users = MOCK_TABLES.users;
+    PERSISTED_CRM_STATE.crmSlices.users = MOCK_TABLES.users.map(sanitizeUserForClient);
   }
 }
 
@@ -620,7 +776,13 @@ function runMockQuery(sql: string, _params: any[] = []) {
   const selectMatch = normalized.match(/SELECT\s+\*\s+FROM\s+"?([a-zA-Z0-9_]+)"?/i);
   if (selectMatch) {
     const tbl = selectMatch[1].toLowerCase();
-    const rows = MOCK_TABLES[tbl] ? [...MOCK_TABLES[tbl]] : [];
+    const rawRows = MOCK_TABLES[tbl] ? [...MOCK_TABLES[tbl]] : [];
+    const rows =
+      tbl === 'users'
+        ? rawRows.map((r) => sanitizeUserForClient(r))
+        : tbl === 'payroll_masters'
+        ? rawRows.map((r) => sanitizePayrollMasterForClient(r))
+        : rawRows;
     const fields = rows.length > 0 ? Object.keys(rows[0]).map((name) => ({ name, dataTypeID: 25 })) : [];
     return { rows, rowCount: rows.length, fields };
   }
@@ -911,114 +1073,310 @@ function getCurrentSnapshot(): Snapshot {
     licenseTypes: Array.isArray(slices.licenseTypes) ? slices.licenseTypes : [],
     ledgerEntries: Array.isArray(slices.ledgerEntries) ? slices.ledgerEntries : [],
     ...slices,
-    users: MOCK_TABLES.users,
+    users: MOCK_TABLES.users.map(sanitizeUserForClient),
   };
 }
 
-// ---------------------------------------------------------------------------
-// Authoritative credential check. The browser only knows the users it has cached, so
-// on a fresh domain/device (or after a password was changed elsewhere) its local list
-// can be stale. This validates against the server's durable store instead.
-// ---------------------------------------------------------------------------
-app.post('/api/auth/verify', async (req: Request, res: Response) => {
+function findAccountByIdentifier(rawIdentifier: string): { user: any | null; master: any | null } {
+  const identifier = String(rawIdentifier || '').trim().toLowerCase();
+  if (!identifier) return { user: null, master: null };
+  const norm = (v: any) => String(v ?? '').trim().toLowerCase();
+  const normCode = (v: string) => {
+    const m = v.trim().match(/^emp[-_\s]*(\d+)$/i);
+    return m ? `emp-${m[1].padStart(3, '0')}` : v.trim().toLowerCase();
+  };
+  const wantedCode = normCode(identifier);
+
+  const users: any[] = MOCK_TABLES.users || [];
+  const masters: any[] = [
+    ...Object.values(PERSISTED_CRM_STATE.payrollMasters || {}),
+    ...(MOCK_TABLES.payroll_masters || []),
+  ].filter(Boolean);
+
+  let master: any =
+    masters.find((m) => norm(m.email) === identifier) ||
+    masters.find((m) => m.username && norm(m.username) === identifier) ||
+    masters.find((m) => m.empCode && (norm(m.empCode) === identifier || normCode(String(m.empCode)) === wantedCode)) ||
+    masters.find((m) => norm(m.userId) === identifier) ||
+    null;
+  let user: any =
+    users.find((u) => norm(u.email) === identifier) ||
+    users.find((u) => norm(u.username) === identifier) ||
+    users.find((u) => norm(u.id) === identifier) ||
+    users.find((u) => u.empCode && (norm(u.empCode) === identifier || normCode(String(u.empCode)) === wantedCode)) ||
+    null;
+
+  if (master && !user) {
+    user =
+      users.find((u) => String(u.id) === String(master.userId)) ||
+      users.find((u) => master.email && norm(u.email) === norm(master.email)) ||
+      users.find((u) => master.username && norm(u.username) === norm(master.username)) ||
+      null;
+  }
+  if (user && !master) {
+    master =
+      masters.find((m) => String(m.userId) === String(user.id)) ||
+      masters.find((m) => user.email && norm(m.email) === norm(user.email)) ||
+      null;
+  }
+  return { user, master };
+}
+
+async function handleAuthLogin(req: Request, res: Response) {
   try {
-    // Another serverless instance may have saved newer credentials: reload first.
     if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || isDatabaseActive()) {
       await hydrateStoreFromDatabase();
     }
     relinkUsersAndPayrollMasters();
-    const identifier = String(req.body?.identifier ?? '').trim().toLowerCase();
+    const identifier = String(
+      req.body?.identifier ?? req.body?.email ?? req.body?.username ?? ''
+    )
+      .trim()
+      .toLowerCase();
     const password = String(req.body?.password ?? '').trim();
     if (!identifier || !password) {
-      return res.status(400).json({ success: false, authenticated: false, message: 'Identifier and password are required.' });
-    }
-
-    const norm = (v: any) => String(v ?? '').trim().toLowerCase();
-    const normCode = (v: string) => {
-      const m = v.trim().match(/^emp[-_\s]*(\d+)$/i);
-      return m ? `emp-${m[1].padStart(3, '0')}` : v.trim().toLowerCase();
-    };
-    const wantedCode = normCode(identifier);
-
-    const users: any[] = MOCK_TABLES.users || [];
-    const masters: any[] = [
-      ...Object.values(PERSISTED_CRM_STATE.payrollMasters || {}),
-      ...(MOCK_TABLES.payroll_masters || []),
-    ].filter(Boolean);
-
-    let master: any =
-      masters.find((m) => norm(m.email) === identifier) ||
-      masters.find((m) => m.empCode && (norm(m.empCode) === identifier || normCode(String(m.empCode)) === wantedCode)) ||
-      masters.find((m) => norm(m.userId) === identifier) ||
-      null;
-    let user: any =
-      users.find((u) => norm(u.email) === identifier) ||
-      users.find((u) => norm(u.id) === identifier) ||
-      users.find((u) => norm(u.username) === identifier) ||
-      users.find((u) => u.empCode && (norm(u.empCode) === identifier || normCode(String(u.empCode)) === wantedCode)) ||
-      null;
-
-    // Fallback to unambiguous email prefix or full name match
-    if (!user && !master) {
-      const weakUsers = users.filter((u) => {
-        const em = norm(u.email);
-        const prefix = em ? em.split('@')[0] : '';
-        return (prefix && prefix === identifier) || norm(u.name) === identifier;
+      return res.status(400).json({
+        success: false,
+        authenticated: false,
+        message: 'Username/Email and password are required.',
       });
-      const weakMasters = masters.filter((m) => {
-        const em = norm(m.email);
-        const prefix = em ? em.split('@')[0] : '';
-        return (prefix && prefix === identifier) || norm(m.name) === identifier;
-      });
-      if (weakUsers.length === 1) user = weakUsers[0];
-      if (weakMasters.length === 1) master = weakMasters[0];
     }
 
-    if (master && !user) {
-      user = users.find((u) => String(u.id) === String(master.userId)) ||
-        users.find((u) => master.email && norm(u.email) === norm(master.email)) || null;
-    }
-    if (user && !master) {
-      master = masters.find((m) => String(m.userId) === String(user.id)) ||
-        masters.find((m) => user.email && norm(m.email) === norm(user.email)) || null;
-    }
+    const { user, master } = findAccountByIdentifier(identifier);
     if (!user && !master) {
-      if (['shalv.sharma@coreenact.com', 'shalvpersonal@gmail.com', 'admin@coreenact.com', 'shalv', 'admin'].includes(identifier)) {
-        user = users.find((u) => u.id === 'usr-1') || null;
+      return res.status(401).json({
+        success: false,
+        authenticated: false,
+        message: 'Invalid username/email or password.',
+      });
+    }
+
+    const userInactive = user && String(user.status || '').toLowerCase() === 'inactive';
+    const masterInactive =
+      master &&
+      (String(master.status || '').toLowerCase() === 'inactive' ||
+        String(master.employmentStatus || '').toLowerCase() === 'inactive');
+    if (userInactive || (masterInactive && !user)) {
+      return res.status(403).json({
+        success: false,
+        authenticated: false,
+        message: 'Your account is inactive. Please contact the Administrator.',
+      });
+    }
+
+    const storedHash = user?.passwordHash || master?.passwordHash;
+    if (!verifyPasswordHash(password, storedHash)) {
+      return res.status(401).json({
+        success: false,
+        authenticated: false,
+        message: 'Invalid username/email or password.',
+      });
+    }
+
+    const nowIso = new Date().toISOString();
+    if (user) {
+      const uIdx = MOCK_TABLES.users.findIndex((u) => String(u.id) === String(user.id));
+      if (uIdx >= 0) {
+        MOCK_TABLES.users[uIdx] = {
+          ...MOCK_TABLES.users[uIdx],
+          lastLoginAt: nowIso,
+        };
       }
     }
-    if (!user && !master) {
-      return res.status(404).json({ success: false, authenticated: false, message: 'No user account found.' });
+
+    const resolvedUser =
+      user ||
+      (master
+        ? {
+            id: master.userId,
+            name: master.name || 'Employee',
+            username:
+              master.username ||
+              (master.email ? String(master.email).split('@')[0] : master.empCode || 'employee'),
+            email: master.email || '',
+            accessScope: master.accessType === 'payroll_only' ? 'payroll_only' : 'all',
+            accessType: master.accessType || 'payroll_only',
+            phone: master.phone || '',
+            role: master.role || 'Sales Executive',
+            department: master.department || 'Operations',
+            designation: master.designation || master.role || 'Employee',
+            status: master.status || master.employmentStatus || 'Active',
+            location: master.location || 'Mumbai HQ',
+            lastLoginAt: nowIso,
+          }
+        : null);
+
+    savePersistedStore();
+    await flushStateToDatabase();
+
+    const sanitizedUser = sanitizeUserForClient(resolvedUser);
+    const sanitizedMaster = master ? sanitizePayrollMasterForClient(master) : null;
+    const token = issueAuthToken(String(sanitizedUser.id));
+
+    return res.json({
+      success: true,
+      authenticated: true,
+      token,
+      user: sanitizedUser,
+      payrollMaster: sanitizedMaster,
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      authenticated: false,
+      message: err?.message || 'Authentication failed.',
+    });
+  }
+}
+
+app.post('/api/auth/login', handleAuthLogin);
+app.post('/api/auth/verify', handleAuthLogin);
+
+app.post('/api/auth/change-password', async (req: Request, res: Response) => {
+  try {
+    if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || isDatabaseActive()) {
+      await hydrateStoreFromDatabase();
+    }
+    relinkUsersAndPayrollMasters();
+
+    const rawAuthHeader =
+      (req.headers?.authorization as string | undefined) ||
+      (req.headers?.['x-auth-token'] as string | undefined) ||
+      req.body?.authToken;
+    const tokenUserId = rawAuthHeader ? verifyAuthToken(rawAuthHeader) : null;
+    if (rawAuthHeader && !tokenUserId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired authentication session.',
+      });
     }
 
-    const valid = new Set<string>(
-      [master?.password, master?.tempPassword, user?.password, user?.tempPassword, 'password123']
-        .filter((p) => typeof p === 'string' && p.trim().length > 0)
-        .map((p) => String(p).trim())
-    );
-    if (valid.size > 0 && !valid.has(password)) {
-      return res.status(401).json({ success: false, authenticated: false, message: 'Invalid password.' });
+    const requestedUserId = String(req.body?.userId ?? req.body?.identifier ?? '').trim();
+    const actorUserId = String(
+      tokenUserId || req.body?.actorUserId || req.headers?.['x-user-id'] || ''
+    ).trim();
+
+    if (actorUserId && requestedUserId && actorUserId !== requestedUserId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Users can only change their own password.',
+      });
     }
-    const resolvedUser = user || (master ? {
-      id: master.userId,
-      name: master.name || 'Employee',
-      username: master.email ? String(master.email).split('@')[0] : master.empCode || 'employee',
-      email: master.email || '',
-      password: master.password || master.tempPassword || password,
-      tempPassword: master.tempPassword || master.password || password,
-      mustChangePasswordOnFirstLogin: Boolean(master.mustChangePasswordOnFirstLogin),
-      accessScope: master.accessType === 'payroll_only' ? 'payroll_only' : 'all',
-      accessType: master.accessType || 'payroll_only',
-      phone: master.phone || '',
-      role: master.role || 'Sales Executive',
-      department: master.department || 'Operations',
-      designation: master.designation || master.role || 'Employee',
-      status: master.status || 'Active',
-      location: master.location || 'Mumbai HQ',
-    } : null);
-    return res.json({ success: true, authenticated: true, user: resolvedUser, payrollMaster: master || null });
+
+    const lookupId = requestedUserId || actorUserId;
+    if (!lookupId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User identifier is required.',
+      });
+    }
+
+    const { user, master } = findAccountByIdentifier(lookupId);
+    if (!user && !master) {
+      return res.status(404).json({
+        success: false,
+        message: 'User account not found.',
+      });
+    }
+
+    if (
+      (user && String(user.status || '').toLowerCase() === 'inactive') ||
+      (!user && master && String(master.status || '').toLowerCase() === 'inactive')
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'Inactive accounts cannot change passwords.',
+      });
+    }
+
+    const currentPassword = String(req.body?.currentPassword ?? '').trim();
+    const newPassword = String(req.body?.newPassword ?? '').trim();
+    const confirmPasswordRaw = req.body?.confirmPassword ?? req.body?.confirmNewPassword;
+
+    if (!currentPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password is required.',
+      });
+    }
+    if (!newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password is required.',
+      });
+    }
+    if (confirmPasswordRaw !== undefined && String(confirmPasswordRaw).trim() !== newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password and confirm password do not match.',
+      });
+    }
+
+    const storedHash = user?.passwordHash || master?.passwordHash;
+    if (!verifyPasswordHash(currentPassword, storedHash)) {
+      return res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect.',
+      });
+    }
+
+    const newHash = hashPassword(newPassword);
+    const canonicalUserId = String(user?.id || master?.userId);
+
+    const uIdx = MOCK_TABLES.users.findIndex((u) => String(u.id) === canonicalUserId);
+    if (uIdx >= 0) {
+      MOCK_TABLES.users[uIdx] = stripPlaintextAndResetFlags({
+        ...MOCK_TABLES.users[uIdx],
+        passwordHash: newHash,
+      });
+    }
+
+    if (
+      PERSISTED_CRM_STATE.payrollMasters &&
+      typeof PERSISTED_CRM_STATE.payrollMasters === 'object'
+    ) {
+      for (const [k, m] of Object.entries(PERSISTED_CRM_STATE.payrollMasters) as Array<
+        [string, any]
+      >) {
+        if (
+          m &&
+          (String(k) === canonicalUserId ||
+            String(m.userId) === canonicalUserId ||
+            (user?.email &&
+              m.email &&
+              String(m.email).trim().toLowerCase() === String(user.email).trim().toLowerCase()))
+        ) {
+          PERSISTED_CRM_STATE.payrollMasters[k] = stripPlaintextAndResetFlags({
+            ...m,
+            passwordHash: newHash,
+          });
+        }
+      }
+    }
+
+    savePersistedStore();
+    try {
+      await query(
+        'UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+        [newHash, canonicalUserId]
+      );
+    } catch {
+      // Stored in durable state
+    }
+    await flushStateToDatabase();
+
+    const updatedUser =
+      MOCK_TABLES.users.find((u) => String(u.id) === canonicalUserId) || user || master;
+    return res.json({
+      success: true,
+      message: 'Password updated successfully.',
+      user: sanitizeUserForClient(updatedUser),
+    });
   } catch (err: any) {
-    return res.status(500).json({ success: false, message: err?.message || 'Verification failed.' });
+    return res.status(500).json({
+      success: false,
+      message: err?.message || 'Failed to update password.',
+    });
   }
 });
 
@@ -1035,10 +1393,44 @@ app.post('/api/state', async (req: Request, res: Response) => {
   if (!incoming || typeof incoming !== 'object') {
     return res.status(400).json({ error: 'snapshot is required' });
   }
+
+  // Capture any explicit passwords passed on incoming users before sanitizing for three-way merge
+  const explicitIncomingPasswordByUserId = new Map<string, string>();
+  if (Array.isArray(incoming.users)) {
+    for (const u of incoming.users) {
+      if (u && u.id) {
+        const rawP =
+          (typeof u.password === 'string' && u.password.trim()) ||
+          (typeof u.tempPassword === 'string' && u.tempPassword.trim()) ||
+          (typeof u.passwordHash === 'string' && u.passwordHash.trim()) ||
+          '';
+        if (rawP) {
+          explicitIncomingPasswordByUserId.set(String(u.id), rawP);
+        }
+      }
+    }
+  }
+
+  const sanitizedIncoming: Snapshot = {
+    ...incoming,
+    ...(Array.isArray(incoming.users)
+      ? { users: incoming.users.map(sanitizeUserForClient) }
+      : {}),
+  };
+  const sanitizedBase: Snapshot | undefined =
+    base && typeof base === 'object'
+      ? {
+          ...base,
+          ...(Array.isArray(base.users)
+            ? { users: base.users.map(sanitizeUserForClient) }
+            : {}),
+        }
+      : undefined;
+
   const current = getCurrentSnapshot();
-  let candidate: Snapshot = incoming;
-  if (PERSISTED_CRM_STATE.stateInitialized && base && !force) {
-    const merged = mergeSnapshots(base, incoming, current);
+  let candidate: Snapshot = sanitizedIncoming;
+  if (PERSISTED_CRM_STATE.stateInitialized && sanitizedBase && !force) {
+    const merged = mergeSnapshots(sanitizedBase, sanitizedIncoming, current);
     if (merged.conflicts.length > 0) {
       return res.status(409).json({
         error: 'Conflict detected while merging state',
@@ -1071,7 +1463,7 @@ app.post('/api/state', async (req: Request, res: Response) => {
 
   // Merge canonical.users with existing MOCK_TABLES.users (unless force is true or a user was explicitly deleted from base)
   const baseUserIds = new Set<string>(
-    Array.isArray(base?.users) ? base.users.map((u: any) => String(u?.id || '')) : []
+    Array.isArray(sanitizedBase?.users) ? sanitizedBase.users.map((u: any) => String(u?.id || '')) : []
   );
   const canonicalUserIds = new Set<string>(
     Array.isArray(canonical.users) ? canonical.users.map((u: any) => String(u?.id || '')) : []
@@ -1086,21 +1478,17 @@ app.post('/api/state', async (req: Request, res: Response) => {
       MOCK_TABLES.users.map((u: any) => [String(u.id), u])
     );
     const updatedUsers = canonical.users.map((u: any) => {
-      const prev = prevById.get(String(u.id));
-      const pickPass = (nextP: any, prevP: any) => {
-        const n = typeof nextP === 'string' ? nextP.trim() : '';
-        const p = typeof prevP === 'string' ? prevP.trim() : '';
-        if (n && n !== 'password123') return n;
-        if (p && p !== 'password123') return p;
-        return n || p || 'password123';
-      };
-      const pass = pickPass(u.password || u.tempPassword, prev?.password || prev?.tempPassword);
-      return {
+      const uid = String(u.id);
+      const prev = prevById.get(uid);
+      const explicitPass = explicitIncomingPasswordByUserId.get(uid);
+      const passwordHash = explicitPass
+        ? hashPassword(explicitPass)
+        : resolveRecordPasswordHash(u, prev);
+      return stripPlaintextAndResetFlags({
         ...prev,
         ...u,
-        password: pass,
-        tempPassword: pickPass(u.tempPassword || u.password, prev?.tempPassword || prev?.password),
-      };
+        passwordHash,
+      });
     });
     if (!force) {
       for (const existingU of MOCK_TABLES.users) {
@@ -1114,26 +1502,26 @@ app.post('/api/state', async (req: Request, res: Response) => {
             (eEmail && u.email && String(u.email).trim().toLowerCase() === eEmail)
         );
         if (!alreadyIn) {
-          updatedUsers.push(existingU);
+          updatedUsers.push(stripPlaintextAndResetFlags(existingU));
         }
       }
     }
     MOCK_TABLES.users = updatedUsers;
-    canonical.users = updatedUsers;
+    canonical.users = updatedUsers.map(sanitizeUserForClient);
   }
 
   PERSISTED_CRM_STATE.documentCounters = countersCopy;
   PERSISTED_CRM_STATE.crmSlices = {
     ...PERSISTED_CRM_STATE.crmSlices,
     ...canonical,
-    users: MOCK_TABLES.users,
+    users: MOCK_TABLES.users.map(sanitizeUserForClient),
   };
   PERSISTED_CRM_STATE.stateInitialized = true;
   savePersistedStore();
   return res.json({
     success: true,
     initialized: true,
-    snapshot: { ...canonical, users: MOCK_TABLES.users },
+    snapshot: { ...canonical, users: MOCK_TABLES.users.map(sanitizeUserForClient) },
     issues: [],
   });
 });
@@ -1149,7 +1537,14 @@ function mergeUsersWithMemory(dbRows: any[]): any[] {
   for (const row of dbRows || []) {
     if (!row || !row.id) continue;
     const id = String(row.id);
-    mergedMap.set(id, { ...row, id });
+    mergedMap.set(
+      id,
+      stripPlaintextAndResetFlags({
+        ...row,
+        id,
+        passwordHash: resolveRecordPasswordHash(row),
+      })
+    );
     if (row.email) {
       idByEmail.set(String(row.email).trim().toLowerCase(), id);
     }
@@ -1163,14 +1558,24 @@ function mergeUsersWithMemory(dbRows: any[]): any[] {
       : (emailLower && idByEmail.get(emailLower)) || rawId;
     const existing = mergedMap.get(targetId);
     if (existing) {
-      mergedMap.set(targetId, {
-        ...existing,
-        ...memRow,
-        id: targetId,
-        password: memRow.password || existing.password || 'password123',
-      });
+      mergedMap.set(
+        targetId,
+        stripPlaintextAndResetFlags({
+          ...existing,
+          ...memRow,
+          id: targetId,
+          passwordHash: resolveRecordPasswordHash(memRow, existing),
+        })
+      );
     } else {
-      mergedMap.set(targetId, { ...memRow, id: targetId });
+      mergedMap.set(
+        targetId,
+        stripPlaintextAndResetFlags({
+          ...memRow,
+          id: targetId,
+          passwordHash: resolveRecordPasswordHash(memRow),
+        })
+      );
     }
     if (emailLower) {
       idByEmail.set(emailLower, targetId);
@@ -1183,80 +1588,158 @@ function mergeUsersWithMemory(dbRows: any[]): any[] {
 app.get('/api/users', async (_req: Request, res: Response) => {
   try {
     const result = await query('SELECT * FROM users ORDER BY created_at ASC;');
-    res.json({ users: mergeUsersWithMemory(result.rows) });
+    res.json({ users: mergeUsersWithMemory(result.rows).map(sanitizeUserForClient) });
   } catch (err: any) {
-    res.json({ users: MOCK_TABLES.users });
+    res.json({ users: MOCK_TABLES.users.map(sanitizeUserForClient) });
   }
 });
 
 app.post('/api/users', async (req: Request, res: Response) => {
+  relinkUsersAndPayrollMasters();
   const u = req.body?.user && typeof req.body.user === 'object' ? req.body.user : req.body;
+  if (!u || typeof u !== 'object') {
+    return res.status(400).json({ success: false, message: 'User payload is required.' });
+  }
+
+  const rawPassword = String(u.password ?? u.tempPassword ?? '').trim();
+  const rawConfirmPassword = u.confirmPassword !== undefined ? String(u.confirmPassword).trim() : undefined;
+  if (rawConfirmPassword !== undefined && rawPassword !== rawConfirmPassword) {
+    return res.status(400).json({
+      success: false,
+      message: 'Password and Confirm Password do not match.',
+    });
+  }
+
   const cleanEmail = u.email ? String(u.email).trim().toLowerCase() : '';
+  const resolvedUsername = String(
+    u.username || (cleanEmail ? cleanEmail.split('@')[0] : '')
+  ).trim();
+  const cleanUsername = resolvedUsername.toLowerCase();
+
+  if (!cleanEmail && !cleanUsername) {
+    return res.status(400).json({
+      success: false,
+      message: 'Username or Login Email is required.',
+    });
+  }
+
   const existingByIdIdx = u.id
     ? MOCK_TABLES.users.findIndex((row) => String(row.id) === String(u.id))
     : -1;
-  const existingByEmailIdx =
-    existingByIdIdx < 0 && cleanEmail
-      ? MOCK_TABLES.users.findIndex(
-          (row) => row.email && String(row.email).trim().toLowerCase() === cleanEmail
-        )
-      : -1;
-  const existingIdx = existingByIdIdx >= 0 ? existingByIdIdx : existingByEmailIdx;
+
+  // Prevent duplicate usernames or login emails across all other users
+  const duplicateEmailUser = cleanEmail
+    ? MOCK_TABLES.users.find(
+        (row, idx) =>
+          idx !== existingByIdIdx &&
+          row.email &&
+          String(row.email).trim().toLowerCase() === cleanEmail
+      )
+    : undefined;
+  const duplicateUsernameUser = cleanUsername
+    ? MOCK_TABLES.users.find(
+        (row, idx) =>
+          idx !== existingByIdIdx &&
+          row.username &&
+          String(row.username).trim().toLowerCase() === cleanUsername
+      )
+    : undefined;
+
+  if (duplicateEmailUser) {
+    return res.status(409).json({
+      success: false,
+      message: `A user with login email "${u.email}" already exists.`,
+    });
+  }
+  if (duplicateUsernameUser) {
+    return res.status(409).json({
+      success: false,
+      message: `A user with username "${resolvedUsername}" already exists.`,
+    });
+  }
+
+  if (existingByIdIdx < 0 && !rawPassword && !u.passwordHash) {
+    return res.status(400).json({
+      success: false,
+      message: 'Password is required when creating a user.',
+    });
+  }
+
   const id =
-    existingIdx >= 0
-      ? String(MOCK_TABLES.users[existingIdx].id)
+    existingByIdIdx >= 0
+      ? String(MOCK_TABLES.users[existingByIdIdx].id)
       : u.id || `usr-${Date.now()}`;
 
-  const newUserRow = {
+  const existingUser = existingByIdIdx >= 0 ? MOCK_TABLES.users[existingByIdIdx] : undefined;
+  const passwordHash = rawPassword
+    ? hashPassword(rawPassword)
+    : resolveRecordPasswordHash(u, existingUser);
+
+  const newUserRow = stripPlaintextAndResetFlags({
     id,
-    name: u.name || 'New User',
-    username: u.username || u.email?.split('@')[0] || 'user',
-    email: u.email,
-    password: u.password || u.tempPassword || 'password123',
-    tempPassword: u.tempPassword || u.password || 'password123',
-    mustChangePasswordOnFirstLogin: Boolean(u.mustChangePasswordOnFirstLogin),
+    name: String(u.name || existingUser?.name || 'New User').trim(),
+    username: resolvedUsername || existingUser?.username || 'user',
+    email: String(u.email || existingUser?.email || '').trim(),
+    passwordHash,
     accessScope: u.accessScope || (u.accessType === 'payroll_only' ? 'payroll_only' : 'all'),
     accessType: u.accessType || 'crm_and_payroll',
-    phone: u.phone || '',
-    role: u.role || 'Sales Executive',
-    department: u.department || 'Sales',
-    designation: u.designation || '',
-    status: u.status || 'Active',
-    avatar: u.avatar || '',
-    location: u.location || '',
-    reportingManager: u.reportingManager || '',
-    assignedTerritory: u.assignedTerritory || '',
-    custom_permissions: u.customPermissions || {},
-    created_at: new Date().toISOString(),
-  };
-  if (existingIdx >= 0) {
-    MOCK_TABLES.users[existingIdx] = {
-      ...MOCK_TABLES.users[existingIdx],
+    phone: u.phone ?? existingUser?.phone ?? '',
+    role: u.role || existingUser?.role || 'Sales Executive',
+    department: u.department || existingUser?.department || 'Sales',
+    designation: u.designation ?? existingUser?.designation ?? '',
+    status: u.status === 'Inactive' ? 'Inactive' : 'Active',
+    avatar: u.avatar ?? existingUser?.avatar ?? '',
+    location: u.location ?? existingUser?.location ?? '',
+    reportingManager: u.reportingManager ?? existingUser?.reportingManager ?? '',
+    assignedTerritory: u.assignedTerritory ?? existingUser?.assignedTerritory ?? '',
+    custom_permissions: u.customPermissions || existingUser?.custom_permissions || {},
+    customPermissions: u.customPermissions || existingUser?.customPermissions,
+    created_at: existingUser?.created_at || new Date().toISOString(),
+  });
+
+  if (existingByIdIdx >= 0) {
+    MOCK_TABLES.users[existingByIdIdx] = {
+      ...MOCK_TABLES.users[existingByIdIdx],
       ...newUserRow,
       id,
     };
   } else {
     MOCK_TABLES.users.push(newUserRow);
   }
+
+  // Keep any linked Payroll Master record synchronized without creating duplicate accounts
+  if (
+    PERSISTED_CRM_STATE.payrollMasters &&
+    typeof PERSISTED_CRM_STATE.payrollMasters === 'object' &&
+    PERSISTED_CRM_STATE.payrollMasters[id]
+  ) {
+    PERSISTED_CRM_STATE.payrollMasters[id] = stripPlaintextAndResetFlags({
+      ...PERSISTED_CRM_STATE.payrollMasters[id],
+      userId: id,
+      name: newUserRow.name,
+      username: newUserRow.username,
+      email: newUserRow.email,
+      role: newUserRow.role,
+      department: newUserRow.department,
+      designation: newUserRow.designation,
+      location: newUserRow.location,
+      status: newUserRow.status,
+      phone: newUserRow.phone,
+      passwordHash,
+    });
+  }
+
   savePersistedStore();
   try {
-    let dbId = id;
-    if (cleanEmail) {
-      const existingEmailRes = await query(
-        'SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
-        [u.email]
-      );
-      if (existingEmailRes.rows?.[0]?.id) {
-        dbId = String(existingEmailRes.rows[0].id);
-      }
-    }
+    await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;').catch(() => {});
     await query(
-      `INSERT INTO users (id, name, username, email, phone, role, department, designation, status, avatar, location, custom_permissions)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      `INSERT INTO users (id, name, username, email, password_hash, phone, role, department, designation, status, avatar, location, custom_permissions)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        ON CONFLICT (id) DO UPDATE SET
          name = EXCLUDED.name,
          username = EXCLUDED.username,
          email = EXCLUDED.email,
+         password_hash = EXCLUDED.password_hash,
          phone = EXCLUDED.phone,
          role = EXCLUDED.role,
          department = EXCLUDED.department,
@@ -1267,10 +1750,11 @@ app.post('/api/users', async (req: Request, res: Response) => {
          custom_permissions = EXCLUDED.custom_permissions,
          updated_at = CURRENT_TIMESTAMP`,
       [
-        dbId,
+        id,
         newUserRow.name,
         newUserRow.username,
         newUserRow.email,
+        passwordHash,
         newUserRow.phone,
         newUserRow.role,
         newUserRow.department,
@@ -1285,34 +1769,77 @@ app.post('/api/users', async (req: Request, res: Response) => {
     // Kept safely in MOCK_TABLES.users
   }
   await flushStateToDatabase();
-  res.json({ success: true, id, user: newUserRow });
+  const sanitized = sanitizeUserForClient(newUserRow);
+  res.json({ success: true, id, user: sanitized });
 });
 
 app.put('/api/users/:id', async (req: Request, res: Response) => {
+  relinkUsersAndPayrollMasters();
   const { id } = req.params;
   const u = req.body?.user && typeof req.body.user === 'object' ? req.body.user : req.body;
-  const cleanEmail = u.email ? String(u.email).trim().toLowerCase() : '';
+  if (!u || typeof u !== 'object') {
+    return res.status(400).json({ success: false, message: 'User update payload is required.' });
+  }
+
+  const rawPassword = String(u.password ?? u.tempPassword ?? '').trim();
+  const rawConfirmPassword = u.confirmPassword !== undefined ? String(u.confirmPassword).trim() : undefined;
+  if (rawPassword && rawConfirmPassword !== undefined && rawPassword !== rawConfirmPassword) {
+    return res.status(400).json({
+      success: false,
+      message: 'Password and Confirm Password do not match.',
+    });
+  }
+
   const byIdIdx = MOCK_TABLES.users.findIndex((row) => String(row.id) === String(id));
-  const byEmailIdx =
-    byIdIdx < 0 && cleanEmail
-      ? MOCK_TABLES.users.findIndex(
-          (row) => row.email && String(row.email).trim().toLowerCase() === cleanEmail
-        )
-      : -1;
-  const existingIdx = byIdIdx >= 0 ? byIdIdx : byEmailIdx;
-  if (existingIdx >= 0) {
-    const curr = MOCK_TABLES.users[existingIdx];
-    MOCK_TABLES.users[existingIdx] = {
+  const cleanEmail = u.email ? String(u.email).trim().toLowerCase() : '';
+  const cleanUsername = u.username ? String(u.username).trim().toLowerCase() : '';
+
+  // Prevent duplicate username or email against any other user
+  if (cleanEmail) {
+    const emailConflict = MOCK_TABLES.users.find(
+      (row, idx) =>
+        idx !== byIdIdx &&
+        String(row.id) !== String(id) &&
+        row.email &&
+        String(row.email).trim().toLowerCase() === cleanEmail
+    );
+    if (emailConflict) {
+      return res.status(409).json({
+        success: false,
+        message: `Login email "${u.email}" is already assigned to another user.`,
+      });
+    }
+  }
+  if (cleanUsername) {
+    const usernameConflict = MOCK_TABLES.users.find(
+      (row, idx) =>
+        idx !== byIdIdx &&
+        String(row.id) !== String(id) &&
+        row.username &&
+        String(row.username).trim().toLowerCase() === cleanUsername
+    );
+    if (usernameConflict) {
+      return res.status(409).json({
+        success: false,
+        message: `Username "${u.username}" is already assigned to another user.`,
+      });
+    }
+  }
+
+  let updatedRecord: any;
+  let previousEmailLower = '';
+  if (byIdIdx >= 0) {
+    const curr = MOCK_TABLES.users[byIdIdx];
+    previousEmailLower = curr.email ? String(curr.email).trim().toLowerCase() : '';
+    const nextPasswordHash = rawPassword
+      ? hashPassword(rawPassword)
+      : resolveRecordPasswordHash(u, curr);
+    updatedRecord = stripPlaintextAndResetFlags({
       ...curr,
-      name: u.name ?? curr.name,
-      username: u.username ?? curr.username,
-      email: u.email ?? curr.email,
-      password: u.password ?? curr.password,
-      tempPassword: u.tempPassword ?? u.password ?? curr.tempPassword,
-      mustChangePasswordOnFirstLogin:
-        u.mustChangePasswordOnFirstLogin !== undefined
-          ? u.mustChangePasswordOnFirstLogin
-          : curr.mustChangePasswordOnFirstLogin,
+      name: u.name !== undefined ? String(u.name).trim() : curr.name,
+      username: u.username !== undefined ? String(u.username).trim() : curr.username,
+      email: u.email !== undefined ? String(u.email).trim() : curr.email,
+      passwordHash: nextPasswordHash,
       accessScope: u.accessScope ?? curr.accessScope,
       accessType: u.accessType ?? curr.accessType,
       phone: u.phone ?? curr.phone,
@@ -1324,17 +1851,22 @@ app.put('/api/users/:id', async (req: Request, res: Response) => {
       location: u.location ?? curr.location,
       reportingManager: u.reportingManager ?? curr.reportingManager,
       assignedTerritory: u.assignedTerritory ?? curr.assignedTerritory,
-      custom_permissions: u.customPermissions !== undefined ? u.customPermissions : curr.custom_permissions,
-    };
+      custom_permissions:
+        u.customPermissions !== undefined ? u.customPermissions : curr.custom_permissions,
+      customPermissions:
+        u.customPermissions !== undefined ? u.customPermissions : curr.customPermissions,
+    });
+    MOCK_TABLES.users[byIdIdx] = updatedRecord;
   } else {
-    MOCK_TABLES.users.push({
+    const nextPasswordHash = rawPassword
+      ? hashPassword(rawPassword)
+      : resolveRecordPasswordHash(u);
+    updatedRecord = stripPlaintextAndResetFlags({
       id,
-      name: u.name || 'User',
-      username: u.username || u.email?.split('@')[0] || 'user',
-      email: u.email || '',
-      password: u.password || 'password123',
-      tempPassword: u.tempPassword || u.password || 'password123',
-      mustChangePasswordOnFirstLogin: Boolean(u.mustChangePasswordOnFirstLogin),
+      name: String(u.name || 'User').trim(),
+      username: String(u.username || u.email?.split('@')[0] || 'user').trim(),
+      email: String(u.email || '').trim(),
+      passwordHash: nextPasswordHash,
       accessScope: u.accessScope || 'all',
       accessType: u.accessType || 'crm_and_payroll',
       phone: u.phone || '',
@@ -1345,37 +1877,77 @@ app.put('/api/users/:id', async (req: Request, res: Response) => {
       avatar: u.avatar || '',
       location: u.location || '',
       custom_permissions: u.customPermissions || {},
+      customPermissions: u.customPermissions,
       created_at: new Date().toISOString(),
     });
+    MOCK_TABLES.users.push(updatedRecord);
   }
+
+  // Synchronize credentials and profile with any linked Payroll Master record
+  if (
+    PERSISTED_CRM_STATE.payrollMasters &&
+    typeof PERSISTED_CRM_STATE.payrollMasters === 'object'
+  ) {
+    for (const [k, m] of Object.entries(PERSISTED_CRM_STATE.payrollMasters) as Array<
+      [string, any]
+    >) {
+      if (!m) continue;
+      const mEmailLower = m.email ? String(m.email).trim().toLowerCase() : '';
+      if (
+        String(k) === String(id) ||
+        String(m.userId) === String(id) ||
+        (previousEmailLower && mEmailLower === previousEmailLower) ||
+        (cleanEmail && mEmailLower === cleanEmail)
+      ) {
+        PERSISTED_CRM_STATE.payrollMasters[k] = stripPlaintextAndResetFlags({
+          ...m,
+          userId: String(id),
+          name: updatedRecord.name,
+          username: updatedRecord.username,
+          email: updatedRecord.email,
+          role: updatedRecord.role,
+          department: updatedRecord.department,
+          designation: updatedRecord.designation,
+          location: updatedRecord.location,
+          status: updatedRecord.status,
+          phone: updatedRecord.phone,
+          passwordHash: updatedRecord.passwordHash,
+        });
+      }
+    }
+  }
+
   savePersistedStore();
   try {
+    await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;').catch(() => {});
     await query(
       `UPDATE users SET
          name = COALESCE($1, name),
          username = COALESCE($2, username),
          email = COALESCE($3, email),
-         phone = COALESCE($4, phone),
-         role = COALESCE($5, role),
-         department = COALESCE($6, department),
-         designation = COALESCE($7, designation),
-         status = COALESCE($8, status),
-         avatar = COALESCE($9, avatar),
-         location = COALESCE($10, location),
-         custom_permissions = COALESCE($11, custom_permissions),
+         password_hash = COALESCE($4, password_hash),
+         phone = COALESCE($5, phone),
+         role = COALESCE($6, role),
+         department = COALESCE($7, department),
+         designation = COALESCE($8, designation),
+         status = COALESCE($9, status),
+         avatar = COALESCE($10, avatar),
+         location = COALESCE($11, location),
+         custom_permissions = COALESCE($12, custom_permissions),
          updated_at = CURRENT_TIMESTAMP
-       WHERE id = $12`,
+       WHERE id = $13`,
       [
-        u.name,
-        u.username,
-        u.email,
-        u.phone,
-        u.role,
-        u.department,
-        u.designation,
-        u.status,
-        u.avatar,
-        u.location,
+        updatedRecord.name,
+        updatedRecord.username,
+        updatedRecord.email,
+        updatedRecord.passwordHash,
+        updatedRecord.phone,
+        updatedRecord.role,
+        updatedRecord.department,
+        updatedRecord.designation,
+        updatedRecord.status,
+        updatedRecord.avatar,
+        updatedRecord.location,
         u.customPermissions ? JSON.stringify(u.customPermissions) : null,
         id,
       ]
@@ -1384,7 +1956,7 @@ app.put('/api/users/:id', async (req: Request, res: Response) => {
     // Kept safely in MOCK_TABLES.users
   }
   await flushStateToDatabase();
-  res.json({ success: true, id });
+  res.json({ success: true, id, user: sanitizeUserForClient(updatedRecord) });
 });
 
 // PAYROLL EMPLOYEE MASTERS & ESS BACKEND SYNC ROUTES
@@ -1395,7 +1967,7 @@ app.get('/api/payroll/masters', (_req: Request, res: Response) => {
       map[item.userId] = item;
     }
   }
-  res.json({ success: true, masters: map });
+  res.json({ success: true, masters: sanitizePayrollMastersMapForClient(map) });
 });
 
 app.post('/api/payroll/masters', async (req: Request, res: Response) => {
@@ -1431,9 +2003,15 @@ app.post('/api/payroll/masters', async (req: Request, res: Response) => {
 
     if (baseMasters && typeof baseMasters === 'object') {
       for (const [k, nextVal] of Object.entries(masters)) {
-        const baseVal = baseMasters[k];
-        const currVal = currentMasters[k];
-        if (!same(baseVal, nextVal) && currVal !== undefined && !same(currVal, baseVal) && !same(currVal, nextVal)) {
+        const baseVal = sanitizePayrollMasterForClient(baseMasters[k]);
+        const currVal = sanitizePayrollMasterForClient(currentMasters[k]);
+        const cleanNextVal = sanitizePayrollMasterForClient(nextVal as any);
+        if (
+          !same(baseVal, cleanNextVal) &&
+          currVal !== undefined &&
+          !same(currVal, baseVal) &&
+          !same(currVal, cleanNextVal)
+        ) {
           return res.status(409).json({
             success: false,
             message: `Concurrent change detected for payroll master ${k}`,
@@ -1511,43 +2089,51 @@ app.post('/api/payroll/masters', async (req: Request, res: Response) => {
       const existingIdx = byIdIdx >= 0 ? byIdIdx : byEmailIdx;
       const canonicalUserId =
         existingIdx >= 0 ? String(MOCK_TABLES.users[existingIdx].id) : String(m.userId);
-      const pwd = m.password || m.tempPassword || 'password123';
-      const normalizedMaster = {
+      const existingUser = existingIdx >= 0 ? MOCK_TABLES.users[existingIdx] : undefined;
+      const existingMaster = currentMasters[canonicalUserId] || currentMasters[String(m.userId)];
+      const passwordHash = resolveRecordPasswordHash(m, existingMaster, existingUser);
+      const effectiveStatus = m.status || m.employmentStatus || existingUser?.status || 'Active';
+
+      const normalizedMaster = stripPlaintextAndResetFlags({
+        ...existingMaster,
         ...m,
         userId: canonicalUserId,
-      };
+        status: effectiveStatus,
+        passwordHash,
+      });
       relinkedMap[canonicalUserId] = normalizedMaster;
 
       if (existingIdx >= 0) {
-        MOCK_TABLES.users[existingIdx] = {
+        MOCK_TABLES.users[existingIdx] = stripPlaintextAndResetFlags({
           ...MOCK_TABLES.users[existingIdx],
           name: m.name || MOCK_TABLES.users[existingIdx].name,
+          username: m.username || MOCK_TABLES.users[existingIdx].username,
           email: m.email || MOCK_TABLES.users[existingIdx].email,
-          password: pwd,
-          tempPassword: pwd,
-          mustChangePasswordOnFirstLogin: Boolean(m.mustChangePasswordOnFirstLogin),
+          status: effectiveStatus,
+          passwordHash,
           empCode: normalizedMaster.empCode,
-        };
-      } else {
-        MOCK_TABLES.users.push({
-          id: canonicalUserId,
-          name: m.name || 'Employee',
-          username: m.email ? m.email.split('@')[0] : normalizedMaster.empCode || 'employee',
-          email: m.email || '',
-          password: pwd,
-          tempPassword: pwd,
-          mustChangePasswordOnFirstLogin: Boolean(m.mustChangePasswordOnFirstLogin),
-          accessScope: m.accessType === 'payroll_only' ? 'payroll_only' : 'all',
-          accessType: m.accessType || 'payroll_only',
-          empCode: normalizedMaster.empCode,
-          phone: m.phone || '',
-          role: m.role || 'Sales Executive',
-          department: m.department || 'Operations',
-          designation: m.designation || m.role || 'Employee',
-          status: m.status || 'Active',
-          location: m.location || 'Mumbai HQ',
-          created_at: new Date().toISOString(),
         });
+      } else {
+        MOCK_TABLES.users.push(
+          stripPlaintextAndResetFlags({
+            id: canonicalUserId,
+            name: m.name || 'Employee',
+            username:
+              m.username || (m.email ? m.email.split('@')[0] : normalizedMaster.empCode || 'employee'),
+            email: m.email || '',
+            passwordHash,
+            accessScope: m.accessType === 'payroll_only' ? 'payroll_only' : 'all',
+            accessType: m.accessType || 'payroll_only',
+            empCode: normalizedMaster.empCode,
+            phone: m.phone || '',
+            role: m.role || 'Sales Executive',
+            department: m.department || 'Operations',
+            designation: m.designation || m.role || 'Employee',
+            status: effectiveStatus,
+            location: m.location || 'Mumbai HQ',
+            created_at: new Date().toISOString(),
+          })
+        );
       }
     }
     PERSISTED_CRM_STATE.payrollMasters = relinkedMap;
@@ -1558,7 +2144,7 @@ app.post('/api/payroll/masters', async (req: Request, res: Response) => {
   res.json({
     success: true,
     count: MOCK_TABLES.payroll_masters.length,
-    masters: PERSISTED_CRM_STATE.payrollMasters,
+    masters: sanitizePayrollMastersMapForClient(PERSISTED_CRM_STATE.payrollMasters),
   });
 });
 
@@ -1764,10 +2350,15 @@ app.post('/api/sync/push', async (req: Request, res: Response) => {
 
   if (Array.isArray(pushedUsers)) {
     if (replaceUsers) {
-      MOCK_TABLES.users = pushedUsers.map((u: any) => ({
-        ...u,
-        password: u.password || u.tempPassword || 'password123',
-      }));
+      const prevById = new Map<string, any>(
+        MOCK_TABLES.users.map((u: any) => [String(u.id), u])
+      );
+      MOCK_TABLES.users = pushedUsers.map((u: any) =>
+        stripPlaintextAndResetFlags({
+          ...u,
+          passwordHash: resolveRecordPasswordHash(u, prevById.get(String(u.id))),
+        })
+      );
     } else {
       for (const u of pushedUsers) {
         if (!u || !u.id) continue;
@@ -1780,18 +2371,20 @@ app.post('/api/sync/push', async (req: Request, res: Response) => {
             : -1;
         const idx = byIdIdx >= 0 ? byIdIdx : byEmailIdx;
         if (idx >= 0) {
-          MOCK_TABLES.users[idx] = {
-            ...MOCK_TABLES.users[idx],
+          const prev = MOCK_TABLES.users[idx];
+          MOCK_TABLES.users[idx] = stripPlaintextAndResetFlags({
+            ...prev,
             ...u,
-            id: MOCK_TABLES.users[idx].id,
-            password: u.password || MOCK_TABLES.users[idx].password || 'password123',
-            tempPassword: u.tempPassword || u.password || MOCK_TABLES.users[idx].tempPassword,
-          };
-        } else {
-          MOCK_TABLES.users.push({
-            ...u,
-            password: u.password || u.tempPassword || 'password123',
+            id: prev.id,
+            passwordHash: resolveRecordPasswordHash(u, prev),
           });
+        } else {
+          MOCK_TABLES.users.push(
+            stripPlaintextAndResetFlags({
+              ...u,
+              passwordHash: resolveRecordPasswordHash(u),
+            })
+          );
         }
       }
     }
@@ -1833,41 +2426,49 @@ app.post('/api/sync/push', async (req: Request, res: Response) => {
       if (canonicalId !== String(m.userId)) {
         existingMap.delete(String(m.userId));
       }
-      existingMap.set(canonicalId, {
-        ...existingMap.get(canonicalId),
-        ...m,
-        userId: canonicalId,
-      });
-      const pwd = m.password || m.tempPassword || 'password123';
+      const prevMaster = existingMap.get(canonicalId);
+      const prevUser = uIdx >= 0 ? MOCK_TABLES.users[uIdx] : undefined;
+      const passwordHash = resolveRecordPasswordHash(m, prevMaster, prevUser);
+      const effectiveStatus = m.status || m.employmentStatus || prevUser?.status || 'Active';
+      existingMap.set(
+        canonicalId,
+        stripPlaintextAndResetFlags({
+          ...prevMaster,
+          ...m,
+          userId: canonicalId,
+          status: effectiveStatus,
+          passwordHash,
+        })
+      );
       if (uIdx >= 0) {
-        MOCK_TABLES.users[uIdx] = {
+        MOCK_TABLES.users[uIdx] = stripPlaintextAndResetFlags({
           ...MOCK_TABLES.users[uIdx],
           name: m.name || MOCK_TABLES.users[uIdx].name,
           email: m.email || MOCK_TABLES.users[uIdx].email,
-          password: pwd,
-          tempPassword: pwd,
+          passwordHash,
           empCode: m.empCode,
-        };
-      } else {
-        MOCK_TABLES.users.push({
-          id: canonicalId,
-          name: m.name || 'Employee',
-          username: m.email ? m.email.split('@')[0] : m.empCode || 'employee',
-          email: m.email || '',
-          password: pwd,
-          tempPassword: pwd,
-          mustChangePasswordOnFirstLogin: Boolean(m.mustChangePasswordOnFirstLogin),
-          accessScope: m.accessType === 'payroll_only' ? 'payroll_only' : 'all',
-          accessType: m.accessType || 'payroll_only',
-          empCode: m.empCode,
-          phone: m.phone || '',
-          role: m.role || 'Sales Executive',
-          department: m.department || 'Operations',
-          designation: m.designation || m.role || 'Employee',
-          status: m.status || 'Active',
-          location: m.location || 'Mumbai HQ',
-          created_at: new Date().toISOString(),
         });
+      } else {
+        MOCK_TABLES.users.push(
+          stripPlaintextAndResetFlags({
+            id: canonicalId,
+            name: m.name || 'Employee',
+            username:
+              m.username || (m.email ? m.email.split('@')[0] : m.empCode || 'employee'),
+            email: m.email || '',
+            passwordHash,
+            accessScope: m.accessType === 'payroll_only' ? 'payroll_only' : 'all',
+            accessType: m.accessType || 'payroll_only',
+            empCode: m.empCode,
+            phone: m.phone || '',
+            role: m.role || 'Sales Executive',
+            department: m.department || 'Operations',
+            designation: m.designation || m.role || 'Employee',
+            status: effectiveStatus,
+            location: m.location || 'Mumbai HQ',
+            created_at: new Date().toISOString(),
+          })
+        );
       }
     }
     MOCK_TABLES.payroll_masters = Array.from(existingMap.values());
@@ -1950,11 +2551,11 @@ app.post('/api/sync/push', async (req: Request, res: Response) => {
   await flushStateToDatabase();
   const map: Record<string, any> = {};
   for (const item of MOCK_TABLES.payroll_masters) {
-    if (item && item.userId) map[item.userId] = item;
+    if (item && item.userId) map[item.userId] = sanitizePayrollMasterForClient(item);
   }
   res.json({
     success: true,
-    users: MOCK_TABLES.users,
+    users: MOCK_TABLES.users.map(sanitizeUserForClient),
     payrollMasters: map,
     deletedPayrollMasterIds: PERSISTED_CRM_STATE.deletedPayrollMasterIds || [],
   });
@@ -2713,8 +3314,8 @@ app.get('/api/sync/pull', async (_req: Request, res: Response) => {
     res.json({
       success: true,
       data: {
-        users: mergeUsersWithMemory(usersRes.rows),
-        payrollMasters: payrollMastersMap,
+        users: mergeUsersWithMemory(usersRes.rows).map(sanitizeUserForClient),
+        payrollMasters: sanitizePayrollMastersMapForClient(payrollMastersMap),
         deletedPayrollMasterIds: PERSISTED_CRM_STATE.deletedPayrollMasterIds || [],
         payrollLoans: PERSISTED_CRM_STATE.payrollLoans || [],
         deletedLoanIds: PERSISTED_CRM_STATE.deletedLoanIds || [],
