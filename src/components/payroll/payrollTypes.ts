@@ -267,6 +267,7 @@ export interface EmployeeSalaryMasterRecord {
   empCode: string;
   // Identity fields (used when created as Payroll-Only or synced with CRM)
   name?: string;
+  username?: string;
   email?: string;
   password?: string;
   tempPassword?: string;

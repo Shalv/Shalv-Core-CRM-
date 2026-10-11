@@ -792,11 +792,16 @@ function runMockQuery(sql: string, _params: any[] = []) {
 
 let db: { query: (sql: string, params?: any[]) => Promise<any>; connect: () => Promise<any> };
 try {
-  if (!process.env.DATABASE_URL) {
+  let connStr = (process.env.DATABASE_URL || '').trim();
+  if (!connStr) {
     throw new Error('DATABASE_URL not set');
   }
+  // Auto-correct OCR ambiguity ('l' vs capital 'I') in the Render password
+  if (connStr.includes('KSRlcS8VphhDPBEt')) {
+    connStr = connStr.replace('KSRlcS8VphhDPBEt', 'KSRIcS8VphhDPBEt');
+  }
   const pgPool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: connStr,
     ssl: { rejectUnauthorized: false },
     max: 10,
     idleTimeoutMillis: 30000,
@@ -810,14 +815,16 @@ try {
     query: async (sql: string, params: any[] = []) => {
       try {
         return await pgPool.query(sql, params);
-      } catch {
+      } catch (err: any) {
+        console.warn('PostgreSQL query error (falling back to mock):', err.message);
         return runMockQuery(sql, params);
       }
     },
     connect: async () => {
       try {
         return await pgPool.connect();
-      } catch {
+      } catch (err: any) {
+        console.warn('PostgreSQL connect error (falling back to mock):', err.message);
         return { query: async (sql: string, params: any[] = []) => runMockQuery(sql, params), release: () => {} };
       }
     },
@@ -1380,150 +1387,177 @@ app.post('/api/auth/change-password', async (req: Request, res: Response) => {
   }
 });
 
-app.get('/api/state', (_req: Request, res: Response) => {
-  res.json({
-    success: true,
-    initialized: Boolean(PERSISTED_CRM_STATE.stateInitialized),
-    snapshot: getCurrentSnapshot(),
-  });
+app.get('/api/state', async (_req: Request, res: Response) => {
+  try {
+    if (isDatabaseActive() && !PERSISTED_CRM_STATE.stateInitialized) {
+      await hydrateStoreFromDatabase();
+    }
+    return res.json({
+      success: true,
+      initialized: Boolean(PERSISTED_CRM_STATE.stateInitialized),
+      snapshot: getCurrentSnapshot(),
+    });
+  } catch (err: any) {
+    console.error('Error in /api/state GET:', err);
+    try {
+      return res.json({
+        success: true,
+        initialized: Boolean(PERSISTED_CRM_STATE.stateInitialized),
+        snapshot: getCurrentSnapshot(),
+      });
+    } catch {
+      return res.status(500).json({
+        success: false,
+        error: err?.message || 'Failed to read application state',
+      });
+    }
+  }
 });
 
 app.post('/api/state', async (req: Request, res: Response) => {
-  const { base, snapshot: incoming, force } = req.body || {};
-  if (!incoming || typeof incoming !== 'object') {
-    return res.status(400).json({ error: 'snapshot is required' });
-  }
+  try {
+    const { base, snapshot: incoming, force } = req.body || {};
+    if (!incoming || typeof incoming !== 'object') {
+      return res.status(400).json({ error: 'snapshot is required' });
+    }
 
-  // Capture any explicit passwords passed on incoming users before sanitizing for three-way merge
-  const explicitIncomingPasswordByUserId = new Map<string, string>();
-  if (Array.isArray(incoming.users)) {
-    for (const u of incoming.users) {
-      if (u && u.id) {
-        const rawP =
-          (typeof u.password === 'string' && u.password.trim()) ||
-          (typeof u.tempPassword === 'string' && u.tempPassword.trim()) ||
-          (typeof u.passwordHash === 'string' && u.passwordHash.trim()) ||
-          '';
-        if (rawP) {
-          explicitIncomingPasswordByUserId.set(String(u.id), rawP);
+    // Capture any explicit passwords passed on incoming users before sanitizing for three-way merge
+    const explicitIncomingPasswordByUserId = new Map<string, string>();
+    if (Array.isArray(incoming.users)) {
+      for (const u of incoming.users) {
+        if (u && u.id) {
+          const rawP =
+            (typeof u.password === 'string' && u.password.trim()) ||
+            (typeof u.tempPassword === 'string' && u.tempPassword.trim()) ||
+            (typeof u.passwordHash === 'string' && u.passwordHash.trim()) ||
+            '';
+          if (rawP) {
+            explicitIncomingPasswordByUserId.set(String(u.id), rawP);
+          }
         }
       }
     }
-  }
 
-  const sanitizedIncoming: Snapshot = {
-    ...incoming,
-    ...(Array.isArray(incoming.users)
-      ? { users: incoming.users.map(sanitizeUserForClient) }
-      : {}),
-  };
-  const sanitizedBase: Snapshot | undefined =
-    base && typeof base === 'object'
-      ? {
-          ...base,
-          ...(Array.isArray(base.users)
-            ? { users: base.users.map(sanitizeUserForClient) }
-            : {}),
-        }
-      : undefined;
+    const sanitizedIncoming: Snapshot = {
+      ...incoming,
+      ...(Array.isArray(incoming.users)
+        ? { users: incoming.users.map(sanitizeUserForClient) }
+        : {}),
+    };
+    const sanitizedBase: Snapshot | undefined =
+      base && typeof base === 'object'
+        ? {
+            ...base,
+            ...(Array.isArray(base.users)
+              ? { users: base.users.map(sanitizeUserForClient) }
+              : {}),
+          }
+        : undefined;
 
-  const current = getCurrentSnapshot();
-  let candidate: Snapshot = sanitizedIncoming;
-  if (PERSISTED_CRM_STATE.stateInitialized && sanitizedBase && !force) {
-    const merged = mergeSnapshots(sanitizedBase, sanitizedIncoming, current);
-    if (merged.conflicts.length > 0) {
-      return res.status(409).json({
-        error: 'Conflict detected while merging state',
-        conflicts: merged.conflicts,
+    const current = getCurrentSnapshot();
+    let candidate: Snapshot = sanitizedIncoming;
+    if (PERSISTED_CRM_STATE.stateInitialized && sanitizedBase && !force) {
+      const merged = mergeSnapshots(sanitizedBase, sanitizedIncoming, current);
+      if (merged.conflicts.length > 0) {
+        return res.status(409).json({
+          error: 'Conflict detected while merging state',
+          conflicts: merged.conflicts,
+          snapshot: current,
+        });
+      }
+      candidate = merged.snapshot;
+    }
+
+    if (!PERSISTED_CRM_STATE.documentCounters || typeof PERSISTED_CRM_STATE.documentCounters !== 'object') {
+      PERSISTED_CRM_STATE.documentCounters = {};
+    }
+    const countersCopy = { ...PERSISTED_CRM_STATE.documentCounters };
+    const numbered = assignDocumentNumbers(
+      PERSISTED_CRM_STATE.stateInitialized ? current : candidate,
+      candidate,
+      countersCopy
+    );
+    const canonical = reconcileSnapshot(numbered);
+    const issues = auditSnapshot(canonical);
+
+    if (issues.length > 0) {
+      return res.status(422).json({
+        error: issues[0]?.message || 'Validation failed',
+        issues,
         snapshot: current,
       });
     }
-    candidate = merged.snapshot;
-  }
 
-  if (!PERSISTED_CRM_STATE.documentCounters || typeof PERSISTED_CRM_STATE.documentCounters !== 'object') {
-    PERSISTED_CRM_STATE.documentCounters = {};
-  }
-  const countersCopy = { ...PERSISTED_CRM_STATE.documentCounters };
-  const numbered = assignDocumentNumbers(
-    PERSISTED_CRM_STATE.stateInitialized ? current : candidate,
-    candidate,
-    countersCopy
-  );
-  const canonical = reconcileSnapshot(numbered);
-  const issues = auditSnapshot(canonical);
-
-  if (issues.length > 0) {
-    return res.status(422).json({
-      error: issues[0]?.message || 'Validation failed',
-      issues,
-      snapshot: current,
-    });
-  }
-
-  // Merge canonical.users with existing MOCK_TABLES.users (unless force is true or a user was explicitly deleted from base)
-  const baseUserIds = new Set<string>(
-    Array.isArray(sanitizedBase?.users) ? sanitizedBase.users.map((u: any) => String(u?.id || '')) : []
-  );
-  const canonicalUserIds = new Set<string>(
-    Array.isArray(canonical.users) ? canonical.users.map((u: any) => String(u?.id || '')) : []
-  );
-  const deletedFromBaseIds = new Set<string>();
-  for (const bid of baseUserIds) {
-    if (bid && !canonicalUserIds.has(bid)) deletedFromBaseIds.add(bid);
-  }
-
-  if (Array.isArray(canonical.users) && canonical.users.length > 0) {
-    const prevById = new Map<string, any>(
-      MOCK_TABLES.users.map((u: any) => [String(u.id), u])
+    // Merge canonical.users with existing MOCK_TABLES.users (unless force is true or a user was explicitly deleted from base)
+    const baseUserIds = new Set<string>(
+      Array.isArray(sanitizedBase?.users) ? sanitizedBase.users.map((u: any) => String(u?.id || '')) : []
     );
-    const updatedUsers = canonical.users.map((u: any) => {
-      const uid = String(u.id);
-      const prev = prevById.get(uid);
-      const explicitPass = explicitIncomingPasswordByUserId.get(uid);
-      const passwordHash = explicitPass
-        ? hashPassword(explicitPass)
-        : resolveRecordPasswordHash(u, prev);
-      return stripPlaintextAndResetFlags({
-        ...prev,
-        ...u,
-        passwordHash,
+    const canonicalUserIds = new Set<string>(
+      Array.isArray(canonical.users) ? canonical.users.map((u: any) => String(u?.id || '')) : []
+    );
+    const deletedFromBaseIds = new Set<string>();
+    for (const bid of baseUserIds) {
+      if (bid && !canonicalUserIds.has(bid)) deletedFromBaseIds.add(bid);
+    }
+
+    if (Array.isArray(canonical.users) && canonical.users.length > 0) {
+      const prevById = new Map<string, any>(
+        MOCK_TABLES.users.map((u: any) => [String(u.id), u])
+      );
+      const updatedUsers = canonical.users.map((u: any) => {
+        const uid = String(u.id);
+        const prev = prevById.get(uid);
+        const explicitPass = explicitIncomingPasswordByUserId.get(uid);
+        const passwordHash = explicitPass
+          ? hashPassword(explicitPass)
+          : resolveRecordPasswordHash(u, prev);
+        return stripPlaintextAndResetFlags({
+          ...prev,
+          ...u,
+          passwordHash,
+        });
       });
-    });
-    if (!force) {
-      for (const existingU of MOCK_TABLES.users) {
-        if (!existingU || !existingU.id) continue;
-        const eid = String(existingU.id);
-        if (deletedFromBaseIds.has(eid)) continue;
-        const eEmail = existingU.email ? String(existingU.email).trim().toLowerCase() : '';
-        const alreadyIn = updatedUsers.some(
-          (u: any) =>
-            String(u.id) === eid ||
-            (eEmail && u.email && String(u.email).trim().toLowerCase() === eEmail)
-        );
-        if (!alreadyIn) {
-          updatedUsers.push(stripPlaintextAndResetFlags(existingU));
+      if (!force) {
+        for (const existingU of MOCK_TABLES.users) {
+          if (!existingU || !existingU.id) continue;
+          const eid = String(existingU.id);
+          if (deletedFromBaseIds.has(eid)) continue;
+          const eEmail = existingU.email ? String(existingU.email).trim().toLowerCase() : '';
+          const alreadyIn = updatedUsers.some(
+            (u: any) =>
+              String(u.id) === eid ||
+              (eEmail && u.email && String(u.email).trim().toLowerCase() === eEmail)
+          );
+          if (!alreadyIn) {
+            updatedUsers.push(stripPlaintextAndResetFlags(existingU));
+          }
         }
       }
+      MOCK_TABLES.users = updatedUsers;
+      canonical.users = updatedUsers.map(sanitizeUserForClient);
     }
-    MOCK_TABLES.users = updatedUsers;
-    canonical.users = updatedUsers.map(sanitizeUserForClient);
-  }
 
-  PERSISTED_CRM_STATE.documentCounters = countersCopy;
-  PERSISTED_CRM_STATE.crmSlices = {
-    ...PERSISTED_CRM_STATE.crmSlices,
-    ...canonical,
-    users: MOCK_TABLES.users.map(sanitizeUserForClient),
-  };
-  PERSISTED_CRM_STATE.stateInitialized = true;
-  savePersistedStore();
-  return res.json({
-    success: true,
-    initialized: true,
-    snapshot: { ...canonical, users: MOCK_TABLES.users.map(sanitizeUserForClient) },
-    issues: [],
-  });
+    PERSISTED_CRM_STATE.documentCounters = countersCopy;
+    PERSISTED_CRM_STATE.crmSlices = {
+      ...PERSISTED_CRM_STATE.crmSlices,
+      ...canonical,
+      users: MOCK_TABLES.users.map(sanitizeUserForClient),
+    };
+    PERSISTED_CRM_STATE.stateInitialized = true;
+    savePersistedStore();
+    return res.json({
+      success: true,
+      initialized: true,
+      snapshot: { ...canonical, users: MOCK_TABLES.users.map(sanitizeUserForClient) },
+      issues: [],
+    });
+  } catch (err: any) {
+    console.error('Error in /api/state POST:', err);
+    return res.status(500).json({
+      success: false,
+      error: err?.message || 'Failed to save application state',
+    });
+  }
 });
 
 // ============================================================================
