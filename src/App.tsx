@@ -18,6 +18,7 @@ import { ReportsView } from './components/reports/ReportsView';
 import { MastersView } from './components/masters/MastersView';
 import { PostgresDatabaseView } from './components/database/PostgresDatabaseView';
 import { LoginView } from './components/auth/LoginView';
+import { PayrollLoginView } from './components/auth/PayrollLoginView';
 import { LifecycleTraceModal } from './components/common/LifecycleTraceModal';
 import { AccessRestrictedView } from './components/common/AccessRestrictedView';
 import { DataSyncNotice } from './components/common/DataSyncNotice';
@@ -244,8 +245,27 @@ function MainAppContent() {
     setCurrentModule('payments');
   };
 
+  const [authView, setAuthView] = useState<'crm' | 'payroll'>(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (
+        urlParams.get('portal') === 'payroll' ||
+        urlParams.get('mode') === 'payroll' ||
+        urlParams.get('auth') === 'payroll'
+      ) {
+        return 'payroll';
+      }
+    } catch {
+      /* ignore */
+    }
+    return 'crm';
+  });
+
   if (!isAuthenticated) {
-    return <LoginView />;
+    if (authView === 'payroll') {
+      return <PayrollLoginView onSwitchToCrmLogin={() => setAuthView('crm')} />;
+    }
+    return <LoginView onSwitchToPayrollLogin={() => setAuthView('payroll')} />;
   }
 
   // Dedicated full-page view for employees who ONLY have access to payroll

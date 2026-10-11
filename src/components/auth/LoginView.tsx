@@ -481,7 +481,11 @@ interface SimNode {
   c: string;
 }
 
-export const LoginView: React.FC = () => {
+export interface LoginViewProps {
+  onSwitchToPayrollLogin?: () => void;
+}
+
+export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) => {
   const { users, login, syncCredentialsFromServer, changeEmployeePassword, supplierCompany } = useCrm();
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -890,6 +894,26 @@ export const LoginView: React.FC = () => {
               </div>
             ) : (
               <div>
+                {onSwitchToPayrollLogin && (
+                  <div className="mb-5 p-1 bg-slate-100 rounded-xl flex items-center gap-1 border border-slate-200">
+                    <button
+                      type="button"
+                      className="flex-1 py-1.5 px-3 rounded-lg text-xs font-bold bg-white text-slate-900 shadow-2xs border border-slate-200 flex items-center justify-center gap-1.5 cursor-default"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                      <span>CRM Workspace</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onSwitchToPayrollLogin}
+                      className="flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <span>Employee Payroll</span>
+                      <span className="text-[10px] bg-teal-100 text-teal-800 font-bold px-1.5 py-0.2 rounded">ESS</span>
+                    </button>
+                  </div>
+                )}
+
                 <h1 className="cl-h">Sign in to {companyName}</h1>
                 <p className="cl-sub">
                   Welcome back. Enter your credentials to access your workspace.
@@ -1006,6 +1030,26 @@ export const LoginView: React.FC = () => {
                     <span>🔑 Fill Super Admin Credentials</span>
                     <span className="font-mono text-[11px] text-slate-500 font-normal">(admin@coreenact.com / password123)</span>
                   </button>
+
+                  {onSwitchToPayrollLogin && (
+                    <div className="p-3 bg-gradient-to-r from-teal-50/90 to-slate-50 border border-teal-200 rounded-xl flex items-center justify-between gap-3 text-left">
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-teal-950 flex items-center gap-1.5 truncate">
+                          <span>👔 Employee Payroll &amp; ESS Portal</span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 mt-0.5 leading-tight">
+                          Dedicated separate login for employees to view monthly payslips &amp; attendance records.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={onSwitchToPayrollLogin}
+                        className="px-3 py-1.5 bg-[#1f7e9e] hover:bg-[#18647e] text-white text-xs font-bold rounded-lg shadow-2xs transition shrink-0 cursor-pointer whitespace-nowrap"
+                      >
+                        Payroll Login →
+                      </button>
+                    </div>
+                  )}
 
                   <p className="cl-foot !m-0">
                     Don't have credentials?{' '}

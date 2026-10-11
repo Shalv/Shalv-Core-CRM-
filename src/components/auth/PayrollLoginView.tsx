@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useCrm } from '../../context/CrmContext';
 import {
   Wallet,
@@ -8,221 +8,119 @@ import {
   EyeOff,
   ArrowRight,
   ShieldCheck,
-  CheckCircle2,
   AlertCircle,
   KeyRound,
   ArrowLeft,
-  BadgeCheck,
+  Building2,
+  UserCheck,
 } from 'lucide-react';
 import { BrandLogo } from '../common/BrandLogo';
-import {
-  loadEmployeeSalaryMasters,
-  loadAdminPolicyMaster,
-  EmployeeSalaryMasterRecord,
-} from '../payroll/payrollTypes';
+import { loadAdminPolicyMaster } from '../payroll/payrollTypes';
 
 interface PayrollLoginViewProps {
   onSwitchToCrmLogin?: () => void;
 }
 
 export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCrmLogin }) => {
-  const { users, login, syncCredentialsFromServer, changeEmployeePassword, supplierCompany } = useCrm();
+  const { login, syncCredentialsFromServer, supplierCompany } = useCrm();
 
-  const urlParams = useMemo(() => {
-    if (typeof window === 'undefined') return new URLSearchParams();
-    return new URLSearchParams(window.location.search);
-  }, []);
-
-  const linkedEmailParam = (urlParams.get('email') || '').trim();
-  const linkedEmpCodeParam = (urlParams.get('emp') || '').trim();
-
-  // Load enrolled payroll employees to display bound link metadata (without exposing any sensitive data)
-  const payrollMasters = useMemo(() => {
-    return loadEmployeeSalaryMasters(
-      users,
-      supplierCompany?.bankName || 'HDFC Bank Ltd',
-      supplierCompany?.ifscCode || 'HDFC0001245'
-    );
-  }, [users, supplierCompany?.bankName, supplierCompany?.ifscCode]);
-
-  const policyMaster = useMemo(() => loadAdminPolicyMaster(), []);
-
-  // If the login link includes ?email=... or ?emp=..., bind the login strictly to that employee
-  const linkedEmployeeRecord: EmployeeSalaryMasterRecord | null = useMemo(() => {
-    const allRecords = Object.values(payrollMasters).filter(
-      (m) => m && m.userId && m.enrolledInPayroll !== false
-    );
-    if (linkedEmailParam) {
-      const clean = linkedEmailParam.toLowerCase();
-      return (
-        allRecords.find((m) => m.email && m.email.trim().toLowerCase() === clean) || null
-      );
-    }
-    if (linkedEmpCodeParam) {
-      const clean = linkedEmpCodeParam.toLowerCase();
-      return (
-        allRecords.find((m) => m.empCode && m.empCode.trim().toLowerCase() === clean) || null
-      );
-    }
-    return null;
-  }, [payrollMasters, linkedEmailParam, linkedEmpCodeParam]);
-
-  const isLockedToInviteLink = Boolean(linkedEmailParam || linkedEmpCodeParam);
-
-  const [identifier, setIdentifier] = useState<string>(
-    () => linkedEmployeeRecord?.email || linkedEmailParam || linkedEmpCodeParam || ''
-  );
+  const [identifier, setIdentifier] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
 
-  // First-time password change state
-  const [mustChangePasswordStep, setMustChangePasswordStep] = useState<boolean>(false);
-  const [pendingUserEmail, setPendingUserEmail] = useState<string>('');
-  const [pendingUserName, setPendingUserName] = useState<string>('');
-  const [pendingEmpCode, setPendingEmpCode] = useState<string>('');
-  const [newPassword, setNewPassword] = useState<string>('');
-  const [confirmNewPassword, setConfirmNewPassword] = useState<string>('');
-  const [passwordChangeSuccess, setPasswordChangeSuccess] = useState<string>('');
-
-  useEffect(() => {
-    if (linkedEmployeeRecord?.email) {
-      setIdentifier(linkedEmployeeRecord.email);
-    } else if (linkedEmailParam) {
-      setIdentifier(linkedEmailParam);
-    } else if (linkedEmpCodeParam) {
-      setIdentifier(linkedEmpCodeParam);
-    }
-  }, [linkedEmployeeRecord, linkedEmailParam, linkedEmpCodeParam]);
+  const policyMaster = useMemo(() => loadAdminPolicyMaster(), []);
 
   const handlePayrollSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setPasswordChangeSuccess('');
 
     const cleanInput = identifier.trim();
     if (!cleanInput) {
-      setError('Please enter your registered Payroll Email ID or Employee Code.');
+      setError('Please enter your Employee Code (e.g. EMP-001) or registered work email.');
       return;
     }
     if (!password) {
-      setError('Please enter your Payroll password.');
+      setError('Please enter your password.');
       return;
     }
 
-    let res = login(cleanInput, password, {
-      portalMode: 'payroll',
-    });
+    setLoading(true);
 
-    if (!res.success && !/inactive/i.test(res.message || '')) {
-      if (await syncCredentialsFromServer(cleanInput, password)) {
-        res = login(cleanInput, password, { portalMode: 'payroll' });
+    try {
+      let res = login(cleanInput, password, { portalMode: 'payroll' });
+
+      if (!res.success && !/inactive/i.test(res.message || '')) {
+        if (await syncCredentialsFromServer(cleanInput, password)) {
+          res = login(cleanInput, password, { portalMode: 'payroll' });
+        }
       }
-    }
 
-    if (!res.success) {
-      setError(
-        res.message ||
-          'Invalid Payroll credentials. Please check the Email ID and Password shared by your Payroll Administrator.'
-      );
-      return;
-    }
-  };
-
-  const handleSetPermanentPassword = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-
-    if (!newPassword || newPassword.trim().length < 4) {
-      setError('New password must be at least 4 characters long.');
-      return;
-    }
-    if (newPassword !== confirmNewPassword) {
-      setError('Confirm password does not match your new password.');
-      return;
-    }
-
-    const ok = changeEmployeePassword(pendingUserEmail, newPassword.trim());
-    if (ok) {
-      setPasswordChangeSuccess(
-        'Permanent password activated! Signing you into your personal Payroll & ESS Portal...'
-      );
-      setTimeout(() => {
-        setMustChangePasswordStep(false);
-        login(pendingUserEmail, newPassword.trim(), {
-          portalMode: 'payroll',
-        });
-      }, 400);
-    } else {
-      setError('Could not update password. Please try again.');
+      if (!res.success) {
+        setError(
+          res.message ||
+            'Invalid Employee Code or password. Please verify your credentials or check with your HR Administrator.'
+        );
+      }
+    } catch {
+      setError('Authentication failed. Please verify credentials and try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-b from-slate-100 to-slate-200 flex items-center justify-center px-4 py-8 font-sans selection:bg-teal-500 selection:text-white overflow-x-hidden">
+    <div className="min-h-screen w-full bg-slate-900 flex items-center justify-center px-4 py-8 font-sans selection:bg-teal-500 selection:text-white overflow-x-hidden">
       <div className="w-full max-w-md min-w-0">
         {/* Brand */}
         <div className="flex justify-center mb-5">
-          <div className="inline-flex items-center justify-center bg-white rounded-xl px-5 py-2.5 shadow-sm border border-slate-200">
+          <div className="inline-flex items-center justify-center bg-white rounded-xl px-5 py-2.5 shadow-lg border border-slate-700">
             <BrandLogo size="sm" variant="full" theme="light" />
           </div>
         </div>
 
         {/* Login Card */}
-        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden min-w-0">
+        <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden min-w-0">
+          {/* Top Switcher Tab between CRM and Payroll */}
+          {onSwitchToCrmLogin && (
+            <div className="p-3 bg-slate-100 border-b border-slate-200">
+              <div className="p-1 bg-slate-200/80 rounded-xl flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={onSwitchToCrmLogin}
+                  className="flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-white/70 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Enterprise CRM</span>
+                </button>
+                <button
+                  type="button"
+                  className="flex-1 py-1.5 px-3 rounded-lg text-xs font-bold bg-white text-slate-900 shadow-2xs border border-slate-200 flex items-center justify-center gap-1.5 cursor-default"
+                >
+                  <span className="w-2 h-2 rounded-full bg-teal-600"></span>
+                  <span>Employee Payroll</span>
+                  <span className="text-[10px] bg-teal-100 text-teal-800 font-bold px-1.5 py-0.2 rounded">ESS</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Header */}
-          <div className="px-6 pt-6 pb-5 text-center space-y-1.5 border-b border-slate-100 bg-slate-50/60">
+          <div className="px-6 pt-5 pb-4 text-center space-y-1 border-b border-slate-100 bg-teal-50/40">
             <div className="inline-flex items-center gap-1.5 text-[#1f7e9e] text-[11px] font-bold uppercase tracking-wider">
               <Wallet className="w-3.5 h-3.5 shrink-0" />
-              <span>Payroll &amp; ESS Portal</span>
+              <span>Dedicated Employee Portal</span>
             </div>
             <h1 className="text-lg font-extrabold text-slate-900 leading-tight">
-              {mustChangePasswordStep ? 'Set Your Payroll Password' : 'Employee Sign In'}
+              Employee Payroll &amp; ESS Sign In
             </h1>
-            <p className="text-xs text-slate-500 leading-relaxed">
-              {mustChangePasswordStep
-                ? 'Admin has set your login password. Create your own permanent password.'
-                : 'Sign in with the payroll credentials from your administrator.'}
+            <p className="text-xs text-slate-600 leading-relaxed max-w-xs mx-auto">
+              Separate login portal for employees to view monthly payslips, track attendance records, leave balances, and salary structure.
             </p>
           </div>
 
           <div className="p-6 space-y-4">
-            {/* Bound Employee Invite Link Notice (When opened via ?portal=payroll&email=...) */}
-            {isLockedToInviteLink && !mustChangePasswordStep && (
-              <div className="p-3.5 rounded-xl bg-teal-50 border border-teal-200 space-y-1 text-xs min-w-0">
-                <div className="flex items-center justify-between gap-2 whitespace-nowrap">
-                  <span className="font-bold text-teal-950 flex items-center gap-1.5 min-w-0 truncate">
-                    <BadgeCheck className="w-4 h-4 text-[#1f7e9e] shrink-0" />
-                    <span className="truncate">Dedicated Employee Login Link</span>
-                  </span>
-                  {linkedEmployeeRecord && (
-                    <span className="font-mono font-bold text-[11px] text-teal-900 shrink-0">
-                      {linkedEmployeeRecord.empCode}
-                    </span>
-                  )}
-                </div>
-                {linkedEmployeeRecord ? (
-                  <div className="text-[11px] text-teal-900 space-y-0.5 min-w-0">
-                    <div className="truncate">
-                      Employee: <strong>{linkedEmployeeRecord.name}</strong> (
-                      {linkedEmployeeRecord.designation || linkedEmployeeRecord.role})
-                    </div>
-                    <div className="text-teal-700 truncate">
-                      Bound to <strong className="font-mono">{linkedEmployeeRecord.email}</strong>{' '}
-                      (Own profile access only)
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-[11px] text-teal-800 truncate">
-                    Bound to account:{' '}
-                    <strong className="font-mono">
-                      {linkedEmailParam || linkedEmpCodeParam}
-                    </strong>
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* Error Alert */}
             {error && (
               <div
@@ -234,154 +132,106 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
               </div>
             )}
 
-            {/* Success Alert */}
-            {passwordChangeSuccess && (
-              <div
-                role="status"
-                className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-start gap-2"
-              >
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                <div className="font-semibold leading-relaxed min-w-0">{passwordChangeSuccess}</div>
-              </div>
-            )}
-
-            {/* STEP 1: STANDARD CREDENTIAL SIGN IN */}
-            {!mustChangePasswordStep ? (
-              <form onSubmit={handlePayrollSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5 whitespace-nowrap truncate">
-                    Email ID or Employee Code
-                  </label>
-                  <div className="relative">
-                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                      type="text"
-                      required
-                      value={identifier}
-                      onChange={(e) => setIdentifier(e.target.value)}
-                      placeholder="employee@company.com or EMP-101"
-                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border text-xs font-mono transition bg-slate-50 border-slate-200 text-slate-900 focus:bg-white focus:border-[#1f7e9e] focus:outline-hidden"
-                    />
-                  </div>
-                  {linkedEmailParam && (
-                    <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1 whitespace-nowrap overflow-hidden">
-                      <Lock className="w-3 h-3 text-teal-600 shrink-0" />
-                      <span className="truncate">
-                        Pre-filled from your personal login link
-                      </span>
-                    </p>
-                  )}
+            <form onSubmit={handlePayrollSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 whitespace-nowrap truncate">
+                  Employee Code or Work Email
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    required
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder="e.g. EMP-001 or employee@company.com"
+                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border text-xs font-mono transition bg-slate-50 border-slate-200 text-slate-900 focus:bg-white focus:border-[#1f7e9e] focus:outline-hidden"
+                  />
                 </div>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Enter your assigned Employee Code (e.g. EMP-001) or official email registered in Payroll.
+                </p>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5 whitespace-nowrap truncate">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-slate-700 whitespace-nowrap truncate">
                     Password
                   </label>
-                  <div className="relative">
-                    <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter your password"
-                      className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 focus:bg-white focus:border-[#1f7e9e] focus:outline-hidden transition"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((prev) => !prev)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                      title={showPassword ? 'Hide password' : 'Show password'}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
+                  <span className="text-[10px] text-slate-400 font-mono">Default: password123</span>
                 </div>
-
-                <button
-                  type="submit"
-                  className="w-full py-3 px-4 rounded-xl bg-[#1f7e9e] hover:bg-[#17647e] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition cursor-pointer whitespace-nowrap"
-                >
-                  <span>Sign In to My Payroll &amp; ESS Portal</span>
-                  <ArrowRight className="w-4 h-4 shrink-0" />
-                </button>
-              </form>
-            ) : (
-              /* STEP 2: FIRST-LOGIN PASSWORD CHANGE (optional) */
-              <form onSubmit={handleSetPermanentPassword} className="space-y-4">
-                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 text-xs space-y-1">
-                  <div className="font-bold flex items-center gap-1.5 whitespace-nowrap overflow-hidden">
-                    <KeyRound className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                    <span className="truncate">
-                      Welcome, {pendingUserName} ({pendingEmpCode})
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-amber-800">
-                    Admin has set your login password. You can set your own permanent password to
-                    secure your payroll profile.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5 whitespace-nowrap">
-                    New Password *
-                  </label>
+                <div className="relative">
+                  <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
-                    minLength={4}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Minimum 4 characters"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 focus:bg-white focus:border-[#1f7e9e] focus:outline-hidden"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 focus:bg-white focus:border-[#1f7e9e] focus:outline-hidden transition"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    title={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5 whitespace-nowrap">
-                    Confirm New Password *
-                  </label>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    minLength={4}
-                    value={confirmNewPassword}
-                    onChange={(e) => setConfirmNewPassword(e.target.value)}
-                    placeholder="Re-enter new password"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 focus:bg-white focus:border-[#1f7e9e] focus:outline-hidden"
-                  />
-                </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-2.5 px-4 rounded-xl bg-[#1f7e9e] hover:bg-[#17647e] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition cursor-pointer whitespace-nowrap disabled:opacity-70"
+              >
+                <span>{loading ? 'Signing In…' : 'Sign In to Payroll & ESS Portal'}</span>
+                <ArrowRight className="w-4 h-4 shrink-0" />
+              </button>
 
-                <div className="flex items-center gap-2 pt-1">
+              {/* Quick Demo Employee Logins */}
+              <div className="pt-2 border-t border-slate-100 space-y-1.5 text-center">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block">
+                  Quick Demo Access
+                </span>
+                <div className="flex flex-wrap items-center justify-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => {
-                      setMustChangePasswordStep(false);
+                      setIdentifier('EMP-001');
+                      setPassword('password123');
                       setError('');
                     }}
-                    className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 font-semibold text-xs cursor-pointer whitespace-nowrap shrink-0"
+                    className="text-[11px] font-medium text-slate-600 hover:text-[#1f7e9e] py-1 px-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition cursor-pointer inline-flex items-center gap-1"
                   >
-                    Back
+                    <UserCheck className="w-3 h-3 text-slate-400" />
+                    <span>EMP-001 (Sales Lead)</span>
                   </button>
                   <button
-                    type="submit"
-                    className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer whitespace-nowrap min-w-0"
+                    type="button"
+                    onClick={() => {
+                      setIdentifier('EMP-003');
+                      setPassword('password123');
+                      setError('');
+                    }}
+                    className="text-[11px] font-medium text-slate-600 hover:text-[#1f7e9e] py-1 px-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition cursor-pointer inline-flex items-center gap-1"
                   >
-                    <CheckCircle2 className="w-4 h-4 shrink-0" />
-                    <span className="truncate">Save Password &amp; Sign In</span>
+                    <UserCheck className="w-3 h-3 text-slate-400" />
+                    <span>EMP-003 (Rajesh Kumar)</span>
                   </button>
                 </div>
-              </form>
-            )}
+              </div>
+            </form>
 
             {/* Switch back to Enterprise CRM Login */}
             {onSwitchToCrmLogin && (
               <div className="pt-3 border-t border-slate-100 flex items-center justify-center gap-1.5 text-xs whitespace-nowrap">
-                <span className="text-slate-500 text-[11px] truncate">
+                <span className="text-slate-500 text-[11px]">
                   Enterprise CRM user?
                 </span>
                 <button
@@ -398,11 +248,11 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
         </div>
 
         {/* Slim Footer */}
-        <div className="mt-4 flex items-center justify-center gap-1.5 text-[11px] text-slate-500 text-center min-w-0">
-          <ShieldCheck className="w-3.5 h-3.5 text-[#1f7e9e] shrink-0" />
+        <div className="mt-4 flex items-center justify-center gap-1.5 text-[11px] text-slate-400 text-center min-w-0">
+          <ShieldCheck className="w-3.5 h-3.5 text-teal-400 shrink-0" />
           <span className="truncate">
             {supplierCompany?.legalName || supplierCompany?.name || 'Coreenact Solutions'}
-            {' · '}Personal access only
+            {' · '}Dedicated Employee Payroll Portal
             {policyMaster.lastPublishedMonth ? ` · Cycle ${policyMaster.lastPublishedMonth}` : ''}
           </span>
         </div>
@@ -410,3 +260,5 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
     </div>
   );
 };
+
+export default PayrollLoginView;

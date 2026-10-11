@@ -20,7 +20,6 @@ import {
   savePayrollOrgMasters,
   PAYROLL_ORG_MASTERS_SYNC_EVENT,
   generateRandomPassword,
-  getPayrollLoginLink,
   clearAllPayrollData,
   saveEmployeeSalaryMasters,
   getNextAvailableEmpCode,
@@ -176,8 +175,6 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
 
   // Clear All Data modal state
   const [isClearAllConfirmOpen, setIsClearAllConfirmOpen] = useState(false);
-  // Share Credentials & Payroll Login Link modal state
-  const [credentialsModalTarget, setCredentialsModalTarget] = useState<EmployeeSalaryMasterRecord | null>(null);
   const [toastCopiedMessage, setToastCopiedMessage] = useState<string | null>(null);
 
   const [newUserDraft, setNewUserDraft] = useState(() => {
@@ -439,45 +436,11 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
     setStatusBanner('Pre-filled standard corporate defaults for Roles, Designations, Locations, and Departments.');
   };
 
-  const handleCopyLinkOnly = (email?: string) => {
-    const link = getPayrollLoginLink(email);
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(link).then(() => {
-        setToastCopiedMessage('Workspace Login Link copied to clipboard!');
-        setTimeout(() => setToastCopiedMessage(null), 3000);
-      });
-    }
-  };
-
-  const handleCopyFullInvite = (rec: EmployeeSalaryMasterRecord) => {
-    const link = getPayrollLoginLink(rec.email);
-    const pass = rec.password || rec.tempPassword || 'Check with HR';
-    const msg = [
-      `🔐 ${supplierCompany?.name || 'Company'} — Payroll ESS Portal Login Access`,
-      `----------------------------------------------------`,
-      `Employee: ${rec.name} (${rec.empCode})`,
-      `Portal Link: ${link}`,
-      `Login Email ID: ${rec.email}`,
-      `Login Password: ${pass}`,
-      `Security Note: For your safety, please change your password anytime from your ESS Profile.`,
-      `----------------------------------------------------`,
-    ].join('\n');
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(msg).then(() => {
-        setToastCopiedMessage(`Full credentials & invite copied for ${rec.name}!`);
-        setTimeout(() => setToastCopiedMessage(null), 3000);
-      });
-    }
-  };
-
   const handleRegeneratePasswordForEmployee = (empId: string, customPass?: string) => {
     const newPass = (customPass && customPass.trim()) || generateRandomPassword();
     setEmployeeSalaryMasters((prev) => {
       const fallbackEntry = unifiedEmployeeList.find((e) => e.id === empId);
-      const existing =
-        prev[empId] ||
-        (credentialsModalTarget?.userId === empId ? credentialsModalTarget : undefined) ||
-        fallbackEntry?.master;
+      const existing = prev[empId] || fallbackEntry?.master;
       if (!existing) return prev;
       const updated: EmployeeSalaryMasterRecord = {
         ...existing,
@@ -486,9 +449,6 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
         tempPassword: newPass,
         mustChangePasswordOnFirstLogin: false,
       };
-      if (credentialsModalTarget && credentialsModalTarget.userId === empId) {
-        setCredentialsModalTarget(updated);
-      }
       const next = {
         ...prev,
         [empId]: updated,
@@ -497,12 +457,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
       saveEmployeeSalaryMasters(next, true, false, [empId]);
       return next;
     });
-    const crmMatch = users.find(
-      (u) =>
-        u.id === empId ||
-        (credentialsModalTarget?.email &&
-          u.email?.toLowerCase() === credentialsModalTarget.email.toLowerCase())
-    );
+    const crmMatch = users.find((u) => u.id === empId);
     if (crmMatch) {
       updateUser(crmMatch.id, {
         password: newPass,
@@ -647,12 +602,6 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
       setStatusBanner('Please enter Employee Full Name and Official Email.');
       return;
     }
-    if (!newUserDraft.password.trim()) {
-      setStatusBanner(
-        'Please set a login password for the employee. Temporary passwords are no longer auto-generated.'
-      );
-      return;
-    }
 
     const cleanEmail = newUserDraft.email.trim().toLowerCase();
     const existingEmailUser = users.find(
@@ -672,10 +621,10 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
       return;
     }
 
-    const finalPass = newUserDraft.password.trim();
+    const finalPass = newUserDraft.password?.trim() || 'password123';
     const resolvedUsername =
       newUserDraft.username.trim() || newUserDraft.email.trim().split('@')[0];
-    const mustChange = Boolean(newUserDraft.mustChangePasswordOnFirstLogin);
+    const mustChange = false;
 
     const createdUser = addUser({
       name: newUserDraft.name.trim(),
@@ -760,7 +709,6 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
     setEmployeeSalaryMasters(nextMasters);
 
     setSelectedAdminUserId(finalUserId);
-    setCredentialsModalTarget(newMasterRecord);
     setUserFormMode('edit');
     setNewUserDraft({
       ...newUserDraft,
@@ -776,12 +724,8 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
 
     setStatusBanner(
       alsoCreateInCrm
-        ? `Created "${newMasterRecord.name}" (${newMasterRecord.empCode}) in BOTH Payroll & CRM with full salary (${formatCurrency(
-            newMasterRecord.monthlyGross
-          )}/mo), leave, statutory & CRM module allocations.`
-        : `Created "${newMasterRecord.name}" (${newMasterRecord.empCode}) in Payroll Master Only (${formatCurrency(
-            newMasterRecord.monthlyGross
-          )}/mo). You can link/create them in CRM anytime.`
+        ? `✓ Created "${newMasterRecord.name}" (${newMasterRecord.empCode}) in BOTH Payroll & CRM.`
+        : `✓ Created "${newMasterRecord.name}" (${newMasterRecord.empCode}) in Payroll Master.`
     );
   };
 
@@ -1766,90 +1710,6 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                   </div>
                 )}
 
-                {!alsoCreateInCrm && (
-                  <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200/80 space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <div className="font-bold text-amber-950 uppercase tracking-wider text-[10px] flex items-center gap-1.5">
-                        <Key className="w-3.5 h-3.5 text-amber-600" />
-                        <span>3. Payroll Portal Access &amp; Admin-Set Credentials</span>
-                      </div>
-                      <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
-                        Payroll-Only Portal Login
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
-                          Login Email ID (Username)
-                        </label>
-                        <div className="p-2 bg-white rounded-lg border border-slate-200 font-mono text-xs font-bold text-slate-900 truncate">
-                          {newUserDraft.email || 'Enter official email above'}
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
-                          Set Login Password <span className="text-rose-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={newUserDraft.password}
-                          onChange={(e) =>
-                            setNewUserDraft({
-                              ...newUserDraft,
-                              password: e.target.value,
-                              tempPassword: e.target.value,
-                            })
-                          }
-                          placeholder="Admin sets the initial login password"
-                          className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-indigo-700"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 pt-1">
-                      <input
-                        type="checkbox"
-                        id="new-must-change-pwd"
-                        checked={newUserDraft.mustChangePasswordOnFirstLogin}
-                        onChange={(e) =>
-                          setNewUserDraft({
-                            ...newUserDraft,
-                            mustChangePasswordOnFirstLogin: e.target.checked,
-                          })
-                        }
-                        className="rounded text-[#1f7e9e] focus:ring-[#1f7e9e]"
-                      />
-                      <label htmlFor="new-must-change-pwd" className="text-slate-700 font-medium text-[11px] cursor-pointer">
-                        Require employee to change password on first login &amp; save their new password
-                      </label>
-                    </div>
-
-                    {/* Direct Login Link Preview */}
-                    <div className="p-2 bg-white rounded-lg border border-amber-200 text-[11px] space-y-1">
-                      <div className="flex items-center justify-between text-slate-500 font-medium">
-                        <span className="flex items-center gap-1">
-                          <ExternalLink className="w-3 h-3 text-[#1f7e9e]" />
-                          <span>Direct Payroll Login Link:</span>
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyLinkOnly(newUserDraft.email)}
-                          className="text-[#1f7e9e] hover:underline font-bold flex items-center gap-1 cursor-pointer"
-                        >
-                          <Copy className="w-3 h-3" />
-                          <span>Copy Link</span>
-                        </button>
-                      </div>
-                      <div className="font-mono text-slate-700 text-[10px] truncate select-all">
-                        {getPayrollLoginLink(newUserDraft.email)}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
                 <div className="flex items-center gap-2 pt-1">
                   <button
                     type="submit"
@@ -1917,14 +1777,6 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                       {targetMaster.accessType === 'payroll_only' ? 'Payroll-Only' : 'CRM + Payroll'}
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setCredentialsModalTarget(targetMaster)}
-                    className="px-2.5 py-1 bg-white hover:bg-amber-100 border border-amber-300 rounded font-bold text-[11px] text-amber-900 flex items-center gap-1 cursor-pointer shadow-2xs shrink-0"
-                  >
-                    <Key className="w-3 h-3 text-amber-700" />
-                    <span>View Credentials &amp; Link</span>
-                  </button>
                 </div>
 
                 {/* Identity & Role Fields */}
@@ -2420,15 +2272,6 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                           onClick={(ev) => ev.stopPropagation()}
                         >
                           <div className="inline-flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => setCredentialsModalTarget(m)}
-                              className="px-2 py-1 rounded bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-semibold text-[11px] flex items-center gap-1 cursor-pointer"
-                              title="View Credentials & Copy Direct Payroll Login Link"
-                            >
-                              <Key className="w-3 h-3 text-amber-700" />
-                              <span>Login Link</span>
-                            </button>
                             <button
                               type="button"
                               onClick={() => {
@@ -4329,7 +4172,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                   This will completely clear all employee salary master records, daily attendance logs, leave requests, and expense claims.
                 </p>
                 <p className="text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-2 text-[11px] mt-2 font-medium">
-                  You requested to start from scratch. You will be able to manually create employees, define Org Masters (Role, Designation, Location, Department), and generate direct payroll login links.
+                  You requested to start from scratch. You will be able to manually create employees, define Org Masters (Role, Designation, Location, Department), and manage payroll records.
                 </p>
               </div>
             </div>
@@ -4358,188 +4201,6 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Yes, Clear Everything</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: SHARE PAYROLL LOGIN LINK & CREDENTIALS */}
-      {credentialsModalTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-2xs p-3">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-lg w-full p-5 space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
-                  <Key className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-sm text-slate-900">
-                    Payroll Portal Login Credentials &amp; Link
-                  </h4>
-                  <p className="text-[11px] text-slate-500">
-                    {credentialsModalTarget.name} ({credentialsModalTarget.empCode})
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCredentialsModalTarget(null)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {/* Access Scope Badge */}
-              <div className="flex items-center justify-between bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                <span className="font-semibold text-slate-600">Access Scope:</span>
-                <span
-                  className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                    credentialsModalTarget.accessType === 'payroll_only'
-                      ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                      : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                  }`}
-                >
-                  {credentialsModalTarget.accessType === 'payroll_only'
-                    ? 'Payroll ESS Portal Only (Direct Link)'
-                    : 'Full CRM & Payroll Access'}
-                </span>
-              </div>
-
-              {/* Login Email */}
-              <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1">
-                <label className="font-semibold text-slate-500 uppercase tracking-wider text-[10px] block">
-                  Login Email ID (Username)
-                </label>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono font-bold text-slate-900 text-xs">
-                    {credentialsModalTarget.email}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (
-                        typeof navigator !== 'undefined' &&
-                        navigator.clipboard &&
-                        credentialsModalTarget.email
-                      ) {
-                        navigator.clipboard.writeText(credentialsModalTarget.email);
-                        setToastCopiedMessage('Email ID copied!');
-                        setTimeout(() => setToastCopiedMessage(null), 2500);
-                      }
-                    }}
-                    className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded text-slate-700 font-semibold text-[11px] flex items-center gap-1 cursor-pointer"
-                  >
-                    <Copy className="w-3 h-3" />
-                    <span>Copy</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Password */}
-              <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1">
-                <div className="flex items-center justify-between">
-                  <label className="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">
-                    Login Password (Admin Managed)
-                  </label>
-                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded">
-                    {credentialsModalTarget.mustChangePasswordOnFirstLogin !== false
-                      ? 'Must change on first login'
-                      : 'Password active'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono font-bold text-indigo-700 text-sm tracking-wide bg-white px-2 py-1 rounded border border-indigo-200">
-                    {credentialsModalTarget.password ||
-                      credentialsModalTarget.tempPassword ||
-                      '—'}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleRegeneratePasswordForEmployee(
-                          credentialsModalTarget.userId
-                        )
-                      }
-                      className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded text-slate-700 font-semibold text-[11px] flex items-center gap-1 cursor-pointer"
-                      title="Generate new random password"
-                    >
-                      <RefreshCw className="w-3 h-3" />
-                      <span>Regenerate</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const pass =
-                          credentialsModalTarget.password ||
-                          credentialsModalTarget.tempPassword ||
-                          '';
-                        if (
-                          typeof navigator !== 'undefined' &&
-                          navigator.clipboard &&
-                          pass
-                        ) {
-                          navigator.clipboard.writeText(pass);
-                          setToastCopiedMessage('Password copied!');
-                          setTimeout(() => setToastCopiedMessage(null), 2500);
-                        }
-                      }}
-                      className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded text-slate-700 font-semibold text-[11px] flex items-center gap-1 cursor-pointer"
-                    >
-                      <Copy className="w-3 h-3" />
-                      <span>Copy</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Direct Payroll Login Link */}
-              <div className="bg-sky-50/70 p-3 rounded-lg border border-sky-200 space-y-1.5">
-                <label className="font-bold text-sky-950 uppercase tracking-wider text-[10px] flex items-center gap-1">
-                  <ExternalLink className="w-3 h-3 text-[#1f7e9e]" />
-                  <span>Workspace Login Link</span>
-                </label>
-                <div className="p-2 bg-white rounded border border-sky-200 font-mono text-[11px] text-sky-900 break-all select-all">
-                  {getPayrollLoginLink(credentialsModalTarget.email)}
-                </div>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
-                  <span className="text-[11px] text-slate-600">
-                    Single unified login for all users. <strong>{credentialsModalTarget.name}</strong> can sign in directly using this link.
-                  </span>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => handleCopyLinkOnly(credentialsModalTarget.email)}
-                      className="px-3 py-1 bg-white hover:bg-sky-100 text-[#1f7e9e] border border-[#1f7e9e] rounded font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0"
-                    >
-                      <Copy className="w-3 h-3" />
-                      <span>Copy Login Link</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => handleCopyFullInvite(credentialsModalTarget)}
-                className="w-full sm:w-auto px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-              >
-                <Share2 className="w-3.5 h-3.5" />
-                <span>Copy Complete Invitation &amp; Credentials</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setCredentialsModalTarget(null)}
-                className="w-full sm:w-auto px-4 py-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 font-semibold cursor-pointer"
-              >
-                Close
               </button>
             </div>
           </div>
