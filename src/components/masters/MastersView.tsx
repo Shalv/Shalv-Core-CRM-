@@ -17,6 +17,7 @@ import {
   Shield,
   Layers,
   ChevronRight,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { RolePermissionsMatrix } from './RolePermissionsMatrix';
 import { UserPermissionsModal } from './UserPermissionsModal';
@@ -28,6 +29,7 @@ import { PaymentTermsMasterTab } from './PaymentTermsMasterTab';
 import { CustomersContactsMasterTab } from './CustomersContactsMasterTab';
 import { OrganizationMasterTab } from './OrganizationMasterTab';
 import { AuditTrailMasterTab } from './AuditTrailMasterTab';
+import { DataImportMasterTab } from './DataImportMasterTab';
 
 export type MasterTab =
   | 'users'
@@ -38,7 +40,8 @@ export type MasterTab =
   | 'payment_terms'
   | 'customers_contacts'
   | 'company'
-  | 'audit';
+  | 'audit'
+  | 'data_import';
 
 export type MasterCategory = 'access' | 'commercial' | 'organization';
 
@@ -80,7 +83,8 @@ export const MastersView: React.FC<MastersViewProps> = ({
       initialTab === 'payment_terms' ||
       initialTab === 'customers_contacts' ||
       initialTab === 'company' ||
-      initialTab === 'audit'
+      initialTab === 'audit' ||
+      initialTab === 'data_import'
     ) {
       setActiveTab(initialTab as MasterTab);
     }
@@ -132,8 +136,22 @@ export const MastersView: React.FC<MastersViewProps> = ({
           </h2>
         </div>
 
-        {/* Global Master Search Input & Direct Branding Button */}
+        {/* Global Master Search Input & Direct Branding / CSV Import Buttons */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
+          {(currentUser.role === 'Super Admin' || currentUser.role === 'Administrator') && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('data_import')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap shrink-0 ${
+                activeTab === 'data_import'
+                  ? 'sidebar-tab-active-depth text-slate-900'
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs'
+              }`}
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 shrink-0" />
+              <span className="whitespace-nowrap">Bulk CSV Data Import</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setActiveTab('company')}
@@ -370,6 +388,28 @@ export const MastersView: React.FC<MastersViewProps> = ({
                     {auditLogs.length}
                   </span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('data_import')}
+                  className={`py-2 px-3.5 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
+                    activeTab === 'data_import'
+                      ? 'sidebar-tab-active-depth text-slate-900'
+                      : 'bg-slate-100/80 hover:bg-slate-200/70 text-slate-700 border border-transparent'
+                  }`}
+                >
+                  <FileSpreadsheet className="w-4 h-4 shrink-0" />
+                  <span className="whitespace-nowrap">Bulk CSV Import (Employees / Customers / Leads)</span>
+                  <span
+                    className={`text-[9px] font-bold px-1.5 py-0.2 rounded whitespace-nowrap ${
+                      activeTab === 'data_import'
+                        ? 'bg-white text-slate-800 border border-slate-200/80 shadow-2xs'
+                        : 'bg-indigo-100 text-indigo-800'
+                    }`}
+                  >
+                    CSV
+                  </span>
+                </button>
               </>
             )}
 
@@ -510,6 +550,28 @@ export const MastersView: React.FC<MastersViewProps> = ({
                     Verified
                   </span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('data_import')}
+                  className={`py-2 px-3.5 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
+                    activeTab === 'data_import'
+                      ? 'sidebar-tab-active-depth text-slate-900'
+                      : 'bg-slate-100/80 hover:bg-slate-200/70 text-slate-700 border border-transparent'
+                  }`}
+                >
+                  <FileSpreadsheet className="w-4 h-4 shrink-0" />
+                  <span className="whitespace-nowrap">Bulk CSV Import (Employees / Customers / Leads)</span>
+                  <span
+                    className={`text-[9px] font-bold px-1.5 py-0.2 rounded whitespace-nowrap ${
+                      activeTab === 'data_import'
+                        ? 'bg-white text-slate-800 border border-slate-200/80 shadow-2xs'
+                        : 'bg-indigo-100 text-indigo-800'
+                    }`}
+                  >
+                    CSV
+                  </span>
+                </button>
               </>
             )}
           </div>
@@ -538,6 +600,7 @@ export const MastersView: React.FC<MastersViewProps> = ({
                   Customers & Contacts ({customers.length} / {contacts.length})
                 </option>
                 <option value="company">Organization Legal Profile</option>
+                <option value="data_import">Bulk CSV Data Import (Employees / Customers / Leads)</option>
               </optgroup>
             </select>
           </div>
@@ -576,6 +639,13 @@ export const MastersView: React.FC<MastersViewProps> = ({
 
       {activeTab === 'audit' && (
         <AuditTrailMasterTab searchQuery={searchQuery} onNavigate={onNavigate} />
+      )}
+
+      {activeTab === 'data_import' && (
+        <DataImportMasterTab
+          onNavigateTab={(tab) => setActiveTab(tab)}
+          onNavigateModule={onNavigate}
+        />
       )}
 
       {/* User-Specific Permissions Modal */}

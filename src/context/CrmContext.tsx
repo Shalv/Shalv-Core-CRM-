@@ -129,6 +129,10 @@ interface CrmContextType {
   // Users Master
   users: User[];
   addUser: (user: Omit<User, 'id'> & { id?: string }) => User;
+  importUsersBatch: (
+    rows: Array<Partial<User> & { password?: string; tempPassword?: string }>,
+    options?: { updateExisting?: boolean }
+  ) => { users: User[]; created: number; updated: number };
   updateUser: (id: string, user: Partial<User>) => void;
   deleteUser: (id: string) => void;
   resetUserPassword: (identifier: string, newPassword: string) => { success: boolean; message: string; user?: User };
@@ -175,7 +179,10 @@ interface CrmContextType {
     contactData: Omit<LeadLinkedContact, 'id' | 'leadId' | 'createdAt'>
   ) => void;
   qualifyLeadToOpportunity: (leadId: string) => Opportunity | null;
-  importLeadsBatch: (rows: Array<Partial<Lead>>) => number;
+  importLeadsBatch: (
+    rows: Array<Partial<Lead> & { ownerEmail?: string; productCodeOrName?: string }>,
+    options?: { updateExisting?: boolean }
+  ) => number;
   convertLead: (params: {
     leadId: string;
     existingCustomerId?: string;
@@ -266,6 +273,25 @@ interface CrmContextType {
   // Customers & Contacts Master
   customers: Customer[];
   addCustomer: (customerData: Omit<Customer, 'id' | 'customerCode' | 'createdAt' | 'updatedAt'>) => Customer;
+  importCustomersBatch: (
+    rows: Array<
+      Partial<Customer> & {
+        addressLine1?: string;
+        addressLine2?: string;
+        city?: string;
+        state?: string;
+        pincode?: string;
+        country?: string;
+        ownerEmail?: string;
+        contactName?: string;
+        contactDesignation?: string;
+        contactDepartment?: string;
+        contactMobile?: string;
+        contactEmail?: string;
+      }
+    >,
+    options?: { updateExisting?: boolean }
+  ) => { created: number; updated: number };
   updateCustomer: (id: string, customerData: Partial<Customer>) => void;
   deleteCustomer: (id: string) => { success: boolean; message: string };
   addCustomerAddress: (customerId: string, address: Omit<CustomerAddress, 'id'>) => void;
@@ -3348,60 +3374,190 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return result.opportunity || null;
   };
 
-  const importLeadsBatch = (rows: Array<Partial<Lead>>): number => {
+  const importLeadsBatch = (
+    rows: Array<Partial<Lead> & { ownerEmail?: string; productCodeOrName?: string }>,
+    options?: { updateExisting?: boolean }
+  ): number => {
     let count = 0;
     const createdLeads: Lead[] = [];
+    const updatedLeadById = new Map<string, Partial<Lead>>();
     const now = new Date().toISOString();
     const today = now.split('T')[0];
 
-    rows.forEach((row, idx) => {
-      if (!row.companyName || !row.contactPerson || !row.mobile) return;
-      const seq = leads.length + count + 1;
-      const leadNumber = `LEAD-2026-${String(seq).padStart(5, '0')}`;
-      const stateName = row.state || 'Delhi';
-      const stateCode = getStateCode(stateName);
-      const owner =
-        users.find((u) => u.email.toLowerCase() === (row as any).ownerEmail?.toLowerCase()) ||
-        currentUser;
+    let maxSeq = leads.reduce((max, l) => {
+      const m = String(l.leadNumber || '').match(/(\d+)$/);
+      return Math.max(max, m ? Number(m[1]) : 0);
+    }, 0);
 
-      const leadId = `lead-${Date.now()}-${idx}`;
-      const parts = row.contactPerson.trim().split(/\s+/);
+    rows.forEach((row, idx) => {
+      const companyName = (row.companyName || '').trim();
+      const contactPerson = (row.contactPerson || '').trim();
+      const mobile = (row.mobile || '').trim();
+      if (!companyName || !contactPerson || !mobile) return;
+
+      const cleanEmail = (row.email || '').trim().toLowerCase();
+      const existingLead = leads.find(
+        (l) =>
+          (cleanEmail && l.email && l.email.trim().toLowerCase() === cleanEmail) ||
+          (l.companyName.trim().toLowerCase() === companyName.toLowerCase() &&
+            l.mobile.trim() === mobile)
+      );
+
+      const stateName = (row.state || 'Delhi').trim();
+      const stateCode = getStateCode(stateName);
+      const ownerQuery = ((row as any).ownerEmail || row.leadOwnerName || row.leadOwnerId || '')
+        .trim()
+        .toLowerCase();
+      const owner =
+        users.find(
+          (u) =>
+            (ownerQuery && u.email?.trim().toLowerCase() === ownerQuery) ||
+            (ownerQuery && u.username?.trim().toLowerCase() === ownerQuery) ||
+            (ownerQuery && u.name?.trim().toLowerCase() === ownerQuery) ||
+            (ownerQuery && u.id.toLowerCase() === ownerQuery)
+        ) || currentUser;
+
+      const prodQuery = ((row as any).productCodeOrName || row.primaryProductId || '')
+        .trim()
+        .toLowerCase();
+      const matchedProduct =
+        products.find(
+          (p) =>
+            (prodQuery && p.code.trim().toLowerCase() === prodQuery) ||
+            (prodQuery && p.name.trim().toLowerCase() === prodQuery) ||
+            (prodQuery && p.id.toLowerCase() === prodQuery)
+        ) || products[0];
+
+      const validSources = new Set([
+        'Website',
+        'Referral',
+        'Microsoft',
+        'LinkedIn',
+        'Partner',
+        'Event',
+        'Outbound',
+        'Expo/Event',
+        'Cold Call',
+        'Other',
+      ]);
+      const normalizedSource = validSources.has(String(row.leadSource || ''))
+        ? (row.leadSource as Lead['leadSource'])
+        : 'Website';
+
+      const validTypes = new Set(['Inbound', 'Outbound', 'Existing Account']);
+      const normalizedType = validTypes.has(String(row.leadType || ''))
+        ? (row.leadType as Lead['leadType'])
+        : 'Inbound';
+
+      const validPriorities = new Set(['Low', 'Medium', 'High', 'Urgent']);
+      const normalizedPriority = validPriorities.has(String(row.priority || ''))
+        ? (row.priority as Lead['priority'])
+        : 'Medium';
+
+      const validRatings = new Set(['Hot', 'Warm', 'Cold']);
+      const normalizedRating = validRatings.has(String(row.rating || ''))
+        ? (row.rating as Lead['rating'])
+        : 'Warm';
+
+      const validStatuses = new Set([
+        'New',
+        'Contact',
+        'Contacted',
+        'Qualified',
+        'Unqualified',
+        'Proposal',
+        'Negotiation',
+        'Won',
+        'Lost',
+        'Deferred',
+      ]);
+      const normalizedStatus = validStatuses.has(String(row.status || ''))
+        ? (row.status as Lead['status'])
+        : 'New';
+
+      if (existingLead && options?.updateExisting) {
+        updatedLeadById.set(existingLead.id, {
+          companyName,
+          contactPerson,
+          designation: row.designation || existingLead.designation,
+          mobile,
+          email: row.email || existingLead.email,
+          website: row.website || existingLead.website,
+          address: row.address || existingLead.address,
+          state: stateName,
+          stateCode,
+          city: row.city || existingLead.city || stateName,
+          pincode: row.pincode || existingLead.pincode,
+          leadSource: normalizedSource,
+          leadType: normalizedType,
+          industry: row.industry || existingLead.industry,
+          requirement: row.requirement || existingLead.requirement,
+          estimatedValue:
+            row.estimatedValue !== undefined
+              ? Math.max(0, Number(row.estimatedValue) || 0)
+              : existingLead.estimatedValue,
+          budget:
+            row.budget !== undefined
+              ? Math.max(0, Number(row.budget) || 0)
+              : existingLead.budget,
+          expectedClosingDate: row.expectedClosingDate || existingLead.expectedClosingDate,
+          rating: normalizedRating,
+          priority: normalizedPriority,
+          status: normalizedStatus,
+          leadOwnerId: owner.id,
+          leadOwnerName: owner.name,
+          remarks: row.remarks || existingLead.remarks,
+          updatedAt: now,
+        });
+        count++;
+        return;
+      }
+
+      maxSeq += 1;
+      const leadNumber = `LEAD-2026-${String(maxSeq).padStart(5, '0')}`;
+      const leadId = `lead-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`;
+      const parts = contactPerson.split(/\s+/);
 
       createdLeads.push({
         id: leadId,
         leadNumber,
-        leadDate: today,
-        companyName: row.companyName,
-        contactPerson: row.contactPerson,
+        leadDate: row.leadDate || today,
+        companyName,
+        contactPerson,
         designation: row.designation || 'Decision Maker',
-        mobile: row.mobile,
-        email: row.email || '',
-        website: row.website || '',
-        address: row.address || '',
-        country: 'India',
+        mobile,
+        email: (row.email || '').trim(),
+        website: (row.website || '').trim(),
+        address: (row.address || '').trim(),
+        country: row.country || 'India',
         state: stateName,
         stateCode,
-        city: row.city || stateName,
-        pincode: row.pincode || '110001',
-        leadSource: (row.leadSource as any) || 'Website',
-        leadType: 'Inbound',
-        industry: row.industry || 'Manufacturing',
-        requirement: row.requirement || 'Imported via CSV bulk upload',
-        primaryProductId: row.primaryProductId || products[0]?.id,
-        productInterestIds: row.productInterestIds || (products[0] ? [products[0].id] : []),
-        estimatedValue: Number(row.estimatedValue) || 0,
-        budget: Number(row.budget) || 0,
+        city: (row.city || stateName).trim(),
+        pincode: (row.pincode || '110001').trim(),
+        leadSource: normalizedSource,
+        leadType: normalizedType,
+        industry: (row.industry || 'Technology & IT Services').trim(),
+        requirement: (row.requirement || 'Imported via CSV bulk upload').trim(),
+        primaryProductId: matchedProduct?.id,
+        productInterestIds:
+          row.productInterestIds && row.productInterestIds.length > 0
+            ? row.productInterestIds
+            : matchedProduct
+            ? [matchedProduct.id]
+            : [],
+        estimatedValue: Math.max(0, Number(row.estimatedValue) || 0),
+        budget: Math.max(0, Number(row.budget) || 0),
         expectedClosingDate: row.expectedClosingDate || row.expectedGoLive || today,
         expectedGoLive: row.expectedGoLive || row.expectedClosingDate || today,
-        rating: (row.rating as any) || 'Warm',
-        score: Number(row.score) || 50,
+        rating: normalizedRating,
+        score: Math.min(100, Math.max(0, Number(row.score) || 50)),
         createPrimaryContact: true,
         contactFirstName: parts[0] || '',
         contactLastName: parts.slice(1).join(' ') || '-',
         leadOwnerId: owner.id,
         leadOwnerName: owner.name,
-        priority: 'Medium',
-        status: (row.status as any) || 'New',
+        priority: normalizedPriority,
+        status: normalizedStatus,
         remarks: row.remarks || '',
         isConverted: false,
         timelineEvents: [
@@ -3409,7 +3565,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             id: `lev-imp-${Date.now()}-${idx}`,
             type: 'Status Update',
             title: 'Imported via Bulk CSV',
-            status: (row.status as any) || 'New',
+            status: normalizedStatus,
             detail: row.remarks || 'Lead created from CSV bulk import.',
             date: now,
             user: currentUser.name,
@@ -3421,10 +3577,380 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       count++;
     });
 
-    if (createdLeads.length > 0) {
-      setLeads((prev) => [...createdLeads, ...prev]);
+    if (createdLeads.length > 0 || updatedLeadById.size > 0) {
+      setLeads((prev) => {
+        const updatedPrev = prev.map((l) =>
+          updatedLeadById.has(l.id) ? { ...l, ...updatedLeadById.get(l.id)! } : l
+        );
+        return [...createdLeads, ...updatedPrev];
+      });
+      addAuditLog({
+        entityType: 'Lead',
+        entityId: createdLeads[0]?.id || 'batch-leads',
+        entityNumber: `${count} Leads`,
+        action: 'Created',
+        description: `Bulk CSV import processed ${count} lead(s) (${createdLeads.length} new, ${updatedLeadById.size} updated) by ${currentUser.name}`,
+      });
+      addNotification({
+        type: 'LEAD',
+        title: 'Bulk Leads CSV Import Completed',
+        message: `${count} lead record(s) imported into the Sales Pipeline.`,
+        timestamp: 'Just now',
+        linkType: 'lead',
+      });
     }
     return count;
+  };
+
+  const importCustomersBatch = (
+    rows: Array<
+      Partial<Customer> & {
+        addressLine1?: string;
+        addressLine2?: string;
+        city?: string;
+        state?: string;
+        pincode?: string;
+        country?: string;
+        ownerEmail?: string;
+        contactName?: string;
+        contactDesignation?: string;
+        contactDepartment?: string;
+        contactMobile?: string;
+        contactEmail?: string;
+      }
+    >,
+    options?: { updateExisting?: boolean }
+  ): { created: number; updated: number } => {
+    let createdCount = 0;
+    let updatedCount = 0;
+    const createdCustomers: Customer[] = [];
+    const createdContacts: CustomerContact[] = [];
+    const updatedCustomerById = new Map<string, Partial<Customer>>();
+    const now = new Date().toISOString();
+
+    let maxSeq = customers.reduce((max, c) => {
+      const m = String(c.customerCode || '').match(/(\d+)$/);
+      return Math.max(max, m ? Number(m[1]) : 0);
+    }, 0);
+
+    rows.forEach((row, idx) => {
+      const name = (row.name || '').trim();
+      if (!name) return;
+
+      const cleanEmail = (row.email || '').trim().toLowerCase();
+      const cleanGstin = (row.gstin || '').trim().toUpperCase();
+      const existingCustomer = customers.find(
+        (c) =>
+          (cleanGstin && c.gstin && c.gstin.trim().toUpperCase() === cleanGstin) ||
+          (cleanEmail && c.email && c.email.trim().toLowerCase() === cleanEmail) ||
+          c.name.trim().toLowerCase() === name.toLowerCase()
+      );
+
+      const stateName = (row.state || supplierCompany?.state || 'Delhi').trim();
+      const stateCode = getStateCode(stateName);
+      const gstRule: Customer['gstRule'] =
+        stateCode === (supplierCompany?.stateCode || '07') ? 'CGST + SGST' : 'IGST';
+
+      const ownerQuery = (row.ownerEmail || row.salesOwnerName || row.salesOwnerId || '')
+        .trim()
+        .toLowerCase();
+      const owner =
+        users.find(
+          (u) =>
+            (ownerQuery && u.email?.trim().toLowerCase() === ownerQuery) ||
+            (ownerQuery && u.username?.trim().toLowerCase() === ownerQuery) ||
+            (ownerQuery && u.name?.trim().toLowerCase() === ownerQuery) ||
+            (ownerQuery && u.id.toLowerCase() === ownerQuery)
+        ) || currentUser;
+
+      const ptQuery = (row.paymentTermsName || row.paymentTermsId || '').trim().toLowerCase();
+      const matchedTerm =
+        paymentTerms.find(
+          (pt) =>
+            (ptQuery && pt.name.trim().toLowerCase() === ptQuery) ||
+            (ptQuery && pt.code.trim().toLowerCase() === ptQuery) ||
+            (ptQuery && pt.id.toLowerCase() === ptQuery)
+        ) ||
+        paymentTerms[0] || { id: 'pt-1', name: '100% Advance' };
+
+      const validTypes = new Set(['Enterprise', 'SME', 'Government', 'Startup', 'International']);
+      const customerType = validTypes.has(String(row.customerType || ''))
+        ? (row.customerType as Customer['customerType'])
+        : 'Enterprise';
+
+      const validGroups = new Set(['Direct', 'Channel', 'Strategic']);
+      const customerGroup = validGroups.has(String(row.customerGroup || ''))
+        ? (row.customerGroup as Customer['customerGroup'])
+        : 'Direct';
+
+      const validStatuses = new Set(['Active', 'Inactive', 'Blocked']);
+      const status = validStatuses.has(String(row.status || ''))
+        ? (row.status as Customer['status'])
+        : 'Active';
+
+      const billingAddr: CustomerAddress = {
+        id: `addr-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 5)}`,
+        type: 'Billing',
+        title: 'Head Office / Billing',
+        addressLine1: (row.addressLine1 || `${name} Office`).trim(),
+        addressLine2: (row.addressLine2 || '').trim() || undefined,
+        city: (row.city || stateName).trim(),
+        state: stateName,
+        stateCode,
+        country: (row.country || 'India').trim(),
+        pincode: (row.pincode || '110001').trim(),
+        isDefault: true,
+      };
+
+      if (existingCustomer && options?.updateExisting) {
+        updatedCustomerById.set(existingCustomer.id, {
+          name,
+          customerType,
+          customerGroup,
+          gstin: cleanGstin || existingCustomer.gstin,
+          pan: (row.pan || '').trim().toUpperCase() || existingCustomer.pan,
+          email: (row.email || existingCustomer.email || '').trim(),
+          phone: (row.phone || existingCustomer.phone || '').trim(),
+          website: (row.website || existingCustomer.website || '').trim(),
+          industry: (row.industry || existingCustomer.industry || 'Technology').trim(),
+          paymentTermsId: matchedTerm.id,
+          paymentTermsName: matchedTerm.name,
+          creditLimit:
+            row.creditLimit !== undefined
+              ? Math.max(0, Number(row.creditLimit) || 0)
+              : existingCustomer.creditLimit,
+          status,
+          salesOwnerId: owner.id,
+          salesOwnerName: owner.name,
+          remarks: row.remarks || existingCustomer.remarks,
+          gstRule,
+          addresses:
+            row.addressLine1 || row.city || row.state
+              ? [billingAddr, ...(existingCustomer.addresses || []).slice(1)]
+              : existingCustomer.addresses,
+          updatedAt: now,
+        });
+        updatedCount++;
+        return;
+      }
+
+      if (existingCustomer && !options?.updateExisting) {
+        return;
+      }
+
+      maxSeq += 1;
+      const customerCode = `CUS-2026-${String(maxSeq).padStart(5, '0')}`;
+      const customerId = `cus-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`;
+
+      const newCust: Customer = {
+        id: customerId,
+        customerCode,
+        name,
+        customerType,
+        customerGroup,
+        gstin: cleanGstin || undefined,
+        pan: (row.pan || '').trim().toUpperCase() || undefined,
+        email: (row.email || '').trim(),
+        phone: (row.phone || '').trim(),
+        website: (row.website || '').trim() || undefined,
+        industry: (row.industry || 'Enterprise Services').trim(),
+        paymentTermsId: matchedTerm.id,
+        paymentTermsName: matchedTerm.name,
+        creditLimit: Math.max(0, Number(row.creditLimit) || 0),
+        currency: (row.currency || 'INR').trim(),
+        status,
+        salesOwnerId: owner.id,
+        salesOwnerName: owner.name,
+        remarks: (row.remarks || '').trim() || undefined,
+        solution: (row.solution || '').trim() || undefined,
+        projectPhase: (row.projectPhase || '').trim() || undefined,
+        gstRule,
+        addresses: [billingAddr],
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      createdCustomers.push(newCust);
+      createdCount++;
+
+      const contactPersonName = (row.contactName || '').trim();
+      if (contactPersonName) {
+        createdContacts.push({
+          id: `cnt-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 5)}`,
+          customerId,
+          name: contactPersonName,
+          designation: (row.contactDesignation || 'Primary Contact').trim(),
+          department: (row.contactDepartment || 'Management').trim(),
+          mobile: (row.contactMobile || row.phone || '').trim(),
+          email: (row.contactEmail || row.email || '').trim(),
+          isPrimary: true,
+          isDecisionMaker: true,
+          status: 'Active',
+        });
+      }
+    });
+
+    if (createdCustomers.length > 0 || updatedCustomerById.size > 0) {
+      setCustomers((prev) => {
+        const updatedPrev = prev.map((c) =>
+          updatedCustomerById.has(c.id) ? { ...c, ...updatedCustomerById.get(c.id)! } : c
+        );
+        return [...createdCustomers, ...updatedPrev];
+      });
+      if (createdContacts.length > 0) {
+        setContacts((prev) => [...createdContacts, ...prev]);
+      }
+      addAuditLog({
+        entityType: 'Customer',
+        entityId: createdCustomers[0]?.id || 'batch-customers',
+        entityNumber: `${createdCount + updatedCount} Customers`,
+        action: 'Created',
+        description: `Bulk CSV import processed ${createdCount + updatedCount} customer(s) (${createdCount} created, ${updatedCount} updated) by ${currentUser.name}`,
+      });
+      addNotification({
+        type: 'SYSTEM',
+        title: 'Bulk Customers CSV Import Completed',
+        message: `${createdCount} new customer(s) and ${updatedCount} updated customer(s) imported into Customer Master.`,
+        timestamp: 'Just now',
+        linkType: 'masters',
+      });
+    }
+
+    return { created: createdCount, updated: updatedCount };
+  };
+
+  const importUsersBatch = (
+    rows: Array<Partial<User> & { password?: string; tempPassword?: string }>,
+    options?: { updateExisting?: boolean }
+  ): { users: User[]; created: number; updated: number } => {
+    let createdCount = 0;
+    let updatedCount = 0;
+    const processedUsers: User[] = [];
+    const createdList: User[] = [];
+    const updatedMap = new Map<string, User>();
+
+    rows.forEach((row, idx) => {
+      const name = (row.name || '').trim();
+      const email = (row.email || '').trim();
+      if (!name || !email) return;
+
+      const cleanEmail = email.toLowerCase();
+      const cleanEmpCode = (row.empCode || '').trim().toUpperCase();
+      const existing = users.find(
+        (u) =>
+          (row.id && u.id === row.id) ||
+          (cleanEmail && u.email?.trim().toLowerCase() === cleanEmail) ||
+          (cleanEmpCode && u.empCode?.trim().toUpperCase() === cleanEmpCode)
+      );
+
+      if (existing && !options?.updateExisting) {
+        return;
+      }
+
+      const resolvedId =
+        existing?.id ||
+        row.id ||
+        `usr-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`;
+      deletedUserIdsRef.current.delete(resolvedId);
+
+      const initials = name
+        .split(' ')
+        .map((n) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2);
+
+      const rawPass = (row.password || row.tempPassword || '').trim() || (existing ? '' : 'Welcome@123');
+      const rawScope = String(
+        row.accessScope ||
+          (row.accessType === 'payroll_only' ? 'payroll_only' : existing?.accessScope || 'all')
+      );
+      const normalizedScope: 'all' | 'payroll_only' =
+        rawScope.toLowerCase() === 'payroll_only' ? 'payroll_only' : 'all';
+
+      const baseUser: User = {
+        ...existing,
+        ...row,
+        id: resolvedId,
+        name,
+        username:
+          (row.username || '').trim() ||
+          existing?.username ||
+          email.split('@')[0] ||
+          `user_${idx + 1}`,
+        email,
+        phone: (row.phone ?? existing?.phone ?? '').trim(),
+        role: (row.role || existing?.role || 'Sales Executive') as UserRole,
+        department: (row.department || existing?.department || 'Operations').trim(),
+        designation: (row.designation || existing?.designation || row.role || 'Employee').trim(),
+        location: (row.location || existing?.location || 'New Delhi').trim(),
+        reportingManager: (row.reportingManager || existing?.reportingManager || currentUser.name).trim(),
+        assignedTerritory: (row.assignedTerritory || existing?.assignedTerritory || '').trim(),
+        status: row.status === 'Inactive' ? 'Inactive' : 'Active',
+        avatar: row.avatar || existing?.avatar || initials,
+        accessScope: normalizedScope,
+        accessType: normalizedScope === 'payroll_only' ? 'payroll_only' : 'crm_and_payroll',
+        empCode: (row.empCode || existing?.empCode || '').trim() || undefined,
+      };
+
+      const sanitized = sanitizeClientUser(baseUser);
+      processedUsers.push(sanitized);
+
+      if (existing) {
+        updatedMap.set(resolvedId, sanitized);
+        updatedCount++;
+      } else {
+        createdList.push(sanitized);
+        createdCount++;
+      }
+
+      if (rawPass) {
+        recordPendingUserPassword(resolvedId, rawPass);
+      }
+
+      fetch(existing ? `/api/users/${resolvedId}` : '/api/users', {
+        method: existing ? 'PUT' : 'POST',
+        headers: crmAuthHeaders(),
+        body: JSON.stringify({
+          ...sanitized,
+          ...(rawPass ? { password: rawPass, tempPassword: rawPass } : {}),
+        }),
+      }).catch(() => {});
+    });
+
+    if (createdList.length > 0 || updatedMap.size > 0) {
+      setUsers((prev) => {
+        const next = prev.map((u) => (updatedMap.has(u.id) ? updatedMap.get(u.id)! : u));
+        for (const nu of createdList) {
+          if (!next.some((u) => u.id === nu.id)) {
+            next.push(nu);
+          }
+        }
+        try {
+          localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+
+      addAuditLog({
+        entityType: 'User',
+        entityId: processedUsers[0]?.id || 'batch-users',
+        entityNumber: `${createdCount + updatedCount} Employees`,
+        action: 'Created',
+        description: `Bulk CSV import processed ${createdCount + updatedCount} employee(s) (${createdCount} created, ${updatedCount} updated) by ${currentUser.name}`,
+      });
+      addNotification({
+        type: 'USER',
+        title: 'Bulk Employees CSV Import Completed',
+        message: `${createdCount} new employee(s) and ${updatedCount} updated employee(s) imported into User & Payroll Master.`,
+        timestamp: 'Just now',
+        linkType: 'masters',
+      });
+    }
+
+    return { users: processedUsers, created: createdCount, updated: updatedCount };
   };
 
   // Customer Management
@@ -7381,6 +7907,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateUserCustomPermissions,
         users,
         addUser,
+        importUsersBatch,
         updateUser,
         deleteUser,
         resetUserPassword,
@@ -7423,6 +7950,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteOpportunity,
         customers,
         addCustomer,
+        importCustomersBatch,
         updateCustomer,
         deleteCustomer,
         addCustomerAddress,
