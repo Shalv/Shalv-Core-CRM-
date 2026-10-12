@@ -24,20 +24,20 @@ const payChakraAuroraCss = `
   --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
   --font-body: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
 
-  --bg: #060818;
-  --ink: #eef1ff;
-  --muted: #a3abd0;
-  --line: rgba(160, 175, 255, 0.2);
-  --glass: rgba(12, 16, 44, 0.62);
-  --field: rgba(7, 10, 32, 0.72);
-  --cyan: #35d6ff;
-  --blue: #6f7dff;
-  --pink: #ff4fb8;
-  --grad: linear-gradient(100deg, #35d6ff 0%, #6f7dff 48%, #ff4fb8 100%);
-  --on-grad: #080a26;
-  --error: #ff9aa8;
-  --ok: #67e3b9;
-  color-scheme: dark;
+  --bg: #ffffff;
+  --ink: #0f172a;
+  --muted: #475569;
+  --line: rgba(15, 23, 42, 0.14);
+  --glass: rgba(255, 255, 255, 0.9);
+  --field: #f8fafc;
+  --cyan: #0284c7;
+  --blue: #4f46e5;
+  --pink: #db2777;
+  --grad: linear-gradient(100deg, #0284c7 0%, #4f46e5 48%, #db2777 100%);
+  --on-grad: #ffffff;
+  --error: #dc2626;
+  --ok: #059669;
+  color-scheme: light;
 
   position: relative;
   min-height: 100vh;
@@ -90,7 +90,7 @@ const payChakraAuroraCss = `
   height: 84px;
   object-fit: contain;
   display: block;
-  filter: drop-shadow(0 0 22px rgba(111, 125, 255, 0.55));
+  filter: drop-shadow(0 6px 18px rgba(79, 70, 229, 0.22));
 }
 
 .pca-brand span {
@@ -169,7 +169,7 @@ const payChakraAuroraCss = `
 .pca-facts dd small {
   display: block;
   color: var(--cyan);
-  font-weight: 500;
+  font-weight: 600;
   font-size: 0.82rem;
   margin-top: 2px;
 }
@@ -182,7 +182,7 @@ const payChakraAuroraCss = `
   border: 1px solid var(--line);
   border-radius: 24px;
   padding: clamp(24px, 4vw, 40px);
-  box-shadow: 0 40px 90px rgba(2, 3, 16, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.09), 0 4px 16px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.9);
   min-width: 0;
 }
 
@@ -214,9 +214,9 @@ const payChakraAuroraCss = `
 }
 
 .pca-portal-tab.active {
-  background: rgba(111, 125, 255, 0.22);
-  color: var(--cyan);
-  border: 1px solid rgba(53, 214, 255, 0.35);
+  background: rgba(79, 70, 229, 0.1);
+  color: var(--blue);
+  border: 1px solid rgba(79, 70, 229, 0.28);
   cursor: default;
 }
 
@@ -280,16 +280,17 @@ const payChakraAuroraCss = `
 }
 
 .pca-input-wrap input::placeholder {
-  color: #7a82ad;
+  color: #94a3b8;
 }
 
 .pca-input-wrap input:hover {
-  border-color: rgba(160, 175, 255, 0.4);
+  border-color: rgba(79, 70, 229, 0.35);
 }
 
 .pca-input-wrap input:focus-visible {
-  border-color: var(--cyan);
-  box-shadow: 0 0 0 3px rgba(53, 214, 255, 0.2);
+  border-color: var(--blue);
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
 }
 
 .pca-field.bad input {
@@ -333,11 +334,11 @@ const payChakraAuroraCss = `
 
 .pca-peek:hover {
   color: var(--ink);
-  background: rgba(160, 175, 255, 0.12);
+  background: rgba(15, 23, 42, 0.06);
 }
 
 .pca-peek:focus-visible {
-  outline: 2px solid var(--cyan);
+  outline: 2px solid var(--blue);
   outline-offset: 1px;
 }
 
@@ -371,7 +372,7 @@ const payChakraAuroraCss = `
   width: 44px;
   height: 24px;
   border-radius: 999px;
-  background: var(--field);
+  background: #e2e8f0;
   border: 1px solid var(--line);
   position: relative;
   flex: none;
@@ -385,8 +386,8 @@ const payChakraAuroraCss = `
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--ink);
-  transition: transform 0.25s cubic-bezier(0.3, 1.4, 0.5, 1);
+  background: #475569;
+  transition: transform 0.25s cubic-bezier(0.3, 1.4, 0.5, 1), background 0.25s;
 }
 
 .pca-switch input:checked + .pca-track {
@@ -400,7 +401,7 @@ const payChakraAuroraCss = `
 }
 
 .pca-switch input:focus-visible + .pca-track {
-  outline: 2px solid var(--cyan);
+  outline: 2px solid var(--blue);
   outline-offset: 3px;
 }
 
@@ -419,7 +420,7 @@ const payChakraAuroraCss = `
 }
 
 .pca-link:focus-visible {
-  outline: 2px solid var(--cyan);
+  outline: 2px solid var(--blue);
   outline-offset: 3px;
   border-radius: 4px;
 }
@@ -440,13 +441,13 @@ const payChakraAuroraCss = `
   align-items: center;
   justify-content: center;
   gap: 12px;
-  box-shadow: 0 12px 34px rgba(111, 125, 255, 0.4);
+  box-shadow: 0 12px 28px rgba(79, 70, 229, 0.28);
   transition: background-position 0.5s ease, transform 0.15s, box-shadow 0.2s;
 }
 
 .pca-go:hover {
   background-position: 100% 0;
-  box-shadow: 0 14px 40px rgba(255, 79, 184, 0.35);
+  box-shadow: 0 14px 34px rgba(219, 39, 119, 0.28);
 }
 
 .pca-go:active {
@@ -454,7 +455,7 @@ const payChakraAuroraCss = `
 }
 
 .pca-go:focus-visible {
-  outline: 2px solid #fff;
+  outline: 2px solid var(--blue);
   outline-offset: 3px;
 }
 
@@ -467,7 +468,7 @@ const payChakraAuroraCss = `
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  border: 3px solid rgba(8, 10, 38, 0.25);
+  border: 3px solid rgba(255, 255, 255, 0.35);
   border-top-color: var(--on-grad);
   animation: pca-rot 0.7s linear infinite;
 }
@@ -548,14 +549,14 @@ function PayChakraAuroraEmblem() {
     <svg viewBox="0 0 120 120" fill="none" aria-hidden="true">
       <defs>
         <linearGradient id="pcaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#35d6ff" />
-          <stop offset="50%" stopColor="#6f7dff" />
-          <stop offset="100%" stopColor="#ff4fb8" />
+          <stop offset="0%" stopColor="#0284c7" />
+          <stop offset="50%" stopColor="#4f46e5" />
+          <stop offset="100%" stopColor="#db2777" />
         </linearGradient>
         <radialGradient id="pcaCore" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#35d6ff" stopOpacity="0.95" />
-          <stop offset="65%" stopColor="#6f7dff" stopOpacity="0.85" />
-          <stop offset="100%" stopColor="#080a26" stopOpacity="0.95" />
+          <stop offset="0%" stopColor="#0284c7" stopOpacity="0.95" />
+          <stop offset="65%" stopColor="#4f46e5" stopOpacity="0.9" />
+          <stop offset="100%" stopColor="#312e81" stopOpacity="0.98" />
         </radialGradient>
       </defs>
       <circle cx="60" cy="60" r="52" stroke="url(#pcaGrad)" strokeWidth="3.5" opacity="0.85" />
@@ -577,12 +578,12 @@ function PayChakraAuroraEmblem() {
           />
         </g>
       ))}
-      <circle cx="60" cy="60" r="24" fill="url(#pcaCore)" stroke="#eef1ff" strokeWidth="1.5" />
+      <circle cx="60" cy="60" r="24" fill="url(#pcaCore)" stroke="#ffffff" strokeWidth="1.5" />
       <text
         x="60"
         y="69"
         textAnchor="middle"
-        fill="#eef1ff"
+        fill="#ffffff"
         fontFamily="Fraunces, Georgia, serif"
         fontWeight="600"
         fontSize="26"
@@ -622,16 +623,15 @@ function AuroraBackground() {
       if (!ctx) return;
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1;
-      ctx.fillStyle = '#060818';
+      ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, w, h);
-      ctx.globalCompositeOperation = 'lighter';
 
       for (const o of ORBS) {
         const x = w * (o.x + o.ax * Math.sin(t * o.sx + o.p));
         const y = h * (o.y + o.ay * Math.cos(t * o.sy + o.p));
         const rad = base * o.r;
         const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
-        g.addColorStop(0, `rgba(${o.c},0.26)`);
+        g.addColorStop(0, `rgba(${o.c},0.11)`);
         g.addColorStop(1, `rgba(${o.c},0)`);
         ctx.fillStyle = g;
         ctx.fillRect(x - rad, y - rad, rad * 2, rad * 2);
@@ -647,21 +647,21 @@ function AuroraBackground() {
       RINGS.forEach((ring, i) => {
         const rad = base * ring.r * (1 + 0.015 * Math.sin(t * 0.5 + i));
         ctx.globalAlpha = 1;
-        ctx.strokeStyle = 'rgba(160,175,255,0.07)';
+        ctx.strokeStyle = 'rgba(79, 70, 229, 0.10)';
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.arc(cx, cy, rad, 0, Math.PI * 2);
         ctx.stroke();
 
         const grad = ctx.createLinearGradient(cx - rad, cy, cx + rad, cy);
-        grad.addColorStop(0, '#35d6ff');
-        grad.addColorStop(0.5, '#6f7dff');
-        grad.addColorStop(1, '#ff4fb8');
+        grad.addColorStop(0, '#0284c7');
+        grad.addColorStop(0.5, '#4f46e5');
+        grad.addColorStop(1, '#db2777');
         const span = (Math.PI * 2) / ring.arcs;
         for (let k = 0; k < ring.arcs; k++) {
           const start = t * ring.speed + k * span + i;
           const end = start + span * 0.55;
-          ctx.globalAlpha = 0.6;
+          ctx.globalAlpha = 0.55;
           ctx.strokeStyle = grad;
           ctx.lineWidth = ring.width;
           ctx.beginPath();
@@ -671,10 +671,10 @@ function AuroraBackground() {
           if (ring.dot) {
             const dx = cx + rad * Math.cos(end);
             const dy = cy + rad * Math.sin(end);
-            ctx.globalAlpha = 0.95;
-            ctx.shadowBlur = 14;
-            ctx.shadowColor = '#35d6ff';
-            ctx.fillStyle = '#bff3ff';
+            ctx.globalAlpha = 0.9;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = 'rgba(79, 70, 229, 0.45)';
+            ctx.fillStyle = '#4f46e5';
             ctx.beginPath();
             ctx.arc(dx, dy, 3.2, 0, Math.PI * 2);
             ctx.fill();
@@ -690,15 +690,15 @@ function AuroraBackground() {
           d.y = 1.02;
           d.x = Math.random();
         }
-        const a = d.a * (0.5 + 0.5 * Math.sin(t * 1.2 + d.p));
-        ctx.fillStyle = `rgba(190,215,255,${a.toFixed(3)})`;
-        ctx.fillRect(d.x * w, d.y * h, 1.4, 1.4);
+        const a = d.a * (0.5 + 0.5 * Math.sin(t * 1.2 + d.p)) * 0.35;
+        ctx.fillStyle = `rgba(79, 70, 229, ${a.toFixed(3)})`;
+        ctx.fillRect(d.x * w, d.y * h, 1.5, 1.5);
       }
 
       ctx.globalCompositeOperation = 'source-over';
       const shade = ctx.createLinearGradient(0, 0, w * (wide ? 0.6 : 1), 0);
-      shade.addColorStop(0, 'rgba(6,8,24,0.6)');
-      shade.addColorStop(1, 'rgba(6,8,24,0)');
+      shade.addColorStop(0, 'rgba(255, 255, 255, 0.72)');
+      shade.addColorStop(1, 'rgba(255, 255, 255, 0)');
       ctx.fillStyle = shade;
       ctx.fillRect(0, 0, w, h);
     }
