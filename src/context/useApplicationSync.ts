@@ -52,13 +52,18 @@ export function useApplicationSync(snapshot:Snapshot, apply:(snapshot:Snapshot)=
         if(pending) {
           try {
             const saved=JSON.parse(pending);
-            const result=mergeSnapshots(saved.base,saved.snapshot,remote);
-            if(result.conflicts.length) {
-              blocked.current=true;
-              baseline=saved.base; local=saved.snapshot;
-              setStatus({state:'conflict',message:`Unsaved changes conflict with server data: ${result.conflicts.slice(0,3).join('; ')}`,issues:data.issues || []});
-            } else local=reconcileSnapshot({...local,...result.snapshot});
-          } catch { /* corrupt pending data cannot replace verified server data */ }
+            const cleanBase=reconcileSnapshot(saved.base);
+            const cleanSnap=reconcileSnapshot(saved.snapshot);
+            const snapIssues=auditSnapshot(cleanSnap);
+            const result=mergeSnapshots(cleanBase,cleanSnap,remote);
+            if(result.conflicts.length || snapIssues.length) {
+              localStorage.removeItem(PENDING_KEY);
+            } else {
+              local=reconcileSnapshot({...local,...result.snapshot});
+            }
+          } catch {
+            localStorage.removeItem(PENDING_KEY);
+          }
         }
         base.current=baseline;
         hydrate(local); setReady(true);
@@ -76,7 +81,7 @@ export function useApplicationSync(snapshot:Snapshot, apply:(snapshot:Snapshot)=
         const result=await response.json();
         if(response.status===409 || response.status===422) {
           blocked.current=true;
-          setStatus({state:'conflict',message:result.message || 'Changes could not be saved. Review the connected records.',issues:result.issues || []});
+          setStatus({state:'conflict',message:result.message || result.error || 'Changes could not be saved. Review the connected records.',issues:result.issues || []});
           return;
         }
         if(!response.ok || !result.success) throw new Error(result.message || 'Save failed');
@@ -132,7 +137,6 @@ export function useApplicationSync(snapshot:Snapshot, apply:(snapshot:Snapshot)=
     return ()=>window.clearTimeout(timer);
   },[snapshot,ready]);
   const reloadSaved=async()=> {
-    if(!window.confirm('Load the saved server data and discard the unsaved local changes?')) return;
     if(busy.current) return;
     blocked.current=false; base.current=null;
     localStorage.removeItem(PENDING_KEY);

@@ -1,6 +1,6 @@
 import { User, UserRole } from '../../types';
 import { mergeDayLog, type AttendanceDayLog } from './attendanceLog';
-import { recordPendingUserPassword } from '../../shared/integrity';
+import { recordPendingUserPassword, isRemovedPredefinedUser } from '../../shared/integrity';
 
 function payrollAuthHeaders(extra: Record<string, string> = { 'Content-Type': 'application/json' }): Record<string, string> {
   let token: string | null = null;
@@ -838,7 +838,7 @@ export const loadEmployeeSalaryMasters = (
       if (parsed && typeof parsed === 'object') {
         const sanitized: Record<string, EmployeeSalaryMasterRecord> = {};
         for (const [k, v] of Object.entries(parsed)) {
-          if (v && typeof v === 'object') {
+          if (v && typeof v === 'object' && !isRemovedPredefinedUser({ id: v.userId || k, email: v.email })) {
             sanitized[k] = sanitizeClientPayrollMaster(v);
           }
         }

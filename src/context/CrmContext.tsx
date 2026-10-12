@@ -76,7 +76,7 @@ import {
   INITIAL_LICENSE_TYPES,
 } from '../data/supportAmcData';
 import { useApplicationSync, SyncStatus } from './useApplicationSync';
-import { Snapshot, recordPendingUserPassword } from '../shared/integrity';
+import { Snapshot, recordPendingUserPassword, isRemovedPredefinedUser } from '../shared/integrity';
 
 function crmAuthHeaders(extra: Record<string, string> = { 'Content-Type': 'application/json' }): Record<string, string> {
   let token: string | null = null;
@@ -524,7 +524,10 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map(sanitizeClientUser);
+          const filtered = parsed.filter((u: any) => !isRemovedPredefinedUser(u)).map(sanitizeClientUser);
+          if (filtered.length > 0) {
+            return filtered;
+          }
         }
       } catch (e) { /* ignore */ }
     }
@@ -557,7 +560,10 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const parsed = JSON.parse(savedUsers);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          activeUsersList = parsed.map(sanitizeClientUser);
+          const filtered = parsed.filter((u: any) => !isRemovedPredefinedUser(u)).map(sanitizeClientUser);
+          if (filtered.length > 0) {
+            activeUsersList = filtered;
+          }
         }
       } catch (e) { /* ignore */ }
     }
@@ -566,12 +572,14 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (saved) {
       try {
         const parsed = sanitizeClientUser(JSON.parse(saved));
-        const matched = activeUsersList.find((u) => u.id === parsed.id);
-        if (matched) {
-          return sanitizeClientUser({ ...matched, ...parsed });
-        }
-        if (parsed && parsed.id && parsed.email) {
-          return parsed;
+        if (!isRemovedPredefinedUser(parsed)) {
+          const matched = activeUsersList.find((u) => u.id === parsed.id);
+          if (matched) {
+            return sanitizeClientUser({ ...matched, ...parsed });
+          }
+          if (parsed && parsed.id && parsed.email) {
+            return parsed;
+          }
         }
       } catch (e) { /* ignore */ }
     }
@@ -989,14 +997,14 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const mergedById = new Map<string, User>();
     const idByEmail = new Map<string, string>();
     for (const u of localUsers || []) {
-      if (!u || !u.id || deletedUserIdsRef.current.has(String(u.id))) continue;
+      if (!u || !u.id || deletedUserIdsRef.current.has(String(u.id)) || isRemovedPredefinedUser(u)) continue;
       const uid = String(u.id);
       const cleanU = sanitizeClientUser(u);
       mergedById.set(uid, cleanU);
       if (cleanU.email) idByEmail.set(cleanU.email.trim().toLowerCase(), uid);
     }
     for (const raw of incomingUsers || []) {
-      if (!raw || !raw.id || deletedUserIdsRef.current.has(String(raw.id))) continue;
+      if (!raw || !raw.id || deletedUserIdsRef.current.has(String(raw.id)) || isRemovedPredefinedUser(raw)) continue;
       const rawId = String(raw.id);
       const emailLower = raw.email ? String(raw.email).trim().toLowerCase() : '';
       const resolvedId = mergedById.has(rawId)
@@ -1028,8 +1036,8 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!s) return;
     if (s.rolePermissions) setRolePermissions(s.rolePermissions);
     if (s.users) {
-      setUsers((prev) => {
-        const next = s.users.map(sanitizeClientUser);
+      setUsers((_prev) => {
+        const next = s.users.filter((u: any) => !isRemovedPredefinedUser(u)).map(sanitizeClientUser);
         try {
           localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(next));
         } catch {
