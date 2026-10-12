@@ -4,7 +4,7 @@
   "version": "1.0.2",
   "type": "module",
   "scripts": {
-    "dev": "node --import tsx server.ts",
+    "dev": "tsx server.ts",
     "build": "vite build && node scripts/build-api.mjs",
     "start": "NODE_ENV=production node --import tsx server.ts --production",
     "preview": "NODE_ENV=production node --import tsx server.ts --production",
