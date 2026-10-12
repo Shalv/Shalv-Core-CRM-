@@ -1032,16 +1032,11 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
       <main className="pca-stage">
         <section className="pca-intro" aria-label="About PayChakra">
           <div className="pca-brand">
-            {supplierCompany?.logoUrl && supplierCompany.logoUrl !== '/favicon.svg' ? (
-              <img
-                src={supplierCompany.logoUrl}
-                alt={supplierCompany.name || 'Company Logo'}
-                className="pca-brand-logo-img"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <SwirlingRibbonEmblem className="w-20 h-20 shrink-0 drop-shadow-md" />
-            )}
+            <img
+              src="/paychakra-logo.svg"
+              alt="PayChakra"
+              className="pca-brand-logo-img max-h-16 md:max-h-20 w-auto max-w-[280px] object-contain drop-shadow-md"
+            />
             <div className="pca-brand-copy">
               <span className="pca-brand-company">
                 {supplierCompany?.name || 'Coreenact Solutions'}
@@ -1087,7 +1082,11 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
 
         <section className="pca-card" aria-labelledby="login-title">
           <div className="pca-card-brand-bar">
-            <BrandLogo variant="full" size="sm" showTagline={false} />
+            <img
+              src="/paychakra-logo.svg"
+              alt="PayChakra"
+              className="h-8 max-w-[180px] w-auto object-contain drop-shadow-xs"
+            />
             <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-sky-800 bg-sky-50 border border-sky-200 px-2.5 py-0.5 rounded-full">
               <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
               Verified Payroll

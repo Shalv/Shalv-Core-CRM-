@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {fixture,payment,invoice,line,order} from './fixtures';
 import {auditSnapshot,reconcileSnapshot,mergeSnapshots,findReferences,nextDocumentNumber,assignDocumentNumbers,validatePaymentLinks,validateInvoiceDocument,milestoneInvoiceItems,newRecordId} from '../src/shared/integrity';
+import {rebaseLocalChanges} from '../src/context/useApplicationSync';
 const clone=<T>(value:T):T=>JSON.parse(JSON.stringify(value));
 const cache=new Map<string,string>();
 (globalThis as any).localStorage={getItem:(key:string)=>cache.get(key) ?? null,setItem:(key:string,value:string)=>cache.set(key,value)};
@@ -83,4 +84,33 @@ test('contract consumed hours reconcile from edited and deleted ticket records',
  const next=reconcileSnapshot({...base,supportTickets:[{id:'t1',customerId:'c1',contractId:'amc1',hoursLogged:5}]});assert.equal(next.amcContracts[0].consumedHours,5);
  const edited=reconcileSnapshot({...next,supportTickets:[{...next.supportTickets[0],hoursLogged:2}]});assert.equal(edited.amcContracts[0].consumedHours,2);
  assert.equal(reconcileSnapshot({...edited,supportTickets:[]}).amcContracts[0].consumedHours,0);
+});
+test('rebaseLocalChanges preserves user additions, deletions and edits across concurrent remote updates',()=>{
+ const base = {
+   customers: [
+     { id: 'c1', name: 'Original Customer 1', phone: '111' },
+     { id: 'c2', name: 'Original Customer 2', phone: '222' }
+   ]
+ };
+ const local = {
+   customers: [
+     { id: 'c1', name: 'Edited Customer 1', phone: '111' }, // Edited name
+     { id: 'c3', name: 'Newly Added Customer 3', phone: '333' } // Added c3, deleted c2
+   ]
+ };
+ const remote = {
+   customers: [
+     { id: 'c1', name: 'Original Customer 1', phone: '999' }, // Remote updated phone
+     { id: 'c2', name: 'Original Customer 2', phone: '222' },
+     { id: 'c4', name: 'Remote Session Customer 4', phone: '444' } // Remote added c4
+   ]
+ };
+ const rebased = rebaseLocalChanges(base, local, remote);
+ assert.equal(rebased.customers.length, 3);
+ const c1 = rebased.customers.find((c: any) => c.id === 'c1');
+ assert.equal(c1.name, 'Edited Customer 1'); // Local edit preserved
+ assert.equal(c1.phone, '999'); // Remote untouched field preserved
+ assert.ok(rebased.customers.some((c: any) => c.id === 'c3')); // Local addition preserved
+ assert.ok(rebased.customers.some((c: any) => c.id === 'c4')); // Remote addition preserved
+ assert.equal(rebased.customers.some((c: any) => c.id === 'c2'), false); // Local deletion preserved
 });

@@ -1714,6 +1714,7 @@ app.post('/api/state', async (req: Request, res: Response) => {
       if (merged.conflicts.length > 0) {
         return res.status(409).json({
           error: 'Conflict detected while merging state',
+          message: 'Another change occurred during saving. Reload saved data before continuing.',
           conflicts: merged.conflicts,
           snapshot: current,
         });

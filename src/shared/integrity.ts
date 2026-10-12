@@ -443,6 +443,15 @@ const DERIVED_FIELDS = new Set([
   'proformaInvoiceId',
   'proformaInvoiceNumber',
   'invoiceId',
+  'createdAt',
+  'createdDate',
+  'created_at',
+  'updated_at',
+  'modifiedAt',
+  'timestamp',
+  'assignedUserName',
+  'customerName',
+  'salesOrderNumber',
 ]);
 
 function hasDomainRecordChanged(before?: any, current?: any): boolean {
