@@ -518,7 +518,9 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
       nextPatch.email !== undefined ||
       nextPatch.name !== undefined ||
       nextPatch.role !== undefined ||
-      nextPatch.status !== undefined
+      nextPatch.status !== undefined ||
+      nextPatch.accessType !== undefined ||
+      nextPatch.syncedWithCrm !== undefined
     ) {
       const linkedCrmUser = users.find(
         (u) =>
@@ -526,6 +528,14 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
           (updated.email && u.email && u.email.trim().toLowerCase() === updated.email.trim().toLowerCase())
       );
       if (linkedCrmUser) {
+        const resolvedAccessType =
+          nextPatch.accessType !== undefined
+            ? nextPatch.accessType
+            : nextPatch.syncedWithCrm !== undefined
+              ? nextPatch.syncedWithCrm
+                ? 'crm_and_payroll'
+                : 'payroll_only'
+              : undefined;
         updateUser(linkedCrmUser.id, {
           ...(nextPatch.name !== undefined ? { name: nextPatch.name } : {}),
           ...(nextPatch.email !== undefined ? { email: nextPatch.email } : {}),
@@ -539,6 +549,12 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
             : {}),
           ...(nextPatch.role !== undefined ? { role: nextPatch.role as UserRole } : {}),
           ...(nextPatch.status !== undefined ? { status: nextPatch.status } : {}),
+          ...(resolvedAccessType !== undefined
+            ? {
+                accessType: resolvedAccessType,
+                accessScope: resolvedAccessType === 'payroll_only' ? 'payroll_only' : 'all',
+              }
+            : {}),
         });
       }
     }
@@ -778,8 +794,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
       next[targetId] = {
         ...oldRecord,
         userId: targetId,
-        password: preservedPass,
-        tempPassword: preservedPass,
+        ...(explicitPass ? { password: explicitPass, tempPassword: explicitPass } : {}),
         accessType: 'crm_and_payroll',
         syncedWithCrm: true,
         enrolledInPayroll: true,
