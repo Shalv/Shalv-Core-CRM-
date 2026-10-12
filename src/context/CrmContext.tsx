@@ -549,11 +549,10 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           const filtered = parsed.filter((u: any) => !isRemovedPredefinedUser(u)).map(sanitizeClientUser);
-          if (filtered.length > 0) {
-            return filtered;
-          }
+          localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(filtered));
+          return filtered;
         }
       } catch (e) { /* ignore */ }
     }
@@ -609,15 +608,29 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       } catch (e) { /* ignore */ }
     }
-    return activeUsersList[0] || sanitizeClientUser(INITIAL_USERS[0]);
+    return activeUsersList[0] || {
+      id: '',
+      name: '',
+      email: '',
+      role: 'Super Admin',
+      department: 'Executive',
+    };
   });
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     try {
+      const savedUserRaw = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+      if (savedUserRaw) {
+        const u = JSON.parse(savedUserRaw);
+        if (isRemovedPredefinedUser(u) || !u?.id) {
+          localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+          localStorage.removeItem(STORAGE_KEYS.IS_AUTHENTICATED);
+          return false;
+        }
+      }
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('portal') === 'payroll') {
         const urlEmail = (urlParams.get('email') || '').trim().toLowerCase();
-        const savedUserRaw = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
         const savedUser = savedUserRaw ? JSON.parse(savedUserRaw) : null;
         const savedEmail = (savedUser?.email || '').trim().toLowerCase();
         // If opening a Payroll login link for a specific user or switching from CRM into Payroll login portal,
@@ -635,7 +648,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (saved !== null) {
       try { return JSON.parse(saved); } catch (e) { /* ignore */ }
     }
-    return true;
+    return false;
   });
 
   const [states, setStates] = useState<StateMasterItem[]>(() => {
@@ -1322,7 +1335,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const parsedUsers = JSON.parse(savedUsersRaw);
         if (Array.isArray(parsedUsers)) {
           for (const su of parsedUsers) {
-            if (!su || !su.id) continue;
+            if (!su || !su.id || isRemovedPredefinedUser(su)) continue;
             const idx = allKnownUsers.findIndex((u) => u.id === su.id);
             if (idx >= 0) {
               allKnownUsers[idx] = { ...allKnownUsers[idx], ...su };
@@ -7876,8 +7889,16 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAuditLogs(INITIAL_AUDIT_LOGS);
     setSupplierCompany(SUPPLIER_COMPANY);
     setRolePermissions(DEFAULT_ROLE_PERMISSIONS);
-    setCurrentUser(INITIAL_USERS[0]);
-    setIsAuthenticated(true);
+    setCurrentUser(
+      INITIAL_USERS[0] || {
+        id: '',
+        name: '',
+        email: '',
+        role: 'Super Admin',
+        department: 'Executive',
+      }
+    );
+    setIsAuthenticated(INITIAL_USERS.length > 0);
   };
 
   const formatCurrency = (amount: number): string => {

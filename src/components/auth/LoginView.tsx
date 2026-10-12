@@ -486,7 +486,7 @@ export interface LoginViewProps {
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) => {
-  const { users, login, syncCredentialsFromServer, changeEmployeePassword, supplierCompany } = useCrm();
+  const { users, addUser, login, syncCredentialsFromServer, changeEmployeePassword, supplierCompany } = useCrm();
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const sim = useRef({ link: 140, linkT: 140, speed: 1, speedT: 1, gather: false });
@@ -674,6 +674,30 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
 
     setStatus('loading');
     sim.current.linkT = 260;
+
+    if (users.length === 0) {
+      const cleanEmail = email.trim().toLowerCase();
+      addUser({
+        name:
+          cleanEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) ||
+          'Super Admin',
+        email: cleanEmail,
+        username: cleanEmail.split('@')[0],
+        password: password.trim(),
+        tempPassword: password.trim(),
+        role: 'Super Admin',
+        department: 'Executive',
+        designation: 'Managing Director / Super Admin',
+        status: 'Active',
+      });
+      const res = login(cleanEmail, password.trim(), { portalMode: 'crm' });
+      if (res.success) {
+        setStatus('done');
+        sim.current.gather = true;
+        sim.current.linkT = 420;
+        return;
+      }
+    }
 
     let res: {success:boolean; message?:string};
     try {
@@ -918,8 +942,21 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
 
                 <h1 className="cl-h">Sign in to {companyName}</h1>
                 <p className="cl-sub">
-                  Welcome back. Enter your credentials to access your workspace.
+                  {users.length === 0
+                    ? 'No users currently exist. Enter a work email and password below to create your initial Super Admin account.'
+                    : 'Welcome back. Enter your credentials to access your workspace.'}
                 </p>
+
+                {users.length === 0 && (
+                  <div className="mb-5 p-3.5 bg-blue-50/90 border border-blue-200 rounded-xl text-slate-800 text-xs leading-relaxed">
+                    <div className="font-bold text-blue-900 flex items-center gap-1.5 mb-1">
+                      <span>🚀 Workspace Initial Setup</span>
+                    </div>
+                    <p className="text-slate-700 text-[11.5px]">
+                      Enter your desired work email and password below to automatically create your initial Super Admin account and enter the CRM workspace.
+                    </p>
+                  </div>
+                )}
 
                 {infoNotice && (
                   <div className="cl-alert-info">

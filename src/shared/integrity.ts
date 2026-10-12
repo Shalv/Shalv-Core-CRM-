@@ -213,6 +213,9 @@ export const REMOVED_PREDEFINED_USER_IDS = new Set([
 ]);
 
 export const REMOVED_PREDEFINED_USER_EMAILS = new Set([
+  'shalv@coreenact.com',
+  'shalv.sharma@coreenact.com',
+  'shalvpersonal@gmail.com',
   'tabassum@coreenact.com',
   'rohan.verma@coreenact.com',
   'priya.nair@coreenact.com',
@@ -225,7 +228,10 @@ export function isRemovedPredefinedUser(u: any): boolean {
   if (!u || typeof u !== 'object') return false;
   const id = String(u.id || u.userId || '').trim();
   const email = String(u.email || '').trim().toLowerCase();
-  return REMOVED_PREDEFINED_USER_IDS.has(id) || (Boolean(email) && REMOVED_PREDEFINED_USER_EMAILS.has(email));
+  return (
+    REMOVED_PREDEFINED_USER_IDS.has(id) ||
+    (Boolean(email) && REMOVED_PREDEFINED_USER_EMAILS.has(email))
+  );
 }
 
 /** Update display caches by immutable ID. Never guess a connection using a person's name. */
@@ -246,8 +252,8 @@ export function reconcileSnapshot(input: Snapshot, today = new Date().toISOStrin
     s.users = filteredUsers;
   }
   const adminUser =
-    rows(s, 'users').find((u: any) => String(u.id) === 'usr-1' || u.role === 'Super Admin') ||
-    rows(s, 'users')[0] || { id: 'usr-1', name: 'Shalv Sharma' };
+    rows(s, 'users').find((u: any) => u.role === 'Super Admin') ||
+    rows(s, 'users')[0] || null;
   const usersMap = new Map(rows(s, 'users').map((u: any) => [String(u.id), u]));
 
   // Reconcile relations: auto-reassign missing user owners to Admin and clear missing optional references
@@ -277,7 +283,13 @@ export function reconcileSnapshot(input: Snapshot, today = new Date().toISOStrin
   if (Array.isArray(s.activities)) {
     s.activities = rows(s, 'activities').map((act: any) => {
       if (act?.assignedUserId && !usersMap.has(String(act.assignedUserId))) {
-        return { ...act, assignedUserId: String(adminUser.id), assignedUserName: adminUser.name };
+        if (adminUser?.id) {
+          return { ...act, assignedUserId: String(adminUser.id), assignedUserName: adminUser.name };
+        }
+        const c = { ...act };
+        delete c.assignedUserId;
+        delete c.assignedUserName;
+        return c;
       }
       return act;
     });
@@ -285,7 +297,13 @@ export function reconcileSnapshot(input: Snapshot, today = new Date().toISOStrin
   if (Array.isArray(s.payments)) {
     s.payments = rows(s, 'payments').map((pay: any) => {
       if (pay?.recordedById && !usersMap.has(String(pay.recordedById))) {
-        return { ...pay, recordedById: String(adminUser.id), recordedByName: adminUser.name };
+        if (adminUser?.id) {
+          return { ...pay, recordedById: String(adminUser.id), recordedByName: adminUser.name };
+        }
+        const c = { ...pay };
+        delete c.recordedById;
+        delete c.recordedByName;
+        return c;
       }
       return pay;
     });
@@ -293,7 +311,13 @@ export function reconcileSnapshot(input: Snapshot, today = new Date().toISOStrin
   if (Array.isArray(s.purchaseOrders)) {
     s.purchaseOrders = rows(s, 'purchaseOrders').map((po: any) => {
       if (po?.approvedById && !usersMap.has(String(po.approvedById))) {
-        return { ...po, approvedById: String(adminUser.id), approvedByName: adminUser.name };
+        if (adminUser?.id) {
+          return { ...po, approvedById: String(adminUser.id), approvedByName: adminUser.name };
+        }
+        const c = { ...po };
+        delete c.approvedById;
+        delete c.approvedByName;
+        return c;
       }
       return po;
     });

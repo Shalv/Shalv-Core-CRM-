@@ -87,15 +87,14 @@ export const INITIAL_TAX_RATES: TaxRateMasterItem[] = [
 export const INITIAL_USERS: User[] = [
   {
     id: 'usr-1',
-    name: 'Shalv Sharma',
+    name: 'Admin',
     username: 'admin',
     email: 'admin@coreenact.com',
     role: 'Super Admin',
     department: 'Executive',
-    phone: '9810998290',
     designation: 'Managing Director / Super Admin',
     status: 'Active',
-    location: 'New Delhi',
+    accessScope: 'all',
   },
 ];
 

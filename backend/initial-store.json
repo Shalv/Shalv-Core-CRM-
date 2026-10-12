@@ -15,23 +15,14 @@
   "users": [
     {
       "id": "usr-1",
-      "name": "Shalv Sharma",
+      "name": "Admin",
       "username": "admin",
       "email": "admin@coreenact.com",
-      "passwordHash": "$2b$08$id5mmf8BQGhkPiGkeXsOV.AD96gtEc.3zpd/1gX5LdohGtmJflGvK",
       "phone": "9810998290",
       "role": "Super Admin",
       "department": "Executive",
       "designation": "Managing Director / Super Admin",
-      "status": "Active",
-      "location": "New Delhi",
-      "created_at": "2026-09-01T09:00:00Z",
-      "accessScope": "all",
-      "avatar": "",
-      "customPermissions": null,
-      "last_login_at": null,
-      "custom_permissions": null,
-      "updated_at": "2026-10-06T17:06:56.585Z"
+      "status": "Active"
     }
   ],
   "payroll_masters": [],
@@ -6406,22 +6397,14 @@
     "users": [
       {
         "id": "usr-1",
-        "name": "Shalv Sharma",
+        "name": "Admin",
         "username": "admin",
         "email": "admin@coreenact.com",
         "phone": "9810998290",
         "role": "Super Admin",
         "department": "Executive",
         "designation": "Managing Director / Super Admin",
-        "status": "Active",
-        "location": "New Delhi",
-        "created_at": "2026-09-01T09:00:00Z",
-        "accessScope": "all",
-        "avatar": "",
-        "customPermissions": null,
-        "last_login_at": null,
-        "custom_permissions": null,
-        "updated_at": "2026-10-06T17:06:56.585Z"
+        "status": "Active"
       }
     ],
     "milestoneTemplates": []

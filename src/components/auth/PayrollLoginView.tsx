@@ -6,20 +6,6 @@ interface PayrollLoginViewProps {
   onSwitchToCrmLogin?: () => void;
 }
 
-const RINGS = [
-  { r: 0.16, speed: 0.14, arcs: 2, width: 1.6, dot: true },
-  { r: 0.26, speed: -0.09, arcs: 3, width: 2.4, dot: true },
-  { r: 0.37, speed: 0.06, arcs: 2, width: 1.2, dot: false },
-  { r: 0.49, speed: -0.045, arcs: 3, width: 2.8, dot: true },
-  { r: 0.63, speed: 0.03, arcs: 4, width: 1.2, dot: false },
-];
-
-const ORBS = [
-  { c: '53,214,255', x: 0.18, y: 0.2, ax: 0.08, ay: 0.1, sx: 0.11, sy: 0.09, p: 0, r: 0.42 },
-  { c: '111,125,255', x: 0.7, y: 0.45, ax: 0.1, ay: 0.12, sx: 0.07, sy: 0.1, p: 2, r: 0.5 },
-  { c: '255,79,184', x: 0.85, y: 0.85, ax: 0.08, ay: 0.08, sx: 0.09, sy: 0.06, p: 4, r: 0.38 },
-];
-
 const payChakraAuroraCss = `
 .pca-root {
   --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
@@ -28,23 +14,23 @@ const payChakraAuroraCss = `
   --bg: #ffffff;
   --ink: #0f172a;
   --muted: #475569;
-  --line: rgba(15, 23, 42, 0.14);
-  --glass: rgba(255, 255, 255, 0.9);
+  --line: #e2e8f0;
   --field: #f8fafc;
   --cyan: #0284c7;
-  --blue: #4f46e5;
-  --pink: #db2777;
-  --grad: linear-gradient(100deg, #0284c7 0%, #4f46e5 48%, #db2777 100%);
+  --blue: #2563eb;
+  --pink: #d946ef;
+  --grad: linear-gradient(135deg, #0284c7 0%, #2563eb 50%, #4f46e5 100%);
   --on-grad: #ffffff;
-  --error: #dc2626;
-  --ok: #059669;
+  --error: #b91c1c;
+  --ok: #047857;
   color-scheme: light;
 
   position: relative;
   min-height: 100vh;
   width: 100%;
   margin: 0;
-  background: var(--bg);
+  background-color: #ffffff !important;
+  background: #ffffff !important;
   color: var(--ink);
   font: 15px/1.55 var(--font-body);
   padding-inline: 16px;
@@ -55,15 +41,6 @@ const payChakraAuroraCss = `
 
 .pca-root * {
   box-sizing: border-box;
-}
-
-.pca-bg {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 0;
-  display: block;
 }
 
 .pca-stage {
@@ -87,46 +64,44 @@ const payChakraAuroraCss = `
 
 .pca-brand img,
 .pca-brand svg {
-  width: 84px;
-  height: 84px;
+  width: 80px;
+  height: 80px;
   object-fit: contain;
   display: block;
-  filter: drop-shadow(0 6px 18px rgba(79, 70, 229, 0.22));
+  filter: drop-shadow(0 4px 12px rgba(37, 99, 235, 0.15));
 }
 
 .pca-brand span {
   font-family: var(--font-display);
-  font-weight: 600;
-  font-size: clamp(1.7rem, 4vw, 2.2rem);
-  letter-spacing: 0.01em;
-  color: var(--ink);
+  font-weight: 700;
+  font-size: clamp(1.8rem, 4vw, 2.3rem);
+  letter-spacing: -0.01em;
+  color: #0f172a;
 }
 
 .pca-intro h1 {
   font-family: var(--font-display);
-  font-weight: 500;
-  font-size: clamp(2.3rem, 5.2vw, 4rem);
-  line-height: 1.04;
-  letter-spacing: -0.015em;
-  margin: 34px 0 18px;
+  font-weight: 600;
+  font-size: clamp(2.3rem, 5.2vw, 3.8rem);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  margin: 32px 0 18px;
   text-wrap: balance;
-  color: var(--ink);
+  color: #0f172a;
 }
 
 .pca-intro h1 em {
   font-style: italic;
   padding-right: 0.06em;
-  background: var(--grad);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: #2563eb;
 }
 
 .pca-lede {
-  color: var(--muted);
+  color: #334155;
   max-width: 46ch;
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 1.08rem;
+  line-height: 1.6;
 }
 
 .pca-facts {
@@ -136,54 +111,52 @@ const payChakraAuroraCss = `
   margin: 40px 0 0;
   padding: 0;
   max-width: 620px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid #e2e8f0;
 }
 
 .pca-facts div {
   flex: 1 1 170px;
   min-width: 0;
-  padding: 16px 20px 0 0;
+  padding: 18px 20px 0 0;
 }
 
 .pca-facts div + div {
   padding-left: 20px;
-  border-left: 1px solid var(--line);
+  border-left: 1px solid #e2e8f0;
 }
 
 .pca-facts dt {
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: #64748b;
   margin: 0 0 6px;
 }
 
 .pca-facts dd {
   margin: 0;
   font-weight: 700;
-  font-size: 0.98rem;
+  font-size: 1.02rem;
   font-variant-numeric: tabular-nums;
-  color: var(--ink);
+  color: #0f172a;
 }
 
 .pca-facts dd small {
   display: block;
-  color: var(--cyan);
+  color: #0284c7;
   font-weight: 600;
-  font-size: 0.82rem;
-  margin-top: 2px;
+  font-size: 0.84rem;
+  margin-top: 3px;
 }
 
 /* ---------- Card ---------- */
 .pca-card {
-  background: var(--glass);
-  -webkit-backdrop-filter: blur(20px) saturate(1.25);
-  backdrop-filter: blur(20px) saturate(1.25);
-  border: 1px solid var(--line);
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: 24px;
-  padding: clamp(24px, 4vw, 40px);
-  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.09), 0 4px 16px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  padding: clamp(26px, 4vw, 42px);
+  box-shadow: 0 20px 45px -12px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(15, 23, 42, 0.04);
   min-width: 0;
 }
 
@@ -192,32 +165,33 @@ const payChakraAuroraCss = `
   gap: 6px;
   padding: 4px;
   border-radius: 12px;
-  background: var(--field);
-  border: 1px solid var(--line);
-  margin-bottom: 18px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  margin-bottom: 20px;
 }
 
 .pca-portal-tab {
   flex: 1;
   border: 0;
   border-radius: 9px;
-  padding: 7px 12px;
-  font: 700 0.76rem var(--font-body);
+  padding: 8px 12px;
+  font: 700 0.78rem var(--font-body);
   cursor: pointer;
   background: transparent;
-  color: var(--muted);
+  color: #475569;
   transition: all 0.2s ease;
   white-space: nowrap;
 }
 
 .pca-portal-tab:hover {
-  color: var(--ink);
+  color: #0f172a;
 }
 
 .pca-portal-tab.active {
-  background: rgba(79, 70, 229, 0.1);
-  color: var(--blue);
-  border: 1px solid rgba(79, 70, 229, 0.28);
+  background: #ffffff;
+  color: #1e293b;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   cursor: default;
 }
 
@@ -227,40 +201,45 @@ const payChakraAuroraCss = `
   gap: 8px;
   font-size: 0.74rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--cyan);
-  margin-bottom: 14px;
+  color: #0369a1;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  margin-bottom: 16px;
 }
 
 .pca-card h2 {
   font-family: var(--font-display);
-  font-weight: 500;
-  font-size: 2rem;
-  line-height: 1.1;
+  font-weight: 600;
+  font-size: 2.05rem;
+  line-height: 1.15;
   margin: 0 0 6px;
-  color: var(--ink);
+  color: #0f172a;
 }
 
 .pca-card .pca-sub {
-  color: var(--muted);
+  color: #475569;
   margin: 0 0 24px;
   font-size: 0.95rem;
+  line-height: 1.5;
 }
 
 .pca-field {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .pca-field label {
   font-weight: 700;
-  font-size: 0.74rem;
-  letter-spacing: 0.1em;
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: #334155;
 }
 
 .pca-input-wrap {
@@ -271,10 +250,10 @@ const payChakraAuroraCss = `
   width: 100%;
   height: 50px;
   padding: 0 18px;
-  color: var(--ink);
-  background: var(--field);
+  color: #0f172a;
+  background: #f8fafc;
   font: 500 0.96rem var(--font-body) !important;
-  border: 1px solid var(--line);
+  border: 1px solid #cbd5e1;
   border-radius: 12px;
   outline: 0;
   transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
@@ -285,17 +264,19 @@ const payChakraAuroraCss = `
 }
 
 .pca-input-wrap input:hover {
-  border-color: rgba(79, 70, 229, 0.35);
+  border-color: #94a3b8;
+  background: #ffffff;
 }
 
 .pca-input-wrap input:focus-visible {
-  border-color: var(--blue);
+  border-color: #2563eb;
   background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
 .pca-field.bad input {
-  border-color: var(--error);
+  border-color: #dc2626;
+  background: #fff5f5;
   animation: pca-shake 0.35s;
 }
 
@@ -306,8 +287,9 @@ const payChakraAuroraCss = `
 }
 
 .pca-err {
-  color: var(--error);
-  font-size: 0.82rem;
+  color: #b91c1c;
+  font-size: 0.84rem;
+  font-weight: 500;
   min-height: 1.2em;
   margin: 0;
 }
@@ -326,20 +308,21 @@ const payChakraAuroraCss = `
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: var(--muted);
-  font: 700 0.72rem var(--font-body);
+  color: #475569;
+  font: 700 0.74rem var(--font-body);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
+  transition: all 0.15s ease;
 }
 
 .pca-peek:hover {
-  color: var(--ink);
-  background: rgba(15, 23, 42, 0.06);
+  color: #0f172a;
+  background: #f1f5f9;
 }
 
 .pca-peek:focus-visible {
-  outline: 2px solid var(--blue);
+  outline: 2px solid #2563eb;
   outline-offset: 1px;
 }
 
@@ -357,9 +340,9 @@ const payChakraAuroraCss = `
   align-items: center;
   gap: 12px;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
   font-weight: 500;
-  color: var(--ink);
+  color: #1e293b;
 }
 
 .pca-switch input {
@@ -374,7 +357,7 @@ const payChakraAuroraCss = `
   height: 24px;
   border-radius: 999px;
   background: #e2e8f0;
-  border: 1px solid var(--line);
+  border: 1px solid #cbd5e1;
   position: relative;
   flex: none;
   transition: background 0.25s, border-color 0.25s;
@@ -392,36 +375,42 @@ const payChakraAuroraCss = `
 }
 
 .pca-switch input:checked + .pca-track {
-  background: var(--grad);
+  background: linear-gradient(135deg, #0284c7 0%, #2563eb 50%, #4338ca 100%);
   border-color: transparent;
 }
 
 .pca-switch input:checked + .pca-track .pca-knob {
   transform: translateX(20px);
-  background: #fff;
+  background: #ffffff;
 }
 
 .pca-switch input:focus-visible + .pca-track {
-  outline: 2px solid var(--blue);
+  outline: 2px solid #2563eb;
   outline-offset: 3px;
 }
 
 .pca-link {
-  color: var(--ink);
+  color: #2563eb;
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
   background: none;
   border: 0;
   padding: 0;
   cursor: pointer;
   text-decoration: underline;
-  text-decoration-color: var(--pink);
+  text-decoration-color: #93c5fd;
   text-underline-offset: 4px;
-  text-decoration-thickness: 2px;
+  text-decoration-thickness: 1.5px;
+  transition: color 0.15s, text-decoration-color 0.15s;
+}
+
+.pca-link:hover {
+  color: #1d4ed8;
+  text-decoration-color: #2563eb;
 }
 
 .pca-link:focus-visible {
-  outline: 2px solid var(--blue);
+  outline: 2px solid #2563eb;
   outline-offset: 3px;
   border-radius: 4px;
 }
@@ -432,23 +421,21 @@ const payChakraAuroraCss = `
   border: 0;
   border-radius: 12px;
   cursor: pointer;
-  background: var(--grad);
-  background-size: 160% 100%;
-  background-position: 0 0;
-  color: var(--on-grad);
+  background: linear-gradient(135deg, #0284c7 0%, #2563eb 50%, #4338ca 100%);
+  color: #ffffff;
   font: 800 1rem var(--font-body);
   letter-spacing: 0.02em;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 12px;
-  box-shadow: 0 12px 28px rgba(79, 70, 229, 0.28);
-  transition: background-position 0.5s ease, transform 0.15s, box-shadow 0.2s;
+  box-shadow: 0 10px 25px -4px rgba(37, 99, 235, 0.35);
+  transition: transform 0.15s, box-shadow 0.2s, opacity 0.2s;
 }
 
 .pca-go:hover {
-  background-position: 100% 0;
-  box-shadow: 0 14px 34px rgba(219, 39, 119, 0.28);
+  box-shadow: 0 14px 30px -4px rgba(37, 99, 235, 0.45);
+  transform: translateY(-1px);
 }
 
 .pca-go:active {
@@ -456,13 +443,13 @@ const payChakraAuroraCss = `
 }
 
 .pca-go:focus-visible {
-  outline: 2px solid var(--blue);
+  outline: 2px solid #2563eb;
   outline-offset: 3px;
 }
 
 .pca-go[disabled] {
   cursor: progress;
-  opacity: 0.9;
+  opacity: 0.85;
 }
 
 .pca-spin {
@@ -470,7 +457,7 @@ const payChakraAuroraCss = `
   height: 18px;
   border-radius: 50%;
   border: 3px solid rgba(255, 255, 255, 0.35);
-  border-top-color: var(--on-grad);
+  border-top-color: #ffffff;
   animation: pca-rot 0.7s linear infinite;
 }
 
@@ -480,50 +467,30 @@ const payChakraAuroraCss = `
 
 .pca-status {
   margin: 14px 0 0;
-  min-height: 2em;
+  padding: 10px 14px;
+  border-radius: 10px;
   font-size: 0.88rem;
-  color: var(--muted);
+  font-weight: 500;
+  line-height: 1.45;
 }
 
 .pca-status.ok {
-  color: var(--ok);
+  color: #047857;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
 }
 
 .pca-status.bad {
-  color: var(--error);
-}
-
-.pca-demos {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.pca-demo-btn {
-  border: 1px solid var(--line);
-  cursor: pointer;
-  border-radius: 999px;
-  padding: 5px 12px;
-  font: 600 0.74rem var(--font-body);
-  background: var(--field);
-  color: var(--muted);
-  transition: border-color 0.2s, color 0.2s;
-}
-
-.pca-demo-btn:hover {
-  border-color: var(--cyan);
-  color: var(--ink);
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
 }
 
 .pca-foot {
-  margin: 16px 0 0;
-  font-size: 0.8rem;
-  color: var(--muted);
+  margin: 18px 0 0;
+  font-size: 0.82rem;
+  color: #64748b;
+  line-height: 1.45;
 }
 
 @media (max-width: 860px) {
@@ -558,156 +525,6 @@ function PayChakraAuroraEmblem({ logoUrl, companyName }: { logoUrl?: string; com
   return <SwirlingRibbonEmblem />;
 }
 
-function AuroraBackground() {
-  const ref = useRef<HTMLCanvasElement | null>(null);
-
-  useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const fine = window.matchMedia('(hover: hover)').matches;
-    let w = 0;
-    let h = 0;
-    let base = 0;
-    let raf = 0;
-    let last = 0;
-    const pointer = { x: 0, y: 0, tx: 0, ty: 0 };
-    const dust = Array.from({ length: 70 }, () => ({
-      x: Math.random(),
-      y: Math.random(),
-      s: 0.004 + Math.random() * 0.012,
-      a: 0.2 + Math.random() * 0.6,
-      p: Math.random() * 6.28,
-    }));
-
-    function draw(t: number, dt: number) {
-      if (!ctx) return;
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, w, h);
-
-      for (const o of ORBS) {
-        const x = w * (o.x + o.ax * Math.sin(t * o.sx + o.p));
-        const y = h * (o.y + o.ay * Math.cos(t * o.sy + o.p));
-        const rad = base * o.r;
-        const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
-        g.addColorStop(0, `rgba(${o.c},0.11)`);
-        g.addColorStop(1, `rgba(${o.c},0)`);
-        ctx.fillStyle = g;
-        ctx.fillRect(x - rad, y - rad, rad * 2, rad * 2);
-      }
-
-      pointer.x += (pointer.tx - pointer.x) * 0.04;
-      pointer.y += (pointer.ty - pointer.y) * 0.04;
-      const wide = w >= 860;
-      const cx = (wide ? w * 0.72 : w * 0.5) + pointer.x * 22;
-      const cy = (wide ? h * 0.5 : h * 0.3) + pointer.y * 22;
-      ctx.lineCap = 'round';
-
-      RINGS.forEach((ring, i) => {
-        const rad = base * ring.r * (1 + 0.015 * Math.sin(t * 0.5 + i));
-        ctx.globalAlpha = 1;
-        ctx.strokeStyle = 'rgba(79, 70, 229, 0.10)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(cx, cy, rad, 0, Math.PI * 2);
-        ctx.stroke();
-
-        const grad = ctx.createLinearGradient(cx - rad, cy, cx + rad, cy);
-        grad.addColorStop(0, '#0284c7');
-        grad.addColorStop(0.5, '#4f46e5');
-        grad.addColorStop(1, '#db2777');
-        const span = (Math.PI * 2) / ring.arcs;
-        for (let k = 0; k < ring.arcs; k++) {
-          const start = t * ring.speed + k * span + i;
-          const end = start + span * 0.55;
-          ctx.globalAlpha = 0.55;
-          ctx.strokeStyle = grad;
-          ctx.lineWidth = ring.width;
-          ctx.beginPath();
-          ctx.arc(cx, cy, rad, start, end);
-          ctx.stroke();
-
-          if (ring.dot) {
-            const dx = cx + rad * Math.cos(end);
-            const dy = cy + rad * Math.sin(end);
-            ctx.globalAlpha = 0.9;
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = 'rgba(79, 70, 229, 0.45)';
-            ctx.fillStyle = '#4f46e5';
-            ctx.beginPath();
-            ctx.arc(dx, dy, 3.2, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.shadowBlur = 0;
-          }
-        }
-      });
-
-      ctx.globalAlpha = 1;
-      for (const d of dust) {
-        d.y -= d.s * dt;
-        if (d.y < -0.02) {
-          d.y = 1.02;
-          d.x = Math.random();
-        }
-        const a = d.a * (0.5 + 0.5 * Math.sin(t * 1.2 + d.p)) * 0.35;
-        ctx.fillStyle = `rgba(79, 70, 229, ${a.toFixed(3)})`;
-        ctx.fillRect(d.x * w, d.y * h, 1.5, 1.5);
-      }
-
-      ctx.globalCompositeOperation = 'source-over';
-      const shade = ctx.createLinearGradient(0, 0, w * (wide ? 0.6 : 1), 0);
-      shade.addColorStop(0, 'rgba(255, 255, 255, 0.72)');
-      shade.addColorStop(1, 'rgba(255, 255, 255, 0)');
-      ctx.fillStyle = shade;
-      ctx.fillRect(0, 0, w, h);
-    }
-
-    function resize() {
-      if (!canvas || !ctx) return;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      w = window.innerWidth;
-      h = window.innerHeight;
-      base = Math.hypot(w, h) / 2;
-      canvas.width = Math.round(w * dpr);
-      canvas.height = Math.round(h * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      if (reduce) draw(4, 0);
-    }
-
-    function loop(now: number) {
-      const t = now / 1000;
-      const dt = last ? Math.min(t - last, 0.1) : 0.016;
-      last = t;
-      draw(t, dt);
-      raf = requestAnimationFrame(loop);
-    }
-
-    const onMove = (e: PointerEvent) => {
-      pointer.tx = (e.clientX / w - 0.5) * 2;
-      pointer.ty = (e.clientY / h - 0.5) * 2;
-    };
-
-    resize();
-    window.addEventListener('resize', resize);
-    if (!reduce) {
-      raf = requestAnimationFrame(loop);
-      if (fine) window.addEventListener('pointermove', onMove);
-    }
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener('resize', resize);
-      window.removeEventListener('pointermove', onMove);
-    };
-  }, []);
-
-  return <canvas ref={ref} className="pca-bg" aria-hidden="true" />;
-}
-
 function nextPayRun(now = new Date()) {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const payday = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -718,6 +535,7 @@ function nextPayRun(now = new Date()) {
 
 export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCrmLogin }) => {
   const {
+    users,
     login,
     syncCredentialsFromServer,
     changeEmployeePassword,
@@ -930,7 +748,6 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
   return (
     <div className="pca-root">
       <style>{payChakraAuroraCss}</style>
-      <AuroraBackground />
 
       <main className="pca-stage">
         <section className="pca-intro" aria-label="About PayChakra">
@@ -1016,8 +833,31 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
             <>
               <h2 id="login-title">Welcome back</h2>
               <p className="pca-sub">
-                Use your employee code or work email to open this month&apos;s payslip.
+                {users.length === 0
+                  ? 'No employees are registered yet. Sign in through the CRM workspace to set up your administrator account and enroll employees.'
+                  : "Use your employee code or work email to open this month's payslip."}
               </p>
+
+              {users.length === 0 && (
+                <div
+                  style={{
+                    marginBottom: 18,
+                    padding: '12px 14px',
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 12,
+                    fontSize: '0.84rem',
+                    color: '#334155',
+                  }}
+                >
+                  <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>
+                    No Active Employees
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>
+                    All user accounts have been removed. Switch to the Enterprise CRM tab above to initialize your Super Admin account.
+                  </p>
+                </div>
+              )}
 
               <form onSubmit={handleSubmit} noValidate>
                 <div className={`pca-field${errors.empId ? ' bad' : ''}`}>

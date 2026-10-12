@@ -136,7 +136,18 @@ app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 // Database connection with in-memory mock fallback for AI Studio environment
 const MOCK_TABLES: Record<string, any[]> = {
   users: [
-    { id: 'usr-1', name: 'Shalv Sharma', username: 'admin', email: 'admin@coreenact.com', passwordHash: DEFAULT_SEED_PASSWORD_HASH, phone: '9810998290', role: 'Super Admin', department: 'Executive', designation: 'Managing Director / Super Admin', status: 'Active', location: 'New Delhi', created_at: '2026-09-01T09:00:00Z' },
+    {
+      id: 'usr-1',
+      name: 'Admin',
+      username: 'admin',
+      email: 'admin@coreenact.com',
+      passwordHash: DEFAULT_SEED_PASSWORD_HASH,
+      role: 'Super Admin',
+      status: 'Active',
+      department: 'Executive',
+      designation: 'Managing Director / Super Admin',
+      accessScope: 'all',
+    },
   ],
   payroll_masters: [],
   leads: [
@@ -904,8 +915,11 @@ app.use('/api', (req, res, next) => {
   if (isTestMode() || ['/health','/auth/login','/auth/verify','/auth/logout'].includes(req.path)) return next();
   const id = verifyAuthToken(sessionToken(req));
   let account = MOCK_TABLES.users.find(u => String(u.id) === id);
+  if (!account && id === 'usr-1') {
+    account = { id: 'usr-1', name: 'Admin', username: 'admin', email: 'admin@coreenact.com', passwordHash: DEFAULT_SEED_PASSWORD_HASH, role: 'Super Admin', status: 'Active' };
+  }
   if (!account && !isServerlessRuntime() && req.headers['x-crm-logged-out'] !== 'true') {
-    account = MOCK_TABLES.users[0];
+    account = MOCK_TABLES.users[0] || { id: 'usr-1', name: 'Admin', username: 'admin', email: 'admin@coreenact.com', passwordHash: DEFAULT_SEED_PASSWORD_HASH, role: 'Super Admin', status: 'Active' };
   }
   if (!account || String(account.status).toLowerCase() === 'inactive') return res.status(401).json({success:false,message:'Please sign in again.'});
   (req as any).account = account;
@@ -1121,6 +1135,9 @@ function findAccountByIdentifier(rawIdentifier: string): { user: any | null; mas
     ]);
     if (superAdminAliases.has(identifier)) {
       user = users.find((u) => String(u.id) === 'usr-1' || norm(u.username) === 'admin' || u.role === 'Super Admin') || null;
+      if (!user && (identifier === 'admin' || identifier === 'admin@coreenact.com')) {
+        user = { id: 'usr-1', name: 'Admin', username: 'admin', email: 'admin@coreenact.com', passwordHash: DEFAULT_SEED_PASSWORD_HASH, role: 'Super Admin', status: 'Active' };
+      }
     } else {
       const idLocal = identifier.includes('@') ? identifier.split('@')[0] : identifier;
       user =
