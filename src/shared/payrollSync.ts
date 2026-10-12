@@ -30,7 +30,10 @@ export async function flushPayrollWrites():Promise<void> {
   try {
     while(read().length) {
       const write=read()[0];
-      const response=await fetch(write.url,write.init);
+      let token:string|null=null;
+      try{token=localStorage.getItem('crm_auth_token');}catch{/* ignore */}
+      const initHeaders=token ? {...(write.init?.headers as Record<string,string> || {}),Authorization:`Bearer ${token}`} : write.init?.headers;
+      const response=await fetch(write.url,initHeaders ? {...write.init,headers:initHeaders} : write.init);
       const result=await response.json();
       if(response.status===409 || response.status===400 || response.status===404 || response.status===422) {
         paused=true;publish('conflict',result.message || 'Payroll changes conflict with saved data. Load saved payroll data before continuing.');return;

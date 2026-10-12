@@ -1454,8 +1454,15 @@ app.post('/api/state', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'snapshot is required' });
     }
 
-    // Capture any explicit passwords passed on incoming users before sanitizing for three-way merge
+    // Capture any explicit passwords passed on incoming users or userPasswords map before sanitizing for three-way merge
     const explicitIncomingPasswordByUserId = new Map<string, string>();
+    if (req.body?.userPasswords && typeof req.body.userPasswords === 'object') {
+      for (const [uid, rawP] of Object.entries(req.body.userPasswords)) {
+        if (uid && typeof rawP === 'string' && rawP.trim()) {
+          explicitIncomingPasswordByUserId.set(String(uid), rawP.trim());
+        }
+      }
+    }
     if (Array.isArray(incoming.users)) {
       for (const u of incoming.users) {
         if (u && u.id) {
@@ -1502,7 +1509,29 @@ app.post('/api/state', async (req: Request, res: Response) => {
 
     let candidate: Snapshot = sanitizedIncoming;
     if (PERSISTED_CRM_STATE.stateInitialized && sanitizedBase && !force) {
-      const merged = mergeSnapshots(sanitizedBase, sanitizedIncoming, current);
+      // Align users slice when /api/users or /api/payroll/masters already persisted the user before /api/state arrived
+      const incomingUserMap = new Map<string, any>(
+        (Array.isArray(sanitizedIncoming.users) ? sanitizedIncoming.users : [])
+          .filter((u: any) => u && u.id)
+          .map((u: any) => [String(u.id), u])
+      );
+      const currentForMerge: Snapshot = {
+        ...current,
+        users: (Array.isArray(current.users) ? current.users : []).map((cu: any) => {
+          const inc = cu?.id ? incomingUserMap.get(String(cu.id)) : undefined;
+          return inc ? sanitizeUserForClient({ ...cu, ...inc, empCode: inc.empCode || cu.empCode }) : cu;
+        }),
+      };
+      const incomingForMerge: Snapshot = {
+        ...sanitizedIncoming,
+        users: (Array.isArray(sanitizedIncoming.users) ? sanitizedIncoming.users : []).map((inc: any) => {
+          const cu = (Array.isArray(current.users) ? current.users : []).find(
+            (r: any) => r && String(r.id) === String(inc?.id)
+          );
+          return cu ? sanitizeUserForClient({ ...cu, ...inc, empCode: inc.empCode || cu.empCode }) : inc;
+        }),
+      };
+      const merged = mergeSnapshots(sanitizedBase, incomingForMerge, currentForMerge);
       if (merged.conflicts.length > 0) {
         return res.status(409).json({
           error: 'Conflict detected while merging state',
@@ -1552,10 +1581,17 @@ app.post('/api/state', async (req: Request, res: Response) => {
       const updatedUsers = canonical.users.map((u: any) => {
         const uid = String(u.id);
         const prev = prevById.get(uid);
+        const linkedMaster = PERSISTED_CRM_STATE.payrollMasters?.[uid];
         const explicitPass = explicitIncomingPasswordByUserId.get(uid);
         const passwordHash = explicitPass
           ? hashPassword(explicitPass)
-          : resolveRecordPasswordHash(u, prev);
+          : resolveRecordPasswordHash(u, prev, linkedMaster);
+        if (explicitPass && linkedMaster) {
+          PERSISTED_CRM_STATE.payrollMasters[uid] = stripPlaintextAndResetFlags({
+            ...linkedMaster,
+            passwordHash,
+          });
+        }
         return stripPlaintextAndResetFlags({
           ...prev,
           ...u,

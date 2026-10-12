@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
-import {Snapshot, same, mergeSnapshots, reconcileSnapshot, IntegrityIssue} from '../shared/integrity';
+import {Snapshot, same, mergeSnapshots, reconcileSnapshot, IntegrityIssue, getPendingUserPasswords} from '../shared/integrity';
 export type SyncStatus = {state:'connecting'|'saved'|'saving'|'offline'|'conflict'; message:string; issues:IntegrityIssue[]};
 async function readState(response: Response) {
   if (!response.ok) throw new Error(`Application API returned HTTP ${response.status}. Check that the full application server is running.`);
@@ -71,7 +71,8 @@ export function useApplicationSync(snapshot:Snapshot, apply:(snapshot:Snapshot)=
         // Persist the exact baseline too, so reopening cannot overwrite intervening changes.
         localStorage.setItem(PENDING_KEY,JSON.stringify({base:base.current,snapshot:outgoing}));
         setStatus(s=>({...s,state:'saving',message:'Saving linked records…'}));
-        const response=await fetch('/api/state',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({base:base.current,snapshot:outgoing})});
+        const userPasswords=getPendingUserPasswords();
+        const response=await fetch('/api/state',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({base:base.current,snapshot:outgoing,...(Object.keys(userPasswords).length ? {userPasswords} : {})})});
         const result=await response.json();
         if(response.status===409 || response.status===422) {
           blocked.current=true;

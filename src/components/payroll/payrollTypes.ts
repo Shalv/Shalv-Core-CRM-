@@ -1,5 +1,16 @@
 import { User, UserRole } from '../../types';
 import { mergeDayLog, type AttendanceDayLog } from './attendanceLog';
+import { recordPendingUserPassword } from '../../shared/integrity';
+
+function payrollAuthHeaders(extra: Record<string, string> = { 'Content-Type': 'application/json' }): Record<string, string> {
+  let token: string | null = null;
+  try {
+    token = localStorage.getItem('crm_auth_token');
+  } catch {
+    /* ignore */
+  }
+  return token ? { ...extra, Authorization: `Bearer ${token}` } : extra;
+}
 
 export type EssTabKey =
   | 'overview'
@@ -628,7 +639,7 @@ export const savePayrollOrgMasters = (
     if (prevJson !== nextJson) {
       fetch('/api/payroll/org-masters', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: payrollAuthHeaders(),
         body: JSON.stringify({ orgMasters: masters }),
       }).catch(() => {});
     }
@@ -663,7 +674,7 @@ export const clearAllPayrollData = (): void => {
     keysToRemove.forEach((k) => localStorage.removeItem(k));
     fetch('/api/sync/push', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: payrollAuthHeaders(),
       body: JSON.stringify({
         replacePayrollMasters: true,
         payrollMasters: {},
@@ -865,6 +876,7 @@ export const saveEmployeeSalaryMasters = (
       if (v && typeof v === 'object') {
         if (v.password || v.tempPassword) {
           hasExplicitPasswordUpdate = true;
+          recordPendingUserPassword(v.userId || k, v.password || v.tempPassword);
         }
         sanitizedForStorage[k] = sanitizeClientPayrollMaster(v);
       }
@@ -876,9 +888,10 @@ export const saveEmployeeSalaryMasters = (
     // and applies delete tombstones.
     fetch('/api/payroll/masters', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: payrollAuthHeaders(),
       body: JSON.stringify({
         masters,
+        patch: !allowEmptyOverwrite,
         deletedUserIds: getDeletedPayrollMasterIds(),
         clearedUserIds,
       }),

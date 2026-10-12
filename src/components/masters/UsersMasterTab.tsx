@@ -302,7 +302,7 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
       name: u.name,
       username: u.username || u.email.split('@')[0],
       email: u.email,
-      password: u.password || 'password123',
+      password: '',
       phone: u.phone || '',
       designation: u.designation || '',
       location: u.location || 'New Delhi HQ',
@@ -443,8 +443,16 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
 
     let targetUserId = editingUserId;
 
+    const explicitPassword = form.password.trim();
+
     if (editingUserId) {
-      updateUser(editingUserId, form);
+      const userPatch = { ...form } as Partial<User>;
+      if (!explicitPassword) {
+        delete userPatch.password;
+      } else {
+        userPatch.password = explicitPassword;
+      }
+      updateUser(editingUserId, userPatch);
       if (permPreset === 'role_default') {
         updateUserCustomPermissions(editingUserId, undefined);
       } else {
@@ -453,6 +461,7 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
     } else {
       const created = addUser({
         ...form,
+        password: explicitPassword || 'password123',
         customPermissions: permPreset === 'role_default' ? undefined : permsDraft,
       });
       targetUserId = created.id;
@@ -470,15 +479,17 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
       }
       if (alsoCreateInPayroll) {
         const prevMaster = updatedMasters[targetUserId] || existingEmailMaster;
-        const finalPass = form.password.trim() || prevMaster?.password || 'password123';
+        const finalPass = editingUserId
+          ? explicitPassword || prevMaster?.password || undefined
+          : explicitPassword || prevMaster?.password || 'password123';
         updatedMasters[targetUserId] = {
           ...prevMaster,
           userId: targetUserId,
           empCode: resolvedEmpCode,
           name: form.name.trim(),
+          username: form.username.trim() || form.email.trim().split('@')[0],
           email: form.email.trim(),
-          password: finalPass,
-          tempPassword: finalPass,
+          ...(finalPass ? { password: finalPass, tempPassword: finalPass } : {}),
           accessType: prevMaster?.accessType || 'crm_and_payroll',
           phone: form.phone.trim(),
           role: form.role,
@@ -1398,7 +1409,47 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="font-bold text-slate-700 block">
+                          {editingUserId ? 'New Login Password' : 'Login Password *'}
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setForm({ ...form, password: 'password123' })}
+                          className="text-[11px] font-semibold text-indigo-600 hover:underline cursor-pointer"
+                        >
+                          Use password123
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          required={!editingUserId}
+                          value={form.password}
+                          onChange={(e) => setForm({ ...form, password: e.target.value })}
+                          placeholder={
+                            editingUserId
+                              ? 'Leave blank to keep current password'
+                              : 'Set login password (e.g. password123)'
+                          }
+                          className="w-full bg-indigo-50/50 border border-indigo-200 rounded-xl pl-3 pr-9 py-2 text-xs font-mono font-bold text-indigo-950"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((prev) => !prev)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800 cursor-pointer"
+                          title={showPassword ? 'Hide password' : 'Show password'}
+                        >
+                          {showPassword ? (
+                            <EyeOff className="w-4 h-4" />
+                          ) : (
+                            <Eye className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
                     <div>
                       <label className="font-bold text-slate-700 block mb-1">
                         Designation / Title

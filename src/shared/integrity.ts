@@ -2,6 +2,34 @@
 export type Snapshot = Record<string, any>;
 export type IntegrityIssue = { key: string; slice: string; id: string; field: string; message: string };
 export const same = (a: any, b: any): boolean => JSON.stringify(a) === JSON.stringify(b);
+
+const PENDING_USER_PASSWORDS_KEY = 'crm_pending_user_passwords_v1';
+const memoryPendingPasswords: Record<string, string> = {};
+
+export function recordPendingUserPassword(userId: string, password?: string): void {
+  if (!userId || !password?.trim()) return;
+  const cleanId = String(userId).trim();
+  const cleanPass = password.trim();
+  memoryPendingPasswords[cleanId] = cleanPass;
+  try {
+    const raw = localStorage.getItem(PENDING_USER_PASSWORDS_KEY);
+    const map = raw ? JSON.parse(raw) : {};
+    map[cleanId] = cleanPass;
+    localStorage.setItem(PENDING_USER_PASSWORDS_KEY, JSON.stringify(map));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function getPendingUserPasswords(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(PENDING_USER_PASSWORDS_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return { ...parsed, ...memoryPendingPasswords };
+  } catch {
+    return { ...memoryPendingPasswords };
+  }
+}
 export const money = (value: number): number => Math.round((value + Number.EPSILON) * 100) / 100;
 export const rows = (s: Snapshot, key: string): any[] => Array.isArray(s[key]) ? s[key] : [];
 let idCounter = 0;

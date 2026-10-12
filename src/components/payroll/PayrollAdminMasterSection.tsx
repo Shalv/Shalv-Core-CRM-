@@ -229,6 +229,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
 
   const [editingClaimId, setEditingClaimId] = useState<string | null>(null);
   const [editingClaimDraft, setEditingClaimDraft] = useState<ExpenseClaimItem | null>(null);
+  const [editEmpPasswordDraft, setEditEmpPasswordDraft] = useState('');
 
   // Build employee list ONLY from actual enrolled employees in employeeSalaryMasters
   const unifiedEmployeeList = React.useMemo(() => {
@@ -1585,14 +1586,18 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                   </div>
                 </div>
 
-                {/* SECTION 3: CRM CREDENTIALS & MODULE ACCESS ALLOCATION (IF ALSO CREATE IN CRM = YES) */}
-                {alsoCreateInCrm && (
-                  <div className="p-3 rounded-xl bg-indigo-50/50 border border-indigo-200/80 space-y-2.5">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="font-bold text-indigo-950 uppercase tracking-wider text-[10px] flex items-center gap-1.5">
-                        <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
-                        <span>3. CRM Login Credentials &amp; Module Permissions Allocation</span>
-                      </div>
+                {/* SECTION 3: LOGIN CREDENTIALS & MODULE ACCESS ALLOCATION (ALWAYS VISIBLE FOR BOTH PAYROLL-ONLY & CRM+PAYROLL) */}
+                <div className="p-3 rounded-xl bg-indigo-50/50 border border-indigo-200/80 space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="font-bold text-indigo-950 uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>
+                        {alsoCreateInCrm
+                          ? '3. Login Credentials & CRM Module Permissions Allocation'
+                          : '3. Employee Portal Login Credentials'}
+                      </span>
+                    </div>
+                    {alsoCreateInCrm && (
                       <button
                         type="button"
                         onClick={() => setShowCustomPermMatrix(!showCustomPermMatrix)}
@@ -1605,40 +1610,43 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                             : 'Customize 15 CRM Modules'}
                         </span>
                       </button>
-                    </div>
+                    )}
+                  </div>
 
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
-                          CRM Username
-                        </label>
-                        <input
-                          type="text"
-                          value={newUserDraft.username}
-                          onChange={(e) =>
-                            setNewUserDraft({ ...newUserDraft, username: e.target.value })
-                          }
-                          placeholder="rohan.mehta"
-                          className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono"
-                        />
-                      </div>
-                      <div>
-                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
-                          CRM Password
-                        </label>
-                        <input
-                          type="text"
-                          value={newUserDraft.password}
-                          onChange={(e) =>
-                            setNewUserDraft({
-                              ...newUserDraft,
-                              password: e.target.value,
-                              tempPassword: e.target.value,
-                            })
-                          }
-                          className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-indigo-700"
-                        />
-                      </div>
+                  <div className={`grid ${alsoCreateInCrm ? 'grid-cols-3' : 'grid-cols-2'} gap-2`}>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        Login Username
+                      </label>
+                      <input
+                        type="text"
+                        value={newUserDraft.username}
+                        onChange={(e) =>
+                          setNewUserDraft({ ...newUserDraft, username: e.target.value })
+                        }
+                        placeholder="e.g. rohan.mehta"
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        Login Password *
+                      </label>
+                      <input
+                        type="text"
+                        value={newUserDraft.password}
+                        onChange={(e) =>
+                          setNewUserDraft({
+                            ...newUserDraft,
+                            password: e.target.value,
+                            tempPassword: e.target.value,
+                          })
+                        }
+                        placeholder="Set login password (e.g. Welcome@123)"
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-indigo-700"
+                      />
+                    </div>
+                    {alsoCreateInCrm && (
                       <div>
                         <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
                           CRM Access Preset
@@ -1661,54 +1669,54 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                           <option value="custom">Custom Module Allocation</option>
                         </select>
                       </div>
-                    </div>
-
-                    {showCustomPermMatrix && (
-                      <div className="bg-white rounded-lg border border-indigo-200 overflow-hidden max-h-48 overflow-y-auto">
-                        <table className="w-full text-left text-[11px] whitespace-nowrap">
-                          <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 sticky top-0">
-                            <tr>
-                              <th className="py-1.5 px-2.5">CRM Module</th>
-                              <th className="py-1.5 px-2 text-center">View</th>
-                              <th className="py-1.5 px-2 text-center">Create</th>
-                              <th className="py-1.5 px-2 text-center">Edit</th>
-                              <th className="py-1.5 px-2 text-center">Delete</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {ALL_CRM_MODULES.map((m) => {
-                              const p = customPermsDraft[m.id] || {
-                                view: false,
-                                create: false,
-                                edit: false,
-                                delete: false,
-                              };
-                              return (
-                                <tr key={m.id} className="hover:bg-slate-50">
-                                  <td className="py-1 px-2.5 font-semibold text-slate-800">
-                                    {m.label}
-                                  </td>
-                                  {(['view', 'create', 'edit', 'delete'] as PermissionAction[]).map(
-                                    (act) => (
-                                      <td key={act} className="py-1 px-2 text-center">
-                                        <input
-                                          type="checkbox"
-                                          checked={!!p[act]}
-                                          onChange={() => toggleDraftModulePerm(m.id, act)}
-                                          className="rounded border-slate-300 text-indigo-600 cursor-pointer"
-                                        />
-                                      </td>
-                                    )
-                                  )}
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
                     )}
                   </div>
-                )}
+
+                  {alsoCreateInCrm && showCustomPermMatrix && (
+                    <div className="bg-white rounded-lg border border-indigo-200 overflow-hidden max-h-48 overflow-y-auto">
+                      <table className="w-full text-left text-[11px] whitespace-nowrap">
+                        <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 sticky top-0">
+                          <tr>
+                            <th className="py-1.5 px-2.5">CRM Module</th>
+                            <th className="py-1.5 px-2 text-center">View</th>
+                            <th className="py-1.5 px-2 text-center">Create</th>
+                            <th className="py-1.5 px-2 text-center">Edit</th>
+                            <th className="py-1.5 px-2 text-center">Delete</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {ALL_CRM_MODULES.map((m) => {
+                            const p = customPermsDraft[m.id] || {
+                              view: false,
+                              create: false,
+                              edit: false,
+                              delete: false,
+                            };
+                            return (
+                              <tr key={m.id} className="hover:bg-slate-50">
+                                <td className="py-1 px-2.5 font-semibold text-slate-800">
+                                  {m.label}
+                                </td>
+                                {(['view', 'create', 'edit', 'delete'] as PermissionAction[]).map(
+                                  (act) => (
+                                    <td key={act} className="py-1 px-2 text-center">
+                                      <input
+                                        type="checkbox"
+                                        checked={!!p[act]}
+                                        onChange={() => toggleDraftModulePerm(m.id, act)}
+                                        className="rounded border-slate-300 text-indigo-600 cursor-pointer"
+                                      />
+                                    </td>
+                                  )
+                                )}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
 
                 <div className="flex items-center gap-2 pt-1">
                   <button
@@ -1766,16 +1774,43 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                 </div>
 
                 {/* Direct Credentials & Link Quick Access */}
-                <div className="flex items-center justify-between bg-amber-50/70 border border-amber-200 rounded-lg p-2">
-                  <div className="flex items-center gap-1.5 text-amber-900 font-semibold text-[11px] min-w-0 truncate">
-                    <Key className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                    <span className="shrink-0">Portal Access:</span>
-                    <span className="font-mono text-slate-700 truncate">
+                <div className="flex flex-wrap items-center justify-between gap-2 bg-amber-50/70 border border-amber-200 rounded-lg p-2.5">
+                  <div className="flex items-center gap-1.5 text-amber-900 font-semibold text-xs min-w-0 truncate">
+                    <Key className="w-4 h-4 text-amber-700 shrink-0" />
+                    <span className="shrink-0">Portal Login:</span>
+                    <span className="font-mono text-slate-800 font-bold truncate">
                       {targetMaster.email || targetEntry?.email}
                     </span>
-                    <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-200/70 text-amber-900 shrink-0">
+                    <span className="text-slate-500 font-mono text-[11px] shrink-0">
+                      ({targetMaster.empCode})
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-200/70 text-amber-900 shrink-0">
                       {targetMaster.accessType === 'payroll_only' ? 'Payroll-Only' : 'CRM + Payroll'}
                     </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <input
+                      type="text"
+                      value={editEmpPasswordDraft}
+                      onChange={(e) => setEditEmpPasswordDraft(e.target.value)}
+                      placeholder="Set new login password..."
+                      className="bg-white border border-amber-300 rounded-lg px-2.5 py-1 text-xs font-mono text-slate-900 w-48"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!targetEntry) return;
+                        if (!editEmpPasswordDraft.trim()) {
+                          setStatusBanner('Please enter a password to set for this employee.');
+                          return;
+                        }
+                        handleRegeneratePasswordForEmployee(targetEntry.id, editEmpPasswordDraft.trim());
+                        setEditEmpPasswordDraft('');
+                      }}
+                      className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs cursor-pointer whitespace-nowrap"
+                    >
+                      Set Password
+                    </button>
                   </div>
                 </div>
 

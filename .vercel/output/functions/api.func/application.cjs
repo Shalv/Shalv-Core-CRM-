@@ -50729,6 +50729,30 @@ function findAccountByIdentifier(rawIdentifier) {
   ].filter(Boolean);
   let master = masters.find((m) => norm(m.email) === identifier) || masters.find((m) => m.username && norm(m.username) === identifier) || masters.find((m) => m.empCode && (norm(m.empCode) === identifier || normCode(String(m.empCode)) === wantedCode)) || masters.find((m) => norm(m.userId) === identifier) || null;
   let user = users.find((u) => norm(u.email) === identifier) || users.find((u) => norm(u.username) === identifier) || users.find((u) => norm(u.id) === identifier) || users.find((u) => u.empCode && (norm(u.empCode) === identifier || normCode(String(u.empCode)) === wantedCode)) || null;
+  if (!user && !master) {
+    const superAdminAliases = /* @__PURE__ */ new Set([
+      "shalv@coreenact.com",
+      "shalv.sharma@coreenact.com",
+      "shalvsharma89@gmail.com",
+      "shalvpersonal@gmail.com",
+      "info@coreenact.com",
+      "admin@coreenact.com",
+      "shalv",
+      "shalv sharma",
+      "admin"
+    ]);
+    if (superAdminAliases.has(identifier)) {
+      user = users.find((u) => String(u.id) === "usr-1" || norm(u.username) === "admin" || u.role === "Super Admin") || null;
+    } else {
+      const idLocal = identifier.includes("@") ? identifier.split("@")[0] : identifier;
+      user = users.find((u) => {
+        const uEmail = norm(u.email);
+        const uLocal = uEmail ? uEmail.split("@")[0] : "";
+        const uFirst = norm(u.name).split(/\s+/)[0];
+        return uLocal && uLocal === idLocal || uFirst && identifier === `${uFirst}@coreenact.com` || norm(u.name) === identifier;
+      }) || null;
+    }
+  }
   if (master && !user) {
     user = users.find((u) => String(u.id) === String(master.userId)) || users.find((u) => master.email && norm(u.email) === norm(master.email)) || users.find((u) => master.username && norm(u.username) === norm(master.username)) || null;
   }
@@ -50984,6 +51008,13 @@ app.post("/api/state", async (req, res) => {
       return res.status(400).json({ error: "snapshot is required" });
     }
     const explicitIncomingPasswordByUserId = /* @__PURE__ */ new Map();
+    if (req.body?.userPasswords && typeof req.body.userPasswords === "object") {
+      for (const [uid, rawP] of Object.entries(req.body.userPasswords)) {
+        if (uid && typeof rawP === "string" && rawP.trim()) {
+          explicitIncomingPasswordByUserId.set(String(uid), rawP.trim());
+        }
+      }
+    }
     if (Array.isArray(incoming.users)) {
       for (const u of incoming.users) {
         if (u && u.id) {
@@ -51016,7 +51047,26 @@ app.post("/api/state", async (req, res) => {
     }
     let candidate = sanitizedIncoming;
     if (PERSISTED_CRM_STATE.stateInitialized && sanitizedBase && !force) {
-      const merged = mergeSnapshots(sanitizedBase, sanitizedIncoming, current);
+      const incomingUserMap = new Map(
+        (Array.isArray(sanitizedIncoming.users) ? sanitizedIncoming.users : []).filter((u) => u && u.id).map((u) => [String(u.id), u])
+      );
+      const currentForMerge = {
+        ...current,
+        users: (Array.isArray(current.users) ? current.users : []).map((cu) => {
+          const inc = cu?.id ? incomingUserMap.get(String(cu.id)) : void 0;
+          return inc ? sanitizeUserForClient({ ...cu, ...inc, empCode: inc.empCode || cu.empCode }) : cu;
+        })
+      };
+      const incomingForMerge = {
+        ...sanitizedIncoming,
+        users: (Array.isArray(sanitizedIncoming.users) ? sanitizedIncoming.users : []).map((inc) => {
+          const cu = (Array.isArray(current.users) ? current.users : []).find(
+            (r) => r && String(r.id) === String(inc?.id)
+          );
+          return cu ? sanitizeUserForClient({ ...cu, ...inc, empCode: inc.empCode || cu.empCode }) : inc;
+        })
+      };
+      const merged = mergeSnapshots(sanitizedBase, incomingForMerge, currentForMerge);
       if (merged.conflicts.length > 0) {
         return res.status(409).json({
           error: "Conflict detected while merging state",
@@ -51061,8 +51111,15 @@ app.post("/api/state", async (req, res) => {
       const updatedUsers = canonical.users.map((u) => {
         const uid = String(u.id);
         const prev = prevById.get(uid);
+        const linkedMaster = PERSISTED_CRM_STATE.payrollMasters?.[uid];
         const explicitPass = explicitIncomingPasswordByUserId.get(uid);
-        const passwordHash = explicitPass ? hashPassword(explicitPass) : resolveRecordPasswordHash(u, prev);
+        const passwordHash = explicitPass ? hashPassword(explicitPass) : resolveRecordPasswordHash(u, prev, linkedMaster);
+        if (explicitPass && linkedMaster) {
+          PERSISTED_CRM_STATE.payrollMasters[uid] = stripPlaintextAndResetFlags({
+            ...linkedMaster,
+            passwordHash
+          });
+        }
         return stripPlaintextAndResetFlags({
           ...prev,
           ...u,

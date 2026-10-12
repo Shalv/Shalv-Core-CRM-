@@ -130,7 +130,7 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
             <form onSubmit={handlePayrollSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5 whitespace-nowrap truncate">
-                  Employee Code or Work Email
+                  Employee Code, Username, or Work Email
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -139,12 +139,12 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
                     required
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder="e.g. EMP-001 or employee@company.com"
+                    placeholder="e.g. EMP-001, username, or employee@company.com"
                     className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border text-xs font-mono transition bg-slate-50 border-slate-200 text-slate-900 focus:bg-white focus:border-[#1f7e9e] focus:outline-hidden"
                   />
                 </div>
                 <p className="text-[10px] text-slate-500 mt-1">
-                  Enter your assigned Employee Code (e.g. EMP-001) or official email registered in Payroll.
+                  Enter your assigned Employee Code (e.g. EMP-001), username, or official email registered in Payroll.
                 </p>
               </div>
 

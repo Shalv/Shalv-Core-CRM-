@@ -51,7 +51,7 @@ const css = `
 .cl-copy h2 {
   margin: 0 0 14px;
   max-width: 18ch;
-  font-size: clamp(32px, 3.5vw, 48px);
+  font-size: clamp(34px, 3.6vw, 50px);
   line-height: 1.14;
   font-weight: 700;
   letter-spacing: -0.015em;
@@ -61,7 +61,7 @@ const css = `
 .cl-lead {
   margin: 0 0 40px;
   max-width: 46ch;
-  font-size: 17.5px;
+  font-size: 19px;
   line-height: 1.6;
   color: #000000;
 }
@@ -96,13 +96,13 @@ const css = `
 .cl-feats b {
   display: block;
   font-weight: 700;
-  font-size: 16.5px;
+  font-size: 18px;
   color: #000000;
   margin-bottom: 2px;
 }
 
 .cl-feats span {
-  font-size: 15.5px;
+  font-size: 16.5px;
   line-height: 1.55;
   color: #000000;
 }
@@ -115,7 +115,7 @@ const css = `
   display: flex;
   gap: 24px;
   flex-wrap: wrap;
-  font-size: 14.5px;
+  font-size: 15.5px;
   font-weight: 500;
   color: #000000;
   pointer-events: none;
@@ -162,7 +162,7 @@ const css = `
 }
 
 .cl-form-wrap {
-  width: min(460px, 100%);
+  width: min(500px, 100%);
   padding: 38px 36px;
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.52);
@@ -178,7 +178,7 @@ const css = `
 }
 
 .cl-h {
-  font-size: 30px;
+  font-size: 32px;
   line-height: 1.18;
   font-weight: 700;
   margin: 0 0 8px;
@@ -189,7 +189,7 @@ const css = `
 .cl-sub {
   margin: 0 0 24px;
   color: #000000;
-  font-size: 16px;
+  font-size: 17.5px;
   line-height: 1.55;
 }
 
@@ -200,7 +200,7 @@ const css = `
 .cl-field label,
 .cl-labelrow {
   display: block;
-  font-size: 15px;
+  font-size: 16.5px;
   font-weight: 600;
   color: #000000;
   margin-bottom: 6px;
@@ -219,11 +219,11 @@ const css = `
 .cl-input input {
   width: 100%;
   box-sizing: border-box;
-  height: 50px;
+  height: 54px;
   padding: 0 14px;
   border-radius: 10px;
   font: inherit;
-  font-size: 16px;
+  font-size: 17.5px;
   color: #000000;
   background: rgba(255, 255, 255, 0.75);
   backdrop-filter: blur(8px);
@@ -338,7 +338,7 @@ const css = `
 }
 
 .cl-check-text {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 500;
   color: #000000;
   line-height: 1.4;
@@ -363,11 +363,11 @@ const css = `
 
 .cl-btn {
   width: 100%;
-  height: 52px;
+  height: 54px;
   border: 0;
   border-radius: 8px;
   font: inherit;
-  font-size: 16.5px;
+  font-size: 18px;
   font-weight: 600;
   cursor: pointer;
   background: #2563EB;
@@ -927,13 +927,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
 
                 <form onSubmit={submit} noValidate>
                   <div className="cl-field">
-                    <label htmlFor="email">Work email or username</label>
+                    <label htmlFor="email">Work email, username, or Employee Code</label>
                     <div className="cl-input">
                       <input
                         id="email"
                         type="text"
                         autoComplete="username"
-                        placeholder="name@company.com or username"
+                        placeholder="name@company.com, username, or EMP-001"
                         value={email}
                         aria-invalid={!!errors.email}
                         onChange={(e) => {

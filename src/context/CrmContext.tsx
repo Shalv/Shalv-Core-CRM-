@@ -76,7 +76,17 @@ import {
   INITIAL_LICENSE_TYPES,
 } from '../data/supportAmcData';
 import { useApplicationSync, SyncStatus } from './useApplicationSync';
-import { Snapshot } from '../shared/integrity';
+import { Snapshot, recordPendingUserPassword } from '../shared/integrity';
+
+function crmAuthHeaders(extra: Record<string, string> = { 'Content-Type': 'application/json' }): Record<string, string> {
+  let token: string | null = null;
+  try {
+    token = localStorage.getItem('crm_auth_token');
+  } catch {
+    /* ignore */
+  }
+  return token ? { ...extra, Authorization: `Bearer ${token}` } : extra;
+}
 
 interface CrmContextType {
   currentUser: User;
@@ -1519,9 +1529,15 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         matchedUser.id === 'usr-1' ||
         ['admin', 'admin@coreenact.com', 'shalv', 'shalv sharma', 'shalv@coreenact.com', 'shalv.sharma@coreenact.com', 'shalvsharma89@gmail.com', 'shalvpersonal@gmail.com', 'info@coreenact.com'].includes(cleanId);
 
-      // Route to dedicated Payroll Portal ONLY when explicitly signing in via the Payroll & ESS login view;
-      // signing in via the main CRM Enterprise Login grants full access to the CRM application according to role/custom permissions.
-      const isPayrollOnly = isAdminUser ? false : Boolean(isPayrollPortalLogin);
+      // Route to dedicated Payroll Portal when signing in via the Payroll & ESS login view,
+      // OR when the employee was created as Payroll-Only.
+      const isPayrollOnly = isAdminUser
+        ? false
+        : Boolean(
+            isPayrollPortalLogin ||
+              matchedUser.accessType === 'payroll_only' ||
+              matchedPayrollMaster?.accessType === 'payroll_only'
+          );
 
       const nowFormatted = new Date().toLocaleString('en-IN', {
         year: 'numeric',
@@ -1607,9 +1623,10 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
         if (updated) {
           localStorage.setItem('crm_ess_admin_employee_masters', JSON.stringify(mastersObj));
+          Object.keys(serverPatch).forEach((uid) => recordPendingUserPassword(uid, trimmedNewPass));
           fetch('/api/payroll/masters', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: crmAuthHeaders(),
             body: JSON.stringify({ masters: serverPatch, patch: true }),
           }).catch(() => {});
           window.dispatchEvent(new CustomEvent('crm-payroll-masters-updated'));
@@ -1635,9 +1652,10 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           uName === clean
         ) {
           if (sendToBackend) {
+            recordPendingUserPassword(u.id, trimmedNewPass);
             fetch(`/api/users/${u.id}`, {
               method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
+              headers: crmAuthHeaders(),
               body: JSON.stringify({
                 ...sanitizeClientUser(u),
                 password: trimmedNewPass,
@@ -1855,7 +1873,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       fetch(`/api/users/${prev.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: crmAuthHeaders(),
         body: JSON.stringify(updated),
       }).catch(() => {});
 
@@ -1939,9 +1957,12 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     // Commit to backend with password if provided so backend stores secure hash
+    if (resolvedPass) {
+      recordPendingUserPassword(resolvedId, resolvedPass);
+    }
     fetch('/api/users', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: crmAuthHeaders(),
       body: JSON.stringify({
         ...newUser,
         ...(resolvedPass ? { password: resolvedPass } : {}),
@@ -2056,7 +2077,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             localStorage.setItem('crm_ess_admin_employee_masters', JSON.stringify(parsedMasters));
             fetch('/api/payroll/masters', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: crmAuthHeaders(),
               body: JSON.stringify({ masters: serverMastersPatch, patch: true }),
             }).catch(() => {});
             window.dispatchEvent(new CustomEvent('crm-payroll-masters-updated'));
@@ -2068,9 +2089,12 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // Commit update to backend (including password if admin explicitly reset it)
+    if (nextPass) {
+      recordPendingUserPassword(id, nextPass);
+    }
     fetch(`/api/users/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: crmAuthHeaders(),
       body: JSON.stringify({
         ...normalizedPatch,
         ...(nextPass ? { password: nextPass } : {}),
@@ -2145,6 +2169,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Delete from Render PostgreSQL backend
     fetch(`/api/users/${id}`, {
       method: 'DELETE',
+      headers: crmAuthHeaders({}),
     }).catch(() => {});
 
     addAuditLog({
@@ -2293,7 +2318,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (targetUser) {
       fetch(`/api/users/${userId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: crmAuthHeaders(),
         body: JSON.stringify({ ...targetUser, customPermissions: permissions }),
       }).catch(() => {});
 
