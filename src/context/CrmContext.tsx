@@ -1997,7 +1997,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (localMaster) {
               await fetch('/api/payroll/masters', {
                 method: 'POST',
-                headers: payrollAuthHeaders(),
+                headers: crmAuthHeaders(),
                 body: JSON.stringify({
                   masters: { [targetUid]: { ...localMaster, password: inputPassTrim } },
                   patch: true,
