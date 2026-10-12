@@ -1418,8 +1418,15 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         new URLSearchParams(window.location.search).get('portal') === 'payroll');
 
     if (!matchedUser && !matchedPayrollMaster) {
-      if (['shalv.sharma@coreenact.com', 'shalvpersonal@gmail.com', 'admin@coreenact.com', 'shalv', 'admin'].includes(cleanId)) {
-        matchedUser = allKnownUsers.find((u) => u.id === 'usr-1');
+      if (['shalv@coreenact.com', 'shalv.sharma@coreenact.com', 'shalvsharma89@gmail.com', 'shalvpersonal@gmail.com', 'info@coreenact.com', 'admin@coreenact.com', 'shalv', 'shalv sharma', 'admin'].includes(cleanId)) {
+        matchedUser = allKnownUsers.find((u) => u.id === 'usr-1' || u.role === 'Super Admin');
+      } else if (cleanId.endsWith('@coreenact.com')) {
+        const prefix = cleanId.split('@')[0];
+        matchedUser = allKnownUsers.find(
+          (u) =>
+            (u.username || '').trim().toLowerCase() === prefix ||
+            (u.name || '').trim().toLowerCase().split(/\s+/)[0] === prefix
+        );
       }
     }
 
@@ -1510,7 +1517,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         matchedUser.role === 'Super Admin' ||
         matchedUser.role === 'Administrator' ||
         matchedUser.id === 'usr-1' ||
-        ['admin', 'admin@coreenact.com', 'shalv', 'shalv.sharma@coreenact.com', 'shalvpersonal@gmail.com'].includes(cleanId);
+        ['admin', 'admin@coreenact.com', 'shalv', 'shalv sharma', 'shalv@coreenact.com', 'shalv.sharma@coreenact.com', 'shalvsharma89@gmail.com', 'shalvpersonal@gmail.com', 'info@coreenact.com'].includes(cleanId);
 
       // Route to dedicated Payroll Portal ONLY when explicitly signing in via the Payroll & ESS login view;
       // signing in via the main CRM Enterprise Login grants full access to the CRM application according to role/custom permissions.

@@ -21,11 +21,49 @@
     font-family: var(--font-sans);
     background-color: var(--crm-bg-canvas);
     color: var(--crm-text-primary);
-    font-size: 14px;
-    line-height: 1.5;
+    font-size: 16px;
+    line-height: 1.55;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+  }
+
+  /* Enforce readable minimum font sizes across dense enterprise views */
+  .text-\[9px\],
+  .text-\[10px\] {
+    font-size: 0.8125rem !important;
+    line-height: 1.45 !important;
+  }
+
+  .text-\[11px\],
+  .text-xs {
+    font-size: 0.875rem !important;
+    line-height: 1.5 !important;
+  }
+
+  .text-\[12px\],
+  .text-sm {
+    font-size: 0.9375rem !important;
+    line-height: 1.55 !important;
+  }
+
+  .text-base {
+    font-size: 1.03125rem !important;
+    line-height: 1.6 !important;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 0.9375rem;
+  }
+
+  thead th {
+    font-size: 0.8125rem;
+  }
+
+  tbody td {
+    font-size: 0.9375rem;
   }
 
   /* Enforce tabular numerals on all monospace and financial readouts */

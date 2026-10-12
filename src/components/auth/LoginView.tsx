@@ -51,8 +51,8 @@ const css = `
 .cl-copy h2 {
   margin: 0 0 14px;
   max-width: 18ch;
-  font-size: clamp(30px, 3.3vw, 46px);
-  line-height: 1.12;
+  font-size: clamp(32px, 3.5vw, 48px);
+  line-height: 1.14;
   font-weight: 700;
   letter-spacing: -0.015em;
   color: #000000;
@@ -61,8 +61,8 @@ const css = `
 .cl-lead {
   margin: 0 0 40px;
   max-width: 46ch;
-  font-size: 16px;
-  line-height: 1.55;
+  font-size: 17.5px;
+  line-height: 1.6;
   color: #000000;
 }
 
@@ -96,14 +96,14 @@ const css = `
 .cl-feats b {
   display: block;
   font-weight: 700;
-  font-size: 15px;
+  font-size: 16.5px;
   color: #000000;
   margin-bottom: 2px;
 }
 
 .cl-feats span {
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 15.5px;
+  line-height: 1.55;
   color: #000000;
 }
 
@@ -115,7 +115,7 @@ const css = `
   display: flex;
   gap: 24px;
   flex-wrap: wrap;
-  font-size: 13px;
+  font-size: 14.5px;
   font-weight: 500;
   color: #000000;
   pointer-events: none;
@@ -150,7 +150,7 @@ const css = `
   align-items: center;
   gap: 10px;
   font-weight: 700;
-  font-size: 18px;
+  font-size: 19px;
   color: #000000;
 }
 
@@ -162,7 +162,7 @@ const css = `
 }
 
 .cl-form-wrap {
-  width: min(440px, 100%);
+  width: min(460px, 100%);
   padding: 38px 36px;
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.52);
@@ -178,10 +178,10 @@ const css = `
 }
 
 .cl-h {
-  font-size: 27px;
-  line-height: 1.15;
+  font-size: 30px;
+  line-height: 1.18;
   font-weight: 700;
-  margin: 0 0 6px;
+  margin: 0 0 8px;
   letter-spacing: -0.015em;
   color: #000000;
 }
@@ -189,8 +189,8 @@ const css = `
 .cl-sub {
   margin: 0 0 24px;
   color: #000000;
-  font-size: 14.5px;
-  line-height: 1.5;
+  font-size: 16px;
+  line-height: 1.55;
 }
 
 .cl-field {
@@ -200,7 +200,7 @@ const css = `
 .cl-field label,
 .cl-labelrow {
   display: block;
-  font-size: 13.5px;
+  font-size: 15px;
   font-weight: 600;
   color: #000000;
   margin-bottom: 6px;
@@ -219,11 +219,11 @@ const css = `
 .cl-input input {
   width: 100%;
   box-sizing: border-box;
-  height: 46px;
+  height: 50px;
   padding: 0 14px;
   border-radius: 10px;
   font: inherit;
-  font-size: 14.5px;
+  font-size: 16px;
   color: #000000;
   background: rgba(255, 255, 255, 0.75);
   backdrop-filter: blur(8px);
@@ -253,7 +253,7 @@ const css = `
 .cl-toggle {
   position: absolute;
   right: 6px;
-  top: 6px;
+  top: 8px;
   height: 34px;
   padding: 0 10px;
   border: 0;
@@ -261,7 +261,7 @@ const css = `
   background: transparent;
   color: #000000;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
@@ -282,9 +282,9 @@ const css = `
 
 .cl-err {
   margin: 6px 0 0;
-  font-size: 12.5px;
+  font-size: 14px;
   color: #B02E25;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
 .cl-row {
@@ -338,7 +338,7 @@ const css = `
 }
 
 .cl-check-text {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   color: #000000;
   line-height: 1.4;
@@ -363,11 +363,11 @@ const css = `
 
 .cl-btn {
   width: 100%;
-  height: 48px;
+  height: 52px;
   border: 0;
   border-radius: 8px;
   font: inherit;
-  font-size: 15px;
+  font-size: 16.5px;
   font-weight: 600;
   cursor: pointer;
   background: #2563EB;
