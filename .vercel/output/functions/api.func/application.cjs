@@ -28385,263 +28385,10 @@ var initial_store_default = {
       last_login_at: null,
       custom_permissions: null,
       updated_at: "2026-10-06T17:06:56.585Z"
-    },
-    {
-      id: "usr-2",
-      name: "Tabassum",
-      username: "tabassum",
-      email: "tabassum@coreenact.com",
-      passwordHash: "$2b$08$CLVPK3L1X8eBMsvrIXmeWO5rHNMecJ2Kx2B8oKhWbDegqZ4CJZO4S",
-      phone: "9810998291",
-      role: "Sales Manager",
-      department: "Sales",
-      designation: "Sales & Support Manager",
-      status: "Active",
-      location: "New Delhi",
-      created_at: "2026-09-01T09:05:00Z",
-      accessScope: "all",
-      avatar: "",
-      customPermissions: null,
-      last_login_at: null,
-      custom_permissions: null,
-      updated_at: "2026-10-06T17:06:56.773Z"
-    },
-    {
-      id: "usr-3",
-      name: "Rohan Verma",
-      username: "rohan",
-      email: "rohan.verma@coreenact.com",
-      passwordHash: "$2b$08$ONxLn2UOhcZxkTGsczglCOYnmzp7iESQpal56/iFHt2yhzWS77iwm",
-      phone: "9810998292",
-      role: "Sales Executive",
-      department: "Sales",
-      designation: "Senior Account Executive",
-      status: "Active",
-      location: "Mumbai",
-      created_at: "2026-09-01T09:10:00Z",
-      accessScope: "all",
-      avatar: "",
-      customPermissions: null,
-      last_login_at: null,
-      custom_permissions: null,
-      updated_at: "2026-10-06T17:06:56.959Z"
-    },
-    {
-      id: "usr-4",
-      name: "Priya Nair",
-      username: "priya",
-      email: "priya.nair@coreenact.com",
-      passwordHash: "$2b$08$OjWRdM8jGaMkdizMT82v5u08Tw9n1odcYjTq4eh4cYpN5hoASpVYy",
-      phone: "9810998293",
-      role: "Finance Manager",
-      department: "Finance",
-      designation: "Head of Billing & Receivables",
-      status: "Active",
-      location: "Bengaluru",
-      created_at: "2026-09-01T09:15:00Z",
-      accessScope: "all",
-      avatar: "",
-      customPermissions: null,
-      last_login_at: null,
-      custom_permissions: null,
-      updated_at: "2026-10-06T17:06:57.147Z"
-    },
-    {
-      id: "usr-5",
-      name: "Amit Patel",
-      username: "amit",
-      email: "amit.patel@coreenact.com",
-      passwordHash: "$2b$08$ktzgy0KSZ2d57.Bsdw67n.mM9iM34XfIH221nmCEriuIbA1zuEToq",
-      phone: "9810998294",
-      role: "Finance Executive",
-      department: "Finance",
-      designation: "Accounts & GST Officer",
-      status: "Active",
-      location: "Ahmedabad",
-      created_at: "2026-09-01T09:20:00Z",
-      accessScope: "all",
-      avatar: "",
-      customPermissions: null,
-      last_login_at: null,
-      custom_permissions: null,
-      updated_at: "2026-10-06T17:06:57.337Z"
-    },
-    {
-      id: "usr-6",
-      name: "Neha Gupta",
-      username: "neha",
-      email: "neha.gupta@coreenact.com",
-      passwordHash: "$2b$08$EmB6KP1uTJmZWl5R5bP6teTdBhKKdmi9NtceOQ/4pzJ0M/rA8ktqu",
-      phone: "9810998295",
-      role: "Management/Viewer",
-      department: "Executive",
-      designation: "VP of Strategy (Read-Only)",
-      status: "Active",
-      location: "New Delhi",
-      created_at: "2026-09-01T09:25:00Z",
-      accessScope: "all",
-      avatar: "",
-      customPermissions: null,
-      last_login_at: null,
-      custom_permissions: null,
-      updated_at: "2026-10-06T17:06:57.524Z"
-    },
-    {
-      id: "usr-7",
-      name: "Vikram Malhotra",
-      username: "vikram",
-      email: "vikram.m@coreenact.com",
-      passwordHash: "$2b$08$xwDRMuS96okEb2NHhp/we.UOqGx7JAhHEUjVPjkqgSDkQ42MA0Z8a",
-      phone: "9810998296",
-      role: "Administrator",
-      department: "Operations",
-      designation: "Operations Director",
-      status: "Active",
-      location: "Pune",
-      created_at: "2026-09-01T09:30:00Z",
-      accessScope: "all",
-      avatar: "",
-      customPermissions: null,
-      last_login_at: null,
-      custom_permissions: null,
-      updated_at: "2026-10-06T17:06:57.713Z"
-    },
-    {
-      id: "employee-1",
-      name: "Employee",
-      username: "employee",
-      email: "employee@example.com",
-      passwordHash: "$2b$08$XyEH7sDzPL577j1lHk2VR.X3tYovmoEI/GYDZmRzYlJcmhYl8m9/K",
-      accessScope: "payroll_only",
-      accessType: "payroll_only",
-      empCode: "EMP-001",
-      phone: "",
-      role: "Sales Executive",
-      department: "Operations",
-      designation: "Employee",
-      status: "Active",
-      location: "Mumbai HQ",
-      created_at: "2026-10-11T14:33:49.195Z",
-      customPermissions: null,
-      avatar: null,
-      last_login_at: null,
-      custom_permissions: null,
-      updated_at: "2026-10-11T14:33:51.439Z"
-    },
-    {
-      id: "usr-crm-new",
-      name: "Neha Kapoor",
-      username: "neha.kapoor",
-      email: "neha.kapoor@coreenact.com",
-      passwordHash: "$2b$08$eIXJbZP0xAXG1916gVJV/uNz/dB4dQ4rfEZyU4bgPVkqa2YtLa3lu",
-      accessScope: "all",
-      accessType: "crm_and_payroll",
-      phone: "9811122233",
-      role: "Sales Executive",
-      department: "Sales",
-      designation: "",
-      status: "Active",
-      avatar: "",
-      location: "",
-      reportingManager: "",
-      assignedTerritory: "",
-      custom_permissions: {},
-      customPermissions: {},
-      created_at: "2026-10-11T14:33:49.979Z",
-      lastLoginAt: "2026-10-11T14:33:53.072Z",
-      last_login_at: null,
-      updated_at: "2026-10-11T14:33:50.255Z"
-    },
-    {
-      id: "emp-pay-901",
-      name: "Vikram Malhotra",
-      username: "vikram.malhotra",
-      email: "vikram.malhotra@coreenact.com",
-      passwordHash: "$2b$08$8xdppwP/4EgMgQHzmyYnK.QA0cjK0DITK6sIQbSkglVFmjCQk.PP2",
-      accessScope: "payroll_only",
-      accessType: "payroll_only",
-      empCode: "EMP-099",
-      phone: "",
-      role: "Support",
-      department: "Technical Support & AMC",
-      designation: "Support Engineer",
-      status: "Active",
-      location: "Mumbai HQ",
-      created_at: "2026-10-11T14:33:56.411Z",
-      lastLoginAt: "2026-10-11T14:34:00.164Z",
-      customPermissions: null,
-      avatar: null,
-      last_login_at: null,
-      custom_permissions: null,
-      updated_at: "2026-10-11T14:33:58.191Z"
     }
   ],
-  payroll_masters: [
-    {
-      userId: "emp-pay-901",
-      empCode: "EMP-099",
-      name: "Vikram Malhotra",
-      email: "vikram.malhotra@coreenact.com",
-      username: "vikram.malhotra",
-      role: "Support",
-      department: "Technical Support & AMC",
-      designation: "Support Engineer",
-      joiningDate: "2026-10-01",
-      employmentStatus: "Active",
-      monthlyGross: 65e3,
-      basicPercent: 50,
-      hraPercent: 25,
-      pfApplicable: true,
-      esiApplicable: false,
-      professionalTax: 200,
-      tdsPercent: 5,
-      panNumber: "ABCDE1234F",
-      uanNumber: "100900100900",
-      bankName: "HDFC Bank",
-      accountNumber: "501002345678",
-      ifscCode: "HDFC0001234",
-      leaveBalance: {
-        casualLeave: 12,
-        sickLeave: 8,
-        earnedLeave: 15
-      },
-      status: "Active",
-      passwordHash: "$2b$08$8xdppwP/4EgMgQHzmyYnK.QA0cjK0DITK6sIQbSkglVFmjCQk.PP2"
-    }
-  ],
-  payrollMasters: {
-    "emp-pay-901": {
-      userId: "emp-pay-901",
-      empCode: "EMP-099",
-      name: "Vikram Malhotra",
-      email: "vikram.malhotra@coreenact.com",
-      username: "vikram.malhotra",
-      role: "Support",
-      department: "Technical Support & AMC",
-      designation: "Support Engineer",
-      joiningDate: "2026-10-01",
-      employmentStatus: "Active",
-      monthlyGross: 65e3,
-      basicPercent: 50,
-      hraPercent: 25,
-      pfApplicable: true,
-      esiApplicable: false,
-      professionalTax: 200,
-      tdsPercent: 5,
-      panNumber: "ABCDE1234F",
-      uanNumber: "100900100900",
-      bankName: "HDFC Bank",
-      accountNumber: "501002345678",
-      ifscCode: "HDFC0001234",
-      leaveBalance: {
-        casualLeave: 12,
-        sickLeave: 8,
-        earnedLeave: 15
-      },
-      status: "Active",
-      passwordHash: "$2b$08$8xdppwP/4EgMgQHzmyYnK.QA0cjK0DITK6sIQbSkglVFmjCQk.PP2"
-    }
-  },
+  payroll_masters: [],
+  payrollMasters: {},
   deletedPayrollMasterIds: [],
   payrollLoans: [],
   deletedLoanIds: [],
@@ -30037,8 +29784,8 @@ var initial_store_default = {
         contactEmail: "eshant.sharma@eduvrse.com",
         state: "Haryana",
         stateCode: "06",
-        salesOwnerId: "usr-2",
-        salesOwnerName: "Tabassum",
+        salesOwnerId: "usr-1",
+        salesOwnerName: "Shalv Sharma",
         expectedClosingDate: "2027-01-29",
         estimatedDealValue: 12e5,
         probability: 100,
@@ -30076,8 +29823,8 @@ var initial_store_default = {
         contactEmail: "info@sssteelindustry.com",
         state: "Punjab",
         stateCode: "03",
-        salesOwnerId: "usr-3",
-        salesOwnerName: "Rohan Verma",
+        salesOwnerId: "usr-1",
+        salesOwnerName: "Shalv Sharma",
         expectedClosingDate: "2027-03-15",
         estimatedDealValue: 15e5,
         probability: 80,
@@ -30106,8 +29853,8 @@ var initial_store_default = {
         contactEmail: "sawankumar@tajcomputers.com",
         state: "Delhi",
         stateCode: "07",
-        salesOwnerId: "usr-2",
-        salesOwnerName: "Tabassum",
+        salesOwnerId: "usr-1",
+        salesOwnerName: "Shalv Sharma",
         expectedClosingDate: "2027-03-30",
         estimatedDealValue: 17e5,
         probability: 70,
@@ -30136,8 +29883,8 @@ var initial_store_default = {
         contactEmail: "yuvraj@ratantextiles.com",
         state: "Rajasthan",
         stateCode: "08",
-        salesOwnerId: "usr-3",
-        salesOwnerName: "Rohan Verma",
+        salesOwnerId: "usr-1",
+        salesOwnerName: "Shalv Sharma",
         expectedClosingDate: "2027-03-15",
         estimatedDealValue: 85e4,
         probability: 40,
@@ -30299,8 +30046,8 @@ var initial_store_default = {
         gstRate: 18,
         totalValue: 354e3,
         slaTier: "Platinum (2h / 8h)",
-        accountManagerId: "usr-2",
-        accountManagerName: "Tabassum",
+        accountManagerId: "usr-1",
+        accountManagerName: "Shalv Sharma",
         status: "Active",
         linkedInvoiceId: "inv-7",
         linkedInvoiceNumber: "CSINV-00035",
@@ -30444,8 +30191,8 @@ var initial_store_default = {
         creditLimit: 1e6,
         currency: "INR",
         status: "Active",
-        salesOwnerId: "usr-2",
-        salesOwnerName: "Tabassum",
+        salesOwnerId: "usr-1",
+        salesOwnerName: "Shalv Sharma",
         solution: "MS D365 Business Central",
         projectPhase: "Live Support",
         gstRule: "CGST + SGST",
@@ -30761,8 +30508,8 @@ var initial_store_default = {
         orderDate: "2026-10-06",
         customerId: "cus-3",
         customerName: "Build Storys Pvt Ltd",
-        salespersonId: "usr-3",
-        salespersonName: "Rohan Verma",
+        salespersonId: "usr-1",
+        salespersonName: "Shalv Sharma",
         paymentTermsId: "pt-1",
         paymentTermsName: "30 Days Net",
         currency: "INR",
@@ -30839,8 +30586,8 @@ var initial_store_default = {
         orderDate: "2026-09-29",
         customerId: "cus-4",
         customerName: "Eduvrse Pvt ltd",
-        salespersonId: "usr-2",
-        salespersonName: "Tabassum",
+        salespersonId: "usr-1",
+        salespersonName: "Shalv Sharma",
         paymentTermsId: "pt-4",
         paymentTermsName: "Milestone Based (Advance + Milestones)",
         currency: "INR",
@@ -31137,8 +30884,8 @@ var initial_store_default = {
         bankCashAccount: "Bank of Baroda - 1745",
         transactionReference: "UTR-BOB-99890",
         remarks: "Balance Payment settling AMC Invoice CSINV-00035",
-        recordedById: "usr-5",
-        recordedByName: "Amit Patel",
+        recordedById: "usr-1",
+        recordedByName: "Shalv Sharma",
         createdAt: "2026-09-15T03:57:29Z",
         tdsDeducted: 0,
         remainingBalance: 0
@@ -31341,8 +31088,8 @@ var initial_store_default = {
         description: "Requirement for customized Vendor Wise Ageing and Customer Wise Ageing report with 0-30, 31-60, 61-90, 90+ day columns and shortcut dimension filters.",
         priority: "High",
         status: "Closed",
-        assignedToId: "usr-3",
-        assignedToName: "Rohan Verma",
+        assignedToId: "usr-1",
+        assignedToName: "Shalv Sharma",
         slaStatus: "Within SLA",
         responseDueAt: "2026-09-23 14:00",
         resolutionDueAt: "2026-09-26 18:00",
@@ -31412,8 +31159,8 @@ var initial_store_default = {
         description: "While generating IRN on IRP portal from Posted Sales Credit Memo, JSON payload validation fails when rounding difference is 0.01 INR.",
         priority: "Critical",
         status: "Resolved",
-        assignedToId: "usr-2",
-        assignedToName: "Tabassum",
+        assignedToId: "usr-1",
+        assignedToName: "Shalv Sharma",
         slaStatus: "Within SLA",
         responseDueAt: "2026-09-25 13:00",
         resolutionDueAt: "2026-09-25 19:00",
@@ -31457,8 +31204,8 @@ var initial_store_default = {
         description: "Need a dedicated Scrap Management entry page and bulk Excel import utility to record damaged/scrap serials and post inventory adjustments.",
         priority: "High",
         status: "Resolved",
-        assignedToId: "usr-3",
-        assignedToName: "Rohan Verma",
+        assignedToId: "usr-1",
+        assignedToName: "Shalv Sharma",
         slaStatus: "Within SLA",
         responseDueAt: "2026-09-28 14:00",
         resolutionDueAt: "2026-10-02 18:00",
@@ -31507,8 +31254,8 @@ var initial_store_default = {
         description: "When receiving goods at Okhla warehouse from Badarpur transfer order, serial number reservation entries show locked quantity.",
         priority: "High",
         status: "In Progress",
-        assignedToId: "usr-2",
-        assignedToName: "Tabassum",
+        assignedToId: "usr-1",
+        assignedToName: "Shalv Sharma",
         slaStatus: "Within SLA",
         responseDueAt: "2026-10-02 16:00",
         resolutionDueAt: "2026-10-07 18:00",
@@ -31551,8 +31298,8 @@ var initial_store_default = {
         description: "Configure custom DKIM selector and DMARC quarantine policy for primary domain and verify connector relay.",
         priority: "Medium",
         status: "Under UAT",
-        assignedToId: "usr-7",
-        assignedToName: "Vikram Malhotra",
+        assignedToId: "usr-1",
+        assignedToName: "Shalv Sharma",
         slaStatus: "Within SLA",
         responseDueAt: "2026-10-04 15:00",
         resolutionDueAt: "2026-10-08 18:00",
@@ -31583,8 +31330,8 @@ var initial_store_default = {
         description: "Requesting automated parent WhatsApp notification 3 days prior to fee due date and instant receipt generation via Razorpay webhook.",
         priority: "High",
         status: "In Progress",
-        assignedToId: "usr-7",
-        assignedToName: "Vikram Malhotra",
+        assignedToId: "usr-1",
+        assignedToName: "Shalv Sharma",
         slaStatus: "Within SLA",
         responseDueAt: "2026-10-05 14:00",
         resolutionDueAt: "2026-10-12 18:00",
@@ -31665,8 +31412,8 @@ var initial_store_default = {
         description: "Weekend site visit leads from website webhook are remaining in Unassigned queue instead of round-robin routing.",
         priority: "High",
         status: "Open",
-        assignedToId: "usr-3",
-        assignedToName: "Rohan Verma",
+        assignedToId: "usr-1",
+        assignedToName: "Shalv Sharma",
         slaStatus: "At Risk",
         responseDueAt: "2026-10-06 18:00",
         resolutionDueAt: "2026-10-07 14:00",
@@ -32317,8 +32064,8 @@ var initial_store_default = {
         subject: "Meeting for Digitalization",
         date: "2026-09-15",
         time: "11:00",
-        assignedUserId: "usr-3",
-        assignedUserName: "Rohan Verma",
+        assignedUserId: "usr-1",
+        assignedUserName: "Shalv Sharma",
         priority: "Medium",
         status: "Scheduled",
         notes: "Meeting With Yuvraj Jain regarding ERP evaluation & licensing",
@@ -32350,8 +32097,8 @@ var initial_store_default = {
         subject: "Commercial Proposal Follow-up",
         date: "2026-10-08",
         time: "14:30",
-        assignedUserId: "usr-3",
-        assignedUserName: "Rohan Verma",
+        assignedUserId: "usr-1",
+        assignedUserName: "Shalv Sharma",
         priority: "High",
         status: "Pending",
         notes: "Follow up on D365 pricing proposal and milestone schedule with Ankur Goyal",
@@ -32368,8 +32115,8 @@ var initial_store_default = {
         subject: "Technical Demo & Requirement Walkthrough",
         date: "2026-10-08",
         time: "16:00",
-        assignedUserId: "usr-2",
-        assignedUserName: "Tabassum",
+        assignedUserId: "usr-1",
+        assignedUserName: "Shalv Sharma",
         priority: "High",
         status: "Pending",
         notes: "Coordinate D365 Business Central module demo with technical team",
@@ -32535,8 +32282,8 @@ var initial_store_default = {
         productInterestIds: [
           "prod-d365"
         ],
-        leadOwnerId: "usr-3",
-        leadOwnerName: "Rohan Verma",
+        leadOwnerId: "usr-1",
+        leadOwnerName: "Shalv Sharma",
         estimatedValue: 85e4,
         expectedClosingDate: "2027-03-15",
         rating: "Warm",
@@ -32587,8 +32334,8 @@ var initial_store_default = {
         remarks: "Signed 5 milestone contract (Advance, FRD, Dev, UAT, Go-live)",
         createdAt: "2026-09-15T04:15:51Z",
         updatedAt: "2026-09-29T13:00:15Z",
-        leadOwnerId: "usr-2",
-        leadOwnerName: "Tabassum"
+        leadOwnerId: "usr-1",
+        leadOwnerName: "Shalv Sharma"
       },
       {
         id: "641",
@@ -32669,8 +32416,8 @@ var initial_store_default = {
         remarks: "Ongoing proposal for D365 ERP enhancement",
         createdAt: "2026-09-15T04:24:37Z",
         updatedAt: "2026-09-15T04:24:37Z",
-        leadOwnerId: "usr-2",
-        leadOwnerName: "Tabassum"
+        leadOwnerId: "usr-1",
+        leadOwnerName: "Shalv Sharma"
       },
       {
         id: "643",
@@ -32748,8 +32495,8 @@ var initial_store_default = {
         remarks: "Follow-up scheduled for commercial negotiation with Ankur Goyal",
         createdAt: "2026-09-15T05:24:14Z",
         updatedAt: "2026-09-28T04:15:35Z",
-        leadOwnerId: "usr-3",
-        leadOwnerName: "Rohan Verma"
+        leadOwnerId: "usr-1",
+        leadOwnerName: "Shalv Sharma"
       },
       {
         id: "645",
@@ -35028,186 +34775,6 @@ var initial_store_default = {
         last_login_at: null,
         custom_permissions: null,
         updated_at: "2026-10-06T17:06:56.585Z"
-      },
-      {
-        id: "usr-2",
-        name: "Tabassum",
-        username: "tabassum",
-        email: "tabassum@coreenact.com",
-        phone: "9810998291",
-        role: "Sales Manager",
-        department: "Sales",
-        designation: "Sales & Support Manager",
-        status: "Active",
-        location: "New Delhi",
-        created_at: "2026-09-01T09:05:00Z",
-        accessScope: "all",
-        avatar: "",
-        customPermissions: null,
-        last_login_at: null,
-        custom_permissions: null,
-        updated_at: "2026-10-06T17:06:56.773Z"
-      },
-      {
-        id: "usr-3",
-        name: "Rohan Verma",
-        username: "rohan",
-        email: "rohan.verma@coreenact.com",
-        phone: "9810998292",
-        role: "Sales Executive",
-        department: "Sales",
-        designation: "Senior Account Executive",
-        status: "Active",
-        location: "Mumbai",
-        created_at: "2026-09-01T09:10:00Z",
-        accessScope: "all",
-        avatar: "",
-        customPermissions: null,
-        last_login_at: null,
-        custom_permissions: null,
-        updated_at: "2026-10-06T17:06:56.959Z"
-      },
-      {
-        id: "usr-4",
-        name: "Priya Nair",
-        username: "priya",
-        email: "priya.nair@coreenact.com",
-        phone: "9810998293",
-        role: "Finance Manager",
-        department: "Finance",
-        designation: "Head of Billing & Receivables",
-        status: "Active",
-        location: "Bengaluru",
-        created_at: "2026-09-01T09:15:00Z",
-        accessScope: "all",
-        avatar: "",
-        customPermissions: null,
-        last_login_at: null,
-        custom_permissions: null,
-        updated_at: "2026-10-06T17:06:57.147Z"
-      },
-      {
-        id: "usr-5",
-        name: "Amit Patel",
-        username: "amit",
-        email: "amit.patel@coreenact.com",
-        phone: "9810998294",
-        role: "Finance Executive",
-        department: "Finance",
-        designation: "Accounts & GST Officer",
-        status: "Active",
-        location: "Ahmedabad",
-        created_at: "2026-09-01T09:20:00Z",
-        accessScope: "all",
-        avatar: "",
-        customPermissions: null,
-        last_login_at: null,
-        custom_permissions: null,
-        updated_at: "2026-10-06T17:06:57.337Z"
-      },
-      {
-        id: "usr-6",
-        name: "Neha Gupta",
-        username: "neha",
-        email: "neha.gupta@coreenact.com",
-        phone: "9810998295",
-        role: "Management/Viewer",
-        department: "Executive",
-        designation: "VP of Strategy (Read-Only)",
-        status: "Active",
-        location: "New Delhi",
-        created_at: "2026-09-01T09:25:00Z",
-        accessScope: "all",
-        avatar: "",
-        customPermissions: null,
-        last_login_at: null,
-        custom_permissions: null,
-        updated_at: "2026-10-06T17:06:57.524Z"
-      },
-      {
-        id: "usr-7",
-        name: "Vikram Malhotra",
-        username: "vikram",
-        email: "vikram.m@coreenact.com",
-        phone: "9810998296",
-        role: "Administrator",
-        department: "Operations",
-        designation: "Operations Director",
-        status: "Active",
-        location: "Pune",
-        created_at: "2026-09-01T09:30:00Z",
-        accessScope: "all",
-        avatar: "",
-        customPermissions: null,
-        last_login_at: null,
-        custom_permissions: null,
-        updated_at: "2026-10-06T17:06:57.713Z"
-      },
-      {
-        id: "employee-1",
-        name: "Employee",
-        username: "employee",
-        email: "employee@example.com",
-        accessScope: "payroll_only",
-        accessType: "payroll_only",
-        empCode: "EMP-001",
-        phone: "",
-        role: "Sales Executive",
-        department: "Operations",
-        designation: "Employee",
-        status: "Active",
-        location: "Mumbai HQ",
-        created_at: "2026-10-11T14:33:49.195Z",
-        customPermissions: null,
-        avatar: null,
-        last_login_at: null,
-        custom_permissions: null,
-        updated_at: "2026-10-11T14:33:51.439Z"
-      },
-      {
-        id: "usr-crm-new",
-        name: "Neha Kapoor",
-        username: "neha.kapoor",
-        email: "neha.kapoor@coreenact.com",
-        accessScope: "all",
-        accessType: "crm_and_payroll",
-        phone: "9811122233",
-        role: "Sales Executive",
-        department: "Sales",
-        designation: "",
-        status: "Active",
-        avatar: "",
-        location: "",
-        reportingManager: "",
-        assignedTerritory: "",
-        custom_permissions: {},
-        customPermissions: {},
-        created_at: "2026-10-11T14:33:49.979Z",
-        lastLoginAt: "2026-10-11T14:33:53.072Z",
-        last_login_at: null,
-        updated_at: "2026-10-11T14:33:50.255Z"
-      },
-      {
-        id: "emp-pay-901",
-        name: "Vikram Malhotra",
-        username: "vikram.malhotra",
-        email: "vikram.malhotra@coreenact.com",
-        accessScope: "payroll_only",
-        accessType: "payroll_only",
-        empCode: "EMP-099",
-        phone: "",
-        role: "Support",
-        department: "Technical Support & AMC",
-        designation: "Support Engineer",
-        status: "Active",
-        location: "Mumbai HQ",
-        created_at: "2026-10-11T14:33:56.411Z",
-        lastLoginAt: "2026-10-11T14:34:00.164Z",
-        customPermissions: null,
-        avatar: null,
-        last_login_at: null,
-        custom_permissions: null,
-        updated_at: "2026-10-11T14:33:58.191Z"
       }
     ],
     milestoneTemplates: []
@@ -49646,15 +49213,84 @@ function auditSnapshot(snapshot) {
   }
   return issues;
 }
+var REMOVED_PREDEFINED_USER_IDS = /* @__PURE__ */ new Set([
+  "usr-2",
+  "usr-3",
+  "usr-4",
+  "usr-5",
+  "usr-6",
+  "usr-7"
+]);
+var REMOVED_PREDEFINED_USER_EMAILS = /* @__PURE__ */ new Set([
+  "tabassum@coreenact.com",
+  "rohan.verma@coreenact.com",
+  "priya.nair@coreenact.com",
+  "amit.patel@coreenact.com",
+  "neha.gupta@coreenact.com",
+  "vikram.m@coreenact.com"
+]);
+function isRemovedPredefinedUser(u) {
+  if (!u || typeof u !== "object") return false;
+  const id = String(u.id || u.userId || "").trim();
+  const email = String(u.email || "").trim().toLowerCase();
+  return REMOVED_PREDEFINED_USER_IDS.has(id) || Boolean(email) && REMOVED_PREDEFINED_USER_EMAILS.has(email);
+}
 function reconcileSnapshot(input, today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10)) {
   const s = JSON.parse(JSON.stringify(input));
-  if (Array.isArray(s.users)) s.users = s.users.map((user) => ({ ...user, accessScope: user.accessScope === "PAYROLL_ONLY" || user.accessScope === "payroll_only" || user.accessType === "payroll_only" ? "payroll_only" : "all" }));
-  for (const rel of RELATIONS.filter((r) => r.label && !r.nested)) {
+  if (Array.isArray(s.users)) {
+    const filteredUsers = s.users.filter((user) => user && !isRemovedPredefinedUser(user)).map((user) => ({
+      ...user,
+      accessScope: user.accessScope === "PAYROLL_ONLY" || user.accessScope === "payroll_only" || user.accessType === "payroll_only" ? "payroll_only" : "all"
+    }));
+    s.users = filteredUsers;
+  }
+  const adminUser = rows(s, "users").find((u) => String(u.id) === "usr-1" || u.role === "Super Admin") || rows(s, "users")[0] || { id: "usr-1", name: "Shalv Sharma" };
+  const usersMap = new Map(rows(s, "users").map((u) => [String(u.id), u]));
+  for (const rel of RELATIONS.filter((r) => !r.nested)) {
     const map2 = new Map(rows(s, rel.to).map((r) => [String(r.id), r]));
+    if (!Array.isArray(s[rel.from])) continue;
     s[rel.from] = rows(s, rel.from).map((row) => {
-      const target = map2.get(String(row[rel.field]));
-      const label = target && targetLabel(rel.to, target, rel.label);
-      return label !== void 0 ? { ...row, [rel.label]: label } : row;
+      const val = row[rel.field];
+      if (!val) return row;
+      let target = map2.get(String(val));
+      let nextRow = row;
+      if (!target) {
+        if (rel.to === "users" && adminUser?.id && map2.has(String(adminUser.id))) {
+          target = map2.get(String(adminUser.id));
+          nextRow = { ...row, [rel.field]: String(adminUser.id) };
+        } else if (!rel.required) {
+          const copy = { ...row };
+          delete copy[rel.field];
+          if (rel.label) delete copy[rel.label];
+          return copy;
+        }
+      }
+      const label = target && rel.label ? targetLabel(rel.to, target, rel.label) : void 0;
+      return label !== void 0 ? { ...nextRow, [rel.label]: label } : nextRow;
+    });
+  }
+  if (Array.isArray(s.activities)) {
+    s.activities = rows(s, "activities").map((act) => {
+      if (act?.assignedUserId && !usersMap.has(String(act.assignedUserId))) {
+        return { ...act, assignedUserId: String(adminUser.id), assignedUserName: adminUser.name };
+      }
+      return act;
+    });
+  }
+  if (Array.isArray(s.payments)) {
+    s.payments = rows(s, "payments").map((pay) => {
+      if (pay?.recordedById && !usersMap.has(String(pay.recordedById))) {
+        return { ...pay, recordedById: String(adminUser.id), recordedByName: adminUser.name };
+      }
+      return pay;
+    });
+  }
+  if (Array.isArray(s.purchaseOrders)) {
+    s.purchaseOrders = rows(s, "purchaseOrders").map((po) => {
+      if (po?.approvedById && !usersMap.has(String(po.approvedById))) {
+        return { ...po, approvedById: String(adminUser.id), approvedByName: adminUser.name };
+      }
+      return po;
     });
   }
   const customersById = new Map(rows(s, "customers").map((c) => [c.id, c]));
@@ -49891,13 +49527,7 @@ app.use(import_express.default.json({ limit: "15mb" }));
 app.use(import_express.default.urlencoded({ extended: true, limit: "15mb" }));
 var MOCK_TABLES = {
   users: [
-    { id: "usr-1", name: "Shalv Sharma", username: "admin", email: "admin@coreenact.com", passwordHash: DEFAULT_SEED_PASSWORD_HASH, phone: "9810998290", role: "Super Admin", department: "Executive", designation: "Managing Director / Super Admin", status: "Active", location: "New Delhi", created_at: "2026-09-01T09:00:00Z" },
-    { id: "usr-2", name: "Tabassum", username: "tabassum", email: "tabassum@coreenact.com", passwordHash: DEFAULT_SEED_PASSWORD_HASH, phone: "9810998291", role: "Sales Manager", department: "Sales", designation: "Sales & Support Manager", status: "Active", location: "New Delhi", created_at: "2026-09-01T09:05:00Z" },
-    { id: "usr-3", name: "Rohan Verma", username: "rohan", email: "rohan.verma@coreenact.com", passwordHash: DEFAULT_SEED_PASSWORD_HASH, phone: "9810998292", role: "Sales Executive", department: "Sales", designation: "Senior Account Executive", status: "Active", location: "Mumbai", created_at: "2026-09-01T09:10:00Z" },
-    { id: "usr-4", name: "Priya Nair", username: "priya", email: "priya.nair@coreenact.com", passwordHash: DEFAULT_SEED_PASSWORD_HASH, phone: "9810998293", role: "Finance Manager", department: "Finance", designation: "Head of Billing & Receivables", status: "Active", location: "Bengaluru", created_at: "2026-09-01T09:15:00Z" },
-    { id: "usr-5", name: "Amit Patel", username: "amit", email: "amit.patel@coreenact.com", passwordHash: DEFAULT_SEED_PASSWORD_HASH, phone: "9810998294", role: "Finance Executive", department: "Finance", designation: "Accounts & GST Officer", status: "Active", location: "Ahmedabad", created_at: "2026-09-01T09:20:00Z" },
-    { id: "usr-6", name: "Neha Gupta", username: "neha", email: "neha.gupta@coreenact.com", passwordHash: DEFAULT_SEED_PASSWORD_HASH, phone: "9810998295", role: "Management/Viewer", department: "Executive", designation: "VP of Strategy (Read-Only)", status: "Active", location: "New Delhi", created_at: "2026-09-01T09:25:00Z" },
-    { id: "usr-7", name: "Vikram Malhotra", username: "vikram", email: "vikram.m@coreenact.com", passwordHash: DEFAULT_SEED_PASSWORD_HASH, phone: "9810998296", role: "Administrator", department: "Operations", designation: "Operations Director", status: "Active", location: "Pune", created_at: "2026-09-01T09:30:00Z" }
+    { id: "usr-1", name: "Shalv Sharma", username: "admin", email: "admin@coreenact.com", passwordHash: DEFAULT_SEED_PASSWORD_HASH, phone: "9810998290", role: "Super Admin", department: "Executive", designation: "Managing Director / Super Admin", status: "Active", location: "New Delhi", created_at: "2026-09-01T09:00:00Z" }
   ],
   payroll_masters: [],
   leads: [
@@ -50032,7 +49662,7 @@ function relinkUsersAndPayrollMasters() {
   const sliceUsers = Array.isArray(PERSISTED_CRM_STATE.crmSlices?.users) ? PERSISTED_CRM_STATE.crmSlices.users : [];
   const allCandidateUsers = [...MOCK_TABLES.users || [], ...sliceUsers];
   for (const u of allCandidateUsers) {
-    if (!u || !u.id) continue;
+    if (!u || !u.id || isRemovedPredefinedUser(u)) continue;
     const rawId = String(u.id);
     const emailLower = u.email ? String(u.email).trim().toLowerCase() : "";
     const usernameLower = u.username ? String(u.username).trim().toLowerCase() : "";
@@ -50067,7 +49697,7 @@ function relinkUsersAndPayrollMasters() {
   const rawMastersObj = PERSISTED_CRM_STATE.payrollMasters || {};
   const relinkedMasters = {};
   for (const m of Object.values(rawMastersObj)) {
-    if (!m || !m.userId) continue;
+    if (!m || !m.userId || isRemovedPredefinedUser({ id: m.userId, email: m.email })) continue;
     const mId = String(m.userId);
     const mEmail = m.email ? String(m.email).trim().toLowerCase() : "";
     const mUsername = m.username ? String(m.username).trim().toLowerCase() : "";
@@ -50693,7 +50323,7 @@ app.post("/api/database/query", async (req, res) => {
 function getCurrentSnapshot() {
   relinkUsersAndPayrollMasters();
   const slices = PERSISTED_CRM_STATE.crmSlices || {};
-  return {
+  const rawSnapshot = {
     customers: Array.isArray(slices.customers) ? slices.customers : [],
     contacts: Array.isArray(slices.contacts) ? slices.contacts : [],
     leads: Array.isArray(slices.leads) ? slices.leads : [],
@@ -50719,6 +50349,7 @@ function getCurrentSnapshot() {
     ...slices,
     users: (Array.isArray(MOCK_TABLES.users) ? MOCK_TABLES.users : []).filter(Boolean).map(sanitizeUserForClient)
   };
+  return reconcileSnapshot(rawSnapshot);
 }
 function findAccountByIdentifier(rawIdentifier) {
   const identifier = String(rawIdentifier || "").trim().toLowerCase();
@@ -50778,6 +50409,7 @@ async function handleAuthLogin(req, res) {
       req.body?.identifier ?? req.body?.email ?? req.body?.username ?? ""
     ).trim().toLowerCase();
     const password = String(req.body?.password ?? "").trim();
+    const portalMode = req.body?.portalMode === "payroll" ? "payroll" : req.body?.portalMode === "crm" ? "crm" : void 0;
     if (!identifier || !password) {
       return res.status(400).json({
         success: false,
@@ -50791,6 +50423,24 @@ async function handleAuthLogin(req, res) {
         success: false,
         authenticated: false,
         message: "Invalid username/email or password."
+      });
+    }
+    const effectiveRole = user?.role || master?.role || "Sales Executive";
+    const isAdminAccount = ["Super Admin", "Administrator"].includes(effectiveRole) || String(user?.id || master?.userId || "") === "usr-1";
+    const isPayrollOnlyAccount = !isAdminAccount && (user?.accessType === "payroll_only" || user?.accessScope === "payroll_only" || master?.accessType === "payroll_only" || !user && Boolean(master));
+    const isCrmOnlyAccount = !isAdminAccount && (user?.accessType === "crm_only" || master?.accessType === "crm_only" || master?.enrolledInPayroll === false);
+    if (portalMode === "crm" && isPayrollOnlyAccount) {
+      return res.status(403).json({
+        success: false,
+        authenticated: false,
+        message: "Access Restricted: Your account is authorized for the Payroll ESS Portal only. You cannot sign in to or access the CRM Workspace."
+      });
+    }
+    if (portalMode === "payroll" && isCrmOnlyAccount) {
+      return res.status(403).json({
+        success: false,
+        authenticated: false,
+        message: "Access Restricted: Your account is not enrolled in the Payroll ESS Portal. Please use the CRM Workspace login."
       });
     }
     const userInactive = user && String(user.status || "").toLowerCase() === "inactive";
@@ -50811,21 +50461,27 @@ async function handleAuthLogin(req, res) {
       });
     }
     const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+    const resolvedAccessScope = !isAdminAccount && (portalMode === "payroll" || isPayrollOnlyAccount) ? "payroll_only" : "all";
     if (user) {
       const uIdx = MOCK_TABLES.users.findIndex((u) => String(u.id) === String(user.id));
       if (uIdx >= 0) {
         MOCK_TABLES.users[uIdx] = {
           ...MOCK_TABLES.users[uIdx],
+          accessScope: resolvedAccessScope,
           lastLoginAt: nowIso
         };
       }
     }
-    const resolvedUser = user || (master ? {
+    const resolvedUser = user ? {
+      ...user,
+      accessScope: resolvedAccessScope,
+      lastLoginAt: nowIso
+    } : master ? {
       id: master.userId,
       name: master.name || "Employee",
       username: master.username || (master.email ? String(master.email).split("@")[0] : master.empCode || "employee"),
       email: master.email || "",
-      accessScope: master.accessType === "payroll_only" ? "payroll_only" : "all",
+      accessScope: resolvedAccessScope,
       accessType: master.accessType || "payroll_only",
       phone: master.phone || "",
       role: master.role || "Sales Executive",
@@ -50834,7 +50490,7 @@ async function handleAuthLogin(req, res) {
       status: master.status || master.employmentStatus || "Active",
       location: master.location || "Mumbai HQ",
       lastLoginAt: nowIso
-    } : null);
+    } : null;
     savePersistedStore();
     await flushStateToDatabase();
     const sanitizedUser = sanitizeUserForClient(resolvedUser);
@@ -50981,7 +50637,8 @@ app.post("/api/auth/profile", async (req, res) => {
     const actor = req.account;
     const rawAuthHeader = req.headers?.authorization || req.headers?.["x-auth-token"] || req.body?.authToken || sessionToken(req);
     const tokenUserId = rawAuthHeader ? verifyAuthToken(rawAuthHeader) : null;
-    const targetId = String(actor?.id || tokenUserId || req.body?.id || "").trim();
+    const requestedTargetId = String(req.body?.id || "").trim();
+    const targetId = String(actor?.id || tokenUserId || requestedTargetId || "").trim();
     if (!targetId) {
       return res.status(401).json({ success: false, message: "Authentication required." });
     }
@@ -50990,8 +50647,16 @@ app.post("/api/auth/profile", async (req, res) => {
     if (!curr) {
       return res.status(404).json({ success: false, message: "User profile not found." });
     }
+    const isAdminActor = ["Super Admin", "Administrator"].includes(actor?.role || curr?.role);
+    if (!isAdminActor && requestedTargetId && actor?.id && requestedTargetId !== String(actor.id)) {
+      return res.status(403).json({
+        success: false,
+        message: "Access Restricted: You can only update your own profile."
+      });
+    }
     const rawPassword = String(req.body?.password ?? req.body?.newPassword ?? "").trim();
     const nextPasswordHash = rawPassword ? hashPassword(rawPassword) : curr.passwordHash || DEFAULT_SEED_PASSWORD_HASH;
+    const lockedToPayroll = !isAdminActor && (curr.accessType === "payroll_only" || curr.accessScope === "payroll_only");
     const updatedRecord = stripPlaintextAndResetFlags({
       ...curr,
       name: req.body?.name !== void 0 ? String(req.body.name).trim() : curr.name,
@@ -51001,7 +50666,7 @@ app.post("/api/auth/profile", async (req, res) => {
       designation: req.body?.designation !== void 0 ? String(req.body.designation).trim() : curr.designation,
       location: req.body?.location !== void 0 ? String(req.body.location).trim() : curr.location,
       avatar: req.body?.avatar !== void 0 ? req.body.avatar : curr.avatar,
-      accessScope: req.body?.accessScope !== void 0 ? req.body.accessScope : curr.accessScope,
+      accessScope: lockedToPayroll ? "payroll_only" : req.body?.accessScope !== void 0 ? req.body.accessScope : curr.accessScope,
       passwordHash: nextPasswordHash
     });
     if (uIdx >= 0) {
@@ -51099,14 +50764,14 @@ app.post("/api/state", async (req, res) => {
         }
       }
     }
-    const sanitizedIncoming = {
+    const sanitizedIncoming = reconcileSnapshot({
       ...incoming,
-      ...Array.isArray(incoming.users) ? { users: incoming.users.map(sanitizeUserForClient) } : {}
-    };
-    const sanitizedBase = base2 && typeof base2 === "object" ? {
+      ...Array.isArray(incoming.users) ? { users: incoming.users.filter((u) => !isRemovedPredefinedUser(u)).map(sanitizeUserForClient) } : {}
+    });
+    const sanitizedBase = base2 && typeof base2 === "object" ? reconcileSnapshot({
       ...base2,
-      ...Array.isArray(base2.users) ? { users: base2.users.map(sanitizeUserForClient) } : {}
-    } : void 0;
+      ...Array.isArray(base2.users) ? { users: base2.users.filter((u) => !isRemovedPredefinedUser(u)).map(sanitizeUserForClient) } : {}
+    }) : void 0;
     const current = getCurrentSnapshot();
     const actor = req.account;
     if (actor && !["Super Admin", "Administrator"].includes(actor.role)) {
@@ -51127,14 +50792,14 @@ app.post("/api/state", async (req, res) => {
       const incomingUserMap = new Map(
         (Array.isArray(sanitizedIncoming.users) ? sanitizedIncoming.users : []).filter((u) => u && u.id).map((u) => [String(u.id), u])
       );
-      const currentForMerge = {
+      const currentForMerge = reconcileSnapshot({
         ...current,
         users: (Array.isArray(current.users) ? current.users : []).map((cu) => {
           const inc = cu?.id ? incomingUserMap.get(String(cu.id)) : void 0;
           return inc ? sanitizeUserForClient({ ...cu, ...inc, empCode: inc.empCode || cu.empCode }) : cu;
         })
-      };
-      const incomingForMerge = {
+      });
+      const incomingForMerge = reconcileSnapshot({
         ...sanitizedIncoming,
         users: (Array.isArray(sanitizedIncoming.users) ? sanitizedIncoming.users : []).map((inc) => {
           const cu = (Array.isArray(current.users) ? current.users : []).find(
@@ -51142,7 +50807,7 @@ app.post("/api/state", async (req, res) => {
           );
           return cu ? sanitizeUserForClient({ ...cu, ...inc, empCode: inc.empCode || cu.empCode }) : inc;
         })
-      };
+      });
       const merged = mergeSnapshots(sanitizedBase, incomingForMerge, currentForMerge);
       if (merged.conflicts.length > 0) {
         return res.status(409).json({
@@ -51595,12 +51260,26 @@ app.put("/api/users/:id", async (req, res) => {
   await flushStateToDatabase();
   res.json({ success: true, id, user: sanitizeUserForClient(updatedRecord) });
 });
-app.get("/api/payroll/masters", (_req, res) => {
+app.get("/api/payroll/masters", (req, res) => {
   const map2 = { ...PERSISTED_CRM_STATE.payrollMasters || {} };
   for (const item of MOCK_TABLES.payroll_masters) {
     if (item && item.userId) {
       map2[item.userId] = item;
     }
+  }
+  const actor = req.account;
+  const isAdmin = !actor || ["Super Admin", "Administrator"].includes(actor.role);
+  if (!isAdmin && actor?.id) {
+    const ownMap = {};
+    const actorEmail = actor.email ? String(actor.email).trim().toLowerCase() : "";
+    for (const [k, m] of Object.entries(map2)) {
+      if (!m) continue;
+      const mEmail = m.email ? String(m.email).trim().toLowerCase() : "";
+      if (String(k) === String(actor.id) || String(m.userId) === String(actor.id) || actorEmail && mEmail === actorEmail) {
+        ownMap[k] = m;
+      }
+    }
+    return res.json({ success: true, masters: sanitizePayrollMastersMapForClient(ownMap) });
   }
   res.json({ success: true, masters: sanitizePayrollMastersMapForClient(map2) });
 });
@@ -51701,6 +51380,7 @@ app.post("/api/payroll/masters", async (req, res) => {
       });
       relinkedMap[canonicalUserId] = normalizedMaster;
       if (existingIdx >= 0) {
+        const nextAccessType = m.accessType || MOCK_TABLES.users[existingIdx].accessType || "crm_and_payroll";
         MOCK_TABLES.users[existingIdx] = stripPlaintextAndResetFlags({
           ...MOCK_TABLES.users[existingIdx],
           name: m.name || MOCK_TABLES.users[existingIdx].name,
@@ -51708,7 +51388,9 @@ app.post("/api/payroll/masters", async (req, res) => {
           email: m.email || MOCK_TABLES.users[existingIdx].email,
           status: effectiveStatus,
           passwordHash,
-          empCode: normalizedMaster.empCode
+          empCode: normalizedMaster.empCode,
+          accessType: nextAccessType,
+          accessScope: nextAccessType === "payroll_only" ? "payroll_only" : MOCK_TABLES.users[existingIdx].accessScope || "all"
         });
       } else {
         MOCK_TABLES.users.push(
@@ -51761,11 +51443,14 @@ app.delete("/api/payroll/masters/:id", async (req, res) => {
   await flushStateToDatabase();
   res.json({ success: true, id });
 });
-app.get("/api/payroll/loans", (_req, res) => {
+app.get("/api/payroll/loans", (req, res) => {
   const delSet = new Set(PERSISTED_CRM_STATE.deletedLoanIds || []);
-  const loans = (PERSISTED_CRM_STATE.payrollLoans || []).filter(
+  const allLoans = (PERSISTED_CRM_STATE.payrollLoans || []).filter(
     (l) => l && l.id && !delSet.has(l.id)
   );
+  const actor = req.account;
+  const isAdmin = !actor || ["Super Admin", "Administrator"].includes(actor.role);
+  const loans = isAdmin ? allLoans : allLoans.filter((l) => String(l.employeeId) === String(actor.id));
   res.json({
     success: true,
     loans,
@@ -51773,25 +51458,45 @@ app.get("/api/payroll/loans", (_req, res) => {
   });
 });
 app.post("/api/payroll/loans", (req, res) => {
+  const actor = req.account;
+  const isAdmin = !actor || ["Super Admin", "Administrator"].includes(actor.role);
   const deletedLoanId = req.body?.deletedLoanId;
   if (deletedLoanId && typeof deletedLoanId === "string") {
-    if (!Array.isArray(PERSISTED_CRM_STATE.deletedLoanIds)) {
-      PERSISTED_CRM_STATE.deletedLoanIds = [];
-    }
-    if (!PERSISTED_CRM_STATE.deletedLoanIds.includes(deletedLoanId)) {
-      PERSISTED_CRM_STATE.deletedLoanIds.push(deletedLoanId);
+    const targetLoan = (PERSISTED_CRM_STATE.payrollLoans || []).find(
+      (l) => l && l.id === deletedLoanId
+    );
+    if (isAdmin || !targetLoan || String(targetLoan.employeeId) === String(actor?.id)) {
+      if (!Array.isArray(PERSISTED_CRM_STATE.deletedLoanIds)) {
+        PERSISTED_CRM_STATE.deletedLoanIds = [];
+      }
+      if (!PERSISTED_CRM_STATE.deletedLoanIds.includes(deletedLoanId)) {
+        PERSISTED_CRM_STATE.deletedLoanIds.push(deletedLoanId);
+      }
     }
   }
   const delSet = new Set(PERSISTED_CRM_STATE.deletedLoanIds || []);
   if (Array.isArray(req.body?.loans)) {
-    PERSISTED_CRM_STATE.payrollLoans = req.body.loans.filter(
-      (l) => l && l.id && !delSet.has(l.id)
-    );
+    if (isAdmin) {
+      PERSISTED_CRM_STATE.payrollLoans = req.body.loans.filter(
+        (l) => l && l.id && !delSet.has(l.id)
+      );
+    } else if (actor?.id) {
+      const otherEmployeesLoans = (PERSISTED_CRM_STATE.payrollLoans || []).filter(
+        (l) => l && l.id && !delSet.has(l.id) && String(l.employeeId) !== String(actor.id)
+      );
+      const ownSubmittedLoans = req.body.loans.filter(
+        (l) => l && l.id && !delSet.has(l.id) && String(l.employeeId) === String(actor.id)
+      );
+      PERSISTED_CRM_STATE.payrollLoans = [...otherEmployeesLoans, ...ownSubmittedLoans];
+    }
     savePersistedStore();
   }
+  const visibleLoans = isAdmin ? PERSISTED_CRM_STATE.payrollLoans || [] : (PERSISTED_CRM_STATE.payrollLoans || []).filter(
+    (l) => String(l.employeeId) === String(actor?.id)
+  );
   res.json({
     success: true,
-    loans: PERSISTED_CRM_STATE.payrollLoans || [],
+    loans: visibleLoans,
     deletedLoanIds: PERSISTED_CRM_STATE.deletedLoanIds || []
   });
 });
@@ -51840,6 +51545,14 @@ app.post("/api/payroll/ess/:empId", (req, res) => {
   const { empId } = req.params;
   if (!empId) {
     return res.status(400).json({ success: false, error: "empId is required" });
+  }
+  const actor = req.account;
+  const isAdmin = !actor || ["Super Admin", "Administrator"].includes(actor.role);
+  if (!isAdmin && String(empId) !== String(actor.id)) {
+    return res.status(403).json({
+      success: false,
+      message: "Access Restricted: You can only view or update your own payroll ESS records."
+    });
   }
   const { attendance, leaves, claims, statutory, base: base2 } = req.body || {};
   if (Array.isArray(leaves)) {
@@ -51905,6 +51618,18 @@ app.post("/api/payroll/ess/:empId", (req, res) => {
   }
   if (statutory !== void 0) {
     PERSISTED_CRM_STATE.payrollStatutory[empId] = statutory;
+    if (statutory && typeof statutory === "object" && PERSISTED_CRM_STATE.payrollMasters && PERSISTED_CRM_STATE.payrollMasters[empId]) {
+      PERSISTED_CRM_STATE.payrollMasters[empId] = {
+        ...PERSISTED_CRM_STATE.payrollMasters[empId],
+        panNumber: statutory.panNumber ?? PERSISTED_CRM_STATE.payrollMasters[empId].panNumber,
+        uanNumber: statutory.uanNumber ?? PERSISTED_CRM_STATE.payrollMasters[empId].uanNumber,
+        pfAccountNo: statutory.pfAccountNo ?? PERSISTED_CRM_STATE.payrollMasters[empId].pfAccountNo,
+        taxRegime: statutory.taxRegime ?? PERSISTED_CRM_STATE.payrollMasters[empId].taxRegime,
+        bankName: statutory.bankName ?? PERSISTED_CRM_STATE.payrollMasters[empId].bankName,
+        bankAccountNo: statutory.bankAccountNo ?? PERSISTED_CRM_STATE.payrollMasters[empId].bankAccountNo,
+        ifscCode: statutory.ifscCode ?? PERSISTED_CRM_STATE.payrollMasters[empId].ifscCode
+      };
+    }
   }
   savePersistedStore();
   res.json({ success: true, empId });
@@ -52150,6 +51875,12 @@ app.delete("/api/users/:id", async (req, res) => {
     }
   }
   MOCK_TABLES.payroll_masters = Object.values(PERSISTED_CRM_STATE.payrollMasters || {});
+  if (PERSISTED_CRM_STATE.crmSlices && typeof PERSISTED_CRM_STATE.crmSlices === "object") {
+    PERSISTED_CRM_STATE.crmSlices = reconcileSnapshot({
+      ...PERSISTED_CRM_STATE.crmSlices,
+      users: MOCK_TABLES.users.map(sanitizeUserForClient)
+    });
+  }
   savePersistedStore();
   try {
     await query("DELETE FROM users WHERE id = $1", [id]);
@@ -52775,8 +52506,13 @@ app.get("/api/maps/geocode", async (req, res) => {
     plusCode: ""
   });
 });
-app.get("/api/sync/pull", async (_req, res) => {
+app.get("/api/sync/pull", async (req, res) => {
   try {
+    const actor = req.account;
+    const isAdmin = !actor || ["Super Admin", "Administrator"].includes(actor.role);
+    const isPayrollRestricted = !isAdmin && Boolean(
+      actor?.accessScope === "payroll_only" || actor?.accessType === "payroll_only"
+    );
     const [
       usersRes,
       leadsRes,
@@ -52814,33 +52550,51 @@ app.get("/api/sync/pull", async (_req, res) => {
         payrollMastersMap[item.userId] = item;
       }
     }
+    const allSanitizedUsers = mergeUsersWithMemory(usersRes.rows).map(sanitizeUserForClient);
+    const allSanitizedMasters = sanitizePayrollMastersMapForClient(payrollMastersMap);
+    const visibleMasters = isAdmin ? allSanitizedMasters : Object.fromEntries(
+      Object.entries(allSanitizedMasters).filter(([k, m]) => {
+        if (!m || !actor?.id) return false;
+        const actorEmail = actor.email ? String(actor.email).trim().toLowerCase() : "";
+        const mEmail = m.email ? String(m.email).trim().toLowerCase() : "";
+        return String(k) === String(actor.id) || String(m.userId) === String(actor.id) || actorEmail && mEmail === actorEmail;
+      })
+    );
+    const visibleLoans = isAdmin ? PERSISTED_CRM_STATE.payrollLoans || [] : (PERSISTED_CRM_STATE.payrollLoans || []).filter(
+      (l) => actor?.id && String(l?.employeeId) === String(actor.id)
+    );
+    const filterOwnSlice = (sliceObj) => {
+      if (isAdmin) return sliceObj || {};
+      if (!sliceObj || !actor?.id) return {};
+      return sliceObj[actor.id] !== void 0 ? { [actor.id]: sliceObj[actor.id] } : {};
+    };
     res.json({
       success: true,
       data: {
-        users: mergeUsersWithMemory(usersRes.rows).map(sanitizeUserForClient),
-        payrollMasters: sanitizePayrollMastersMapForClient(payrollMastersMap),
+        users: isPayrollRestricted ? allSanitizedUsers.filter((u) => String(u.id) === String(actor.id)) : allSanitizedUsers,
+        payrollMasters: visibleMasters,
         deletedPayrollMasterIds: PERSISTED_CRM_STATE.deletedPayrollMasterIds || [],
-        payrollLoans: PERSISTED_CRM_STATE.payrollLoans || [],
+        payrollLoans: visibleLoans,
         deletedLoanIds: PERSISTED_CRM_STATE.deletedLoanIds || [],
         payrollPolicy: PERSISTED_CRM_STATE.payrollPolicy || null,
         payrollOrgMasters: PERSISTED_CRM_STATE.payrollOrgMasters || null,
-        payrollAttendance: PERSISTED_CRM_STATE.payrollAttendance || {},
-        payrollLeaves: PERSISTED_CRM_STATE.payrollLeaves || {},
-        payrollClaims: PERSISTED_CRM_STATE.payrollClaims || {},
-        payrollStatutory: PERSISTED_CRM_STATE.payrollStatutory || {},
-        payrollIntegrationConfig: PERSISTED_CRM_STATE.payrollIntegrationConfig || null,
-        crmSlices: PERSISTED_CRM_STATE.crmSlices || {},
-        leads: leadsRes.rows,
-        customers: custRes.rows,
-        contacts: contactsRes.rows,
-        products: prodRes.rows,
-        invoices: invRes.rows,
-        invoiceItems: invItemsRes.rows,
-        payments: payRes.rows,
-        orders: orderRes.rows,
-        opportunities: oppRes.rows,
-        milestones: milestoneRes.rows,
-        activities: actRes.rows,
+        payrollAttendance: filterOwnSlice(PERSISTED_CRM_STATE.payrollAttendance),
+        payrollLeaves: filterOwnSlice(PERSISTED_CRM_STATE.payrollLeaves),
+        payrollClaims: filterOwnSlice(PERSISTED_CRM_STATE.payrollClaims),
+        payrollStatutory: filterOwnSlice(PERSISTED_CRM_STATE.payrollStatutory),
+        payrollIntegrationConfig: isAdmin ? PERSISTED_CRM_STATE.payrollIntegrationConfig || null : null,
+        crmSlices: isPayrollRestricted ? {} : PERSISTED_CRM_STATE.crmSlices || {},
+        leads: isPayrollRestricted ? [] : leadsRes.rows,
+        customers: isPayrollRestricted ? [] : custRes.rows,
+        contacts: isPayrollRestricted ? [] : contactsRes.rows,
+        products: isPayrollRestricted ? [] : prodRes.rows,
+        invoices: isPayrollRestricted ? [] : invRes.rows,
+        invoiceItems: isPayrollRestricted ? [] : invItemsRes.rows,
+        payments: isPayrollRestricted ? [] : payRes.rows,
+        orders: isPayrollRestricted ? [] : orderRes.rows,
+        opportunities: isPayrollRestricted ? [] : oppRes.rows,
+        milestones: isPayrollRestricted ? [] : milestoneRes.rows,
+        activities: isPayrollRestricted ? [] : actRes.rows,
         companySetup: companyRes.rows[0] || null
       }
     });

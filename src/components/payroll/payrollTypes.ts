@@ -284,7 +284,7 @@ export interface EmployeeSalaryMasterRecord {
   password?: string;
   tempPassword?: string;
   mustChangePasswordOnFirstLogin?: boolean;
-  accessType?: 'payroll_only' | 'crm_and_payroll';
+  accessType?: 'payroll_only' | 'crm_and_payroll' | 'crm_only';
   phone?: string;
   role?: string;
   department?: string;
@@ -318,6 +318,7 @@ export interface EmployeeSalaryMasterRecord {
   bankName: string;
   bankAccountNo: string;
   ifscCode: string;
+  joiningDate?: string;
   // Leave Quota & Shift Allocation
   plQuota?: number;
   clQuota?: number;

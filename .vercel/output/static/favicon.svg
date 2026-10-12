@@ -1,70 +1,139 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" fill="none">
   <defs>
-    <!-- Top-right purple/magenta inner ribbon -->
-    <linearGradient id="topPurple" x1="48" y1="14" x2="108" y2="48" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#1E40AF" />
-      <stop offset="45%" stop-color="#7E22CE" />
-      <stop offset="100%" stop-color="#E879F9" />
+    <!-- Quadrant 0 (Top-Left: Cyan to Cobalt Blue) -->
+    <linearGradient id="q0Main" x1="12" y1="74" x2="102" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00F2FE" />
+      <stop offset="45%" stop-color="#0099FF" />
+      <stop offset="100%" stop-color="#1D4ED8" />
     </linearGradient>
-
-    <!-- Top-left cyan/blue arch ribbon -->
-    <linearGradient id="topCyanBlue" x1="16" y1="54" x2="86" y2="14" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#00E5FF" />
-      <stop offset="50%" stop-color="#00B0FF" />
+    <linearGradient id="q0Fold" x1="28" y1="60" x2="88" y2="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0284C7" />
+      <stop offset="60%" stop-color="#1E40AF" />
+      <stop offset="100%" stop-color="#312E81" />
+    </linearGradient>
+    <linearGradient id="q0Wing" x1="10" y1="64" x2="96" y2="16" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#67E8F9" />
+      <stop offset="55%" stop-color="#00D2FF" />
       <stop offset="100%" stop-color="#2563EB" />
     </linearGradient>
-
-    <!-- Left vertical cyan-to-cobalt ribbon -->
-    <linearGradient id="leftBlue" x1="18" y1="28" x2="46" y2="104" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#00E5FF" />
-      <stop offset="35%" stop-color="#0091EA" />
-      <stop offset="75%" stop-color="#1D4ED8" />
+    <radialGradient id="q0Dot" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#67E8F9" />
+      <stop offset="50%" stop-color="#0284C7" />
       <stop offset="100%" stop-color="#1E3A8A" />
-    </linearGradient>
+    </radialGradient>
 
-    <!-- Bottom-right cyan outer tip -->
-    <linearGradient id="bottomCyanTip" x1="60" y1="112" x2="112" y2="82" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#2563EB" />
-      <stop offset="50%" stop-color="#00B0FF" />
+    <!-- Quadrant 1 (Top-Right: Hot Magenta to Violet & Blue) -->
+    <linearGradient id="q1Main" x1="12" y1="74" x2="102" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FF0844" />
+      <stop offset="45%" stop-color="#D946EF" />
+      <stop offset="100%" stop-color="#4F46E5" />
+    </linearGradient>
+    <linearGradient id="q1Fold" x1="28" y1="60" x2="88" y2="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#BE185D" />
+      <stop offset="60%" stop-color="#7E22CE" />
+      <stop offset="100%" stop-color="#312E81" />
+    </linearGradient>
+    <linearGradient id="q1Wing" x1="10" y1="64" x2="96" y2="16" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F472B6" />
+      <stop offset="55%" stop-color="#8B5CF6" />
+      <stop offset="100%" stop-color="#0EA5E9" />
+    </linearGradient>
+    <radialGradient id="q1Dot" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#F472B6" />
+      <stop offset="50%" stop-color="#9333EA" />
+      <stop offset="100%" stop-color="#3B0764" />
+    </radialGradient>
+
+    <!-- Quadrant 2 (Bottom-Right: Fiery Orange-Red to Golden Amber) -->
+    <linearGradient id="q2Main" x1="12" y1="74" x2="102" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#EF4444" />
+      <stop offset="45%" stop-color="#F97316" />
+      <stop offset="100%" stop-color="#FACC15" />
+    </linearGradient>
+    <linearGradient id="q2Fold" x1="28" y1="60" x2="88" y2="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#991B1B" />
+      <stop offset="60%" stop-color="#C2410C" />
+      <stop offset="100%" stop-color="#B45309" />
+    </linearGradient>
+    <linearGradient id="q2Wing" x1="10" y1="64" x2="96" y2="16" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#14B8A6" />
+      <stop offset="50%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#FDE047" />
+    </linearGradient>
+    <radialGradient id="q2Dot" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#FDBA74" />
+      <stop offset="50%" stop-color="#EA580C" />
+      <stop offset="100%" stop-color="#9A3412" />
+    </radialGradient>
+
+    <!-- Quadrant 3 (Bottom-Left: Vibrant Lime-Emerald to Teal-Cyan) -->
+    <linearGradient id="q3Main" x1="12" y1="74" x2="102" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#A3E635" />
+      <stop offset="45%" stop-color="#22C55E" />
+      <stop offset="100%" stop-color="#06B6D4" />
+    </linearGradient>
+    <linearGradient id="q3Fold" x1="28" y1="60" x2="88" y2="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#15803D" />
+      <stop offset="60%" stop-color="#0F766E" />
+      <stop offset="100%" stop-color="#0369A1" />
+    </linearGradient>
+    <linearGradient id="q3Wing" x1="10" y1="64" x2="96" y2="16" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#BEF264" />
+      <stop offset="55%" stop-color="#10B981" />
       <stop offset="100%" stop-color="#00E5FF" />
     </linearGradient>
-
-    <!-- Bottom purple/magenta twist ribbon -->
-    <linearGradient id="bottomPurple" x1="34" y1="98" x2="104" y2="74" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#3B82F6" />
-      <stop offset="40%" stop-color="#9333EA" />
-      <stop offset="80%" stop-color="#D946EF" />
-      <stop offset="100%" stop-color="#38BDF8" />
-    </linearGradient>
+    <radialGradient id="q3Dot" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#BEF264" />
+      <stop offset="50%" stop-color="#16A34A" />
+      <stop offset="100%" stop-color="#065F46" />
+    </radialGradient>
   </defs>
 
-  <!-- 1. Top-Right Inner Purple/Magenta Ribbon Fold -->
-  <path
-    d="M46 20 C66 10, 96 18, 108 34 C113 41, 108 50, 98 49 C85 48, 72 38, 52 36 Z"
-    fill="url(#topPurple)"
-  />
+  <!-- Layer 1: Inner 3D Ribbon Folds -->
+  <g transform="rotate(0 64 64)">
+    <path d="M 48 22 C 64 19, 80 25, 89 36 C 78 30, 64 28, 52 31 C 38 34, 30 46, 32 62 C 25 50, 27 30, 48 22 Z" fill="url(#q0Fold)" />
+  </g>
+  <g transform="rotate(90 64 64)">
+    <path d="M 48 22 C 64 19, 80 25, 89 36 C 78 30, 64 28, 52 31 C 38 34, 30 46, 32 62 C 25 50, 27 30, 48 22 Z" fill="url(#q1Fold)" />
+  </g>
+  <g transform="rotate(180 64 64)">
+    <path d="M 48 22 C 64 19, 80 25, 89 36 C 78 30, 64 28, 52 31 C 38 34, 30 46, 32 62 C 25 50, 27 30, 48 22 Z" fill="url(#q2Fold)" />
+  </g>
+  <g transform="rotate(270 64 64)">
+    <path d="M 48 22 C 64 19, 80 25, 89 36 C 78 30, 64 28, 52 31 C 38 34, 30 46, 32 62 C 25 50, 27 30, 48 22 Z" fill="url(#q3Fold)" />
+  </g>
 
-  <!-- 2. Left Vertical Spine Ribbon -->
-  <path
-    d="M16 42 C14 64, 16 88, 30 104 C42 116, 58 114, 66 104 C50 96, 42 78, 42 56 C42 40, 48 26, 58 16 C38 16, 18 26, 16 42 Z"
-    fill="url(#leftBlue)"
-  />
+  <!-- Layer 2: Main Sweeping 3D Crescent Ribbons -->
+  <g transform="rotate(0 64 64)">
+    <path d="M 14 78 C 5 48, 18 16, 50 9 C 72 4, 94 12, 106 30 C 90 19, 72 16, 54 20 C 34 25, 21 42, 20 64 C 19 70, 17 75, 14 78 Z" fill="url(#q0Main)" />
+  </g>
+  <g transform="rotate(90 64 64)">
+    <path d="M 14 78 C 5 48, 18 16, 50 9 C 72 4, 94 12, 106 30 C 90 19, 72 16, 54 20 C 34 25, 21 42, 20 64 C 19 70, 17 75, 14 78 Z" fill="url(#q1Main)" />
+  </g>
+  <g transform="rotate(180 64 64)">
+    <path d="M 14 78 C 5 48, 18 16, 50 9 C 72 4, 94 12, 106 30 C 90 19, 72 16, 54 20 C 34 25, 21 42, 20 64 C 19 70, 17 75, 14 78 Z" fill="url(#q2Main)" />
+  </g>
+  <g transform="rotate(270 64 64)">
+    <path d="M 14 78 C 5 48, 18 16, 50 9 C 72 4, 94 12, 106 30 C 90 19, 72 16, 54 20 C 34 25, 21 42, 20 64 C 19 70, 17 75, 14 78 Z" fill="url(#q3Main)" />
+  </g>
 
-  <!-- 3. Top-Left Cyan-to-Blue Sweeping Ribbon -->
-  <path
-    d="M16 52 C16 30, 38 10, 66 10 C82 10, 96 16, 104 26 C90 20, 72 20, 56 30 C42 38, 34 54, 30 70 C20 66, 16 59, 16 52 Z"
-    fill="url(#topCyanBlue)"
-  />
+  <!-- Layer 3: Outer Rim S-Wing Highlights -->
+  <g transform="rotate(0 64 64)">
+    <path d="M 11 66 C 6 40, 22 14, 52 8 C 70 5, 86 9, 98 19 C 82 11, 64 9, 46 14 C 24 20, 13 40, 11 66 Z" fill="url(#q0Wing)" opacity="0.92" />
+  </g>
+  <g transform="rotate(90 64 64)">
+    <path d="M 11 66 C 6 40, 22 14, 52 8 C 70 5, 86 9, 98 19 C 82 11, 64 9, 46 14 C 24 20, 13 40, 11 66 Z" fill="url(#q1Wing)" opacity="0.92" />
+  </g>
+  <g transform="rotate(180 64 64)">
+    <path d="M 11 66 C 6 40, 22 14, 52 8 C 70 5, 86 9, 98 19 C 82 11, 64 9, 46 14 C 24 20, 13 40, 11 66 Z" fill="url(#q2Wing)" opacity="0.92" />
+  </g>
+  <g transform="rotate(270 64 64)">
+    <path d="M 11 66 C 6 40, 22 14, 52 8 C 70 5, 86 9, 98 19 C 82 11, 64 9, 46 14 C 24 20, 13 40, 11 66 Z" fill="url(#q3Wing)" opacity="0.92" />
+  </g>
 
-  <!-- 4. Bottom-Right Cyan Outer Curl -->
-  <path
-    d="M48 114 C70 120, 98 110, 110 92 C114 85, 110 76, 102 78 C92 80, 82 96, 62 104 Z"
-    fill="url(#bottomCyanTip)"
-  />
-
-  <!-- 5. Bottom-Left to Bottom-Right Purple/Magenta Sweeping Ribbon -->
-  <path
-    d="M20 78 C24 98, 42 116, 66 116 C84 116, 98 104, 106 88 C109 81, 103 74, 94 76 C80 80, 68 94, 50 94 C36 94, 26 86, 20 78 Z"
-    fill="url(#bottomPurple)"
-  />
+  <!-- Layer 4: 4 Community Spheres -->
+  <circle cx="44" cy="44" r="6.8" fill="url(#q0Dot)" />
+  <circle cx="84" cy="44" r="6.8" fill="url(#q1Dot)" />
+  <circle cx="84" cy="84" r="6.8" fill="url(#q2Dot)" />
+  <circle cx="44" cy="84" r="6.8" fill="url(#q3Dot)" />
 </svg>

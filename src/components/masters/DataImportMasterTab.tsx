@@ -881,7 +881,7 @@ export const DataImportMasterTab: React.FC<DataImportMasterTabProps> = ({
           ? normalizeEmpCode(rec.empCode)
           : existingMaster?.empCode ||
             existingUser?.empCode ||
-            getNextAvailableEmpCode(tempMastersForCodeGen, idx + 1);
+            getNextAvailableEmpCode(tempMastersForCodeGen);
 
         // Reserve this code in tempMastersForCodeGen so subsequent rows get the next code
         const reserveKey = existingUser?.id || `temp-${idx}`;
@@ -935,9 +935,9 @@ export const DataImportMasterTab: React.FC<DataImportMasterTabProps> = ({
           workingMasters[uid] ||
           buildDefaultSalaryMasterRecord(
             createdOrUpdatedUser,
+            0,
             supplierCompany?.bankName || 'HDFC Bank Ltd',
-            supplierCompany?.ifscCode || 'HDFC0001245',
-            workingMasters
+            supplierCompany?.ifscCode || 'HDFC0001245'
           );
 
         const parsedGross =

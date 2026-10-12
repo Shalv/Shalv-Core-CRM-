@@ -46,7 +46,7 @@ export interface User {
   mustChangePassword?: boolean;
   mustChangePasswordOnFirstLogin?: boolean;
   accessScope?: 'all' | 'payroll_only' | 'FULL_CRM_AND_PAYROLL' | 'PAYROLL_ONLY';
-  accessType?: 'payroll_only' | 'crm_and_payroll';
+  accessType?: 'payroll_only' | 'crm_and_payroll' | 'crm_only';
   empCode?: string;
   phone?: string;
   designation?: string;
