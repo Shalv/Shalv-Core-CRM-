@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
-import {Snapshot, same, mergeSnapshots, reconcileSnapshot, IntegrityIssue, getPendingUserPasswords} from '../shared/integrity';
+import {Snapshot, same, mergeSnapshots, reconcileSnapshot, auditSnapshot, IntegrityIssue, getPendingUserPasswords} from '../shared/integrity';
 export type SyncStatus = {state:'connecting'|'saved'|'saving'|'offline'|'conflict'; message:string; issues:IntegrityIssue[]};
 async function readState(response: Response) {
   if (!response.ok) throw new Error(`Application API returned HTTP ${response.status}. Check that the full application server is running.`);

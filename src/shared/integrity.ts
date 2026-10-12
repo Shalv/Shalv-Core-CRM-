@@ -203,16 +203,99 @@ export function auditSnapshot(snapshot: Snapshot): IntegrityIssue[] {
   return issues;
 }
 
+export const REMOVED_PREDEFINED_USER_IDS = new Set([
+  'usr-2',
+  'usr-3',
+  'usr-4',
+  'usr-5',
+  'usr-6',
+  'usr-7',
+]);
+
+export const REMOVED_PREDEFINED_USER_EMAILS = new Set([
+  'tabassum@coreenact.com',
+  'rohan.verma@coreenact.com',
+  'priya.nair@coreenact.com',
+  'amit.patel@coreenact.com',
+  'neha.gupta@coreenact.com',
+  'vikram.m@coreenact.com',
+]);
+
+export function isRemovedPredefinedUser(u: any): boolean {
+  if (!u || typeof u !== 'object') return false;
+  const id = String(u.id || u.userId || '').trim();
+  const email = String(u.email || '').trim().toLowerCase();
+  return REMOVED_PREDEFINED_USER_IDS.has(id) || (Boolean(email) && REMOVED_PREDEFINED_USER_EMAILS.has(email));
+}
+
 /** Update display caches by immutable ID. Never guess a connection using a person's name. */
 export function reconcileSnapshot(input: Snapshot, today = new Date().toISOString().slice(0,10)): Snapshot {
   const s:Snapshot = JSON.parse(JSON.stringify(input));
-  if (Array.isArray(s.users)) s.users=s.users.map((user:any)=>({...user,accessScope:user.accessScope==='PAYROLL_ONLY' || user.accessScope==='payroll_only' || user.accessType==='payroll_only' ? 'payroll_only' : 'all'}));
-  for (const rel of RELATIONS.filter(r=>r.label && !r.nested)) {
-    const map=new Map(rows(s,rel.to).map(r=>[String(r.id),r]));
-    s[rel.from] = rows(s,rel.from).map(row=> {
-      const target=map.get(String(row[rel.field]));
-      const label=target && targetLabel(rel.to,target,rel.label!);
-      return label !== undefined ? {...row,[rel.label!]:label} : row;
+  if (Array.isArray(s.users)) {
+    const filteredUsers = s.users
+      .filter((user: any) => user && !isRemovedPredefinedUser(user))
+      .map((user: any) => ({
+        ...user,
+        accessScope:
+          user.accessScope === 'PAYROLL_ONLY' ||
+          user.accessScope === 'payroll_only' ||
+          user.accessType === 'payroll_only'
+            ? 'payroll_only'
+            : 'all',
+      }));
+    s.users = filteredUsers;
+  }
+  const adminUser =
+    rows(s, 'users').find((u: any) => String(u.id) === 'usr-1' || u.role === 'Super Admin') ||
+    rows(s, 'users')[0] || { id: 'usr-1', name: 'Shalv Sharma' };
+  const usersMap = new Map(rows(s, 'users').map((u: any) => [String(u.id), u]));
+
+  // Reconcile relations: auto-reassign missing user owners to Admin and clear missing optional references
+  for (const rel of RELATIONS.filter(r => !r.nested)) {
+    const map = new Map(rows(s, rel.to).map(r => [String(r.id), r]));
+    if (!Array.isArray(s[rel.from])) continue;
+    s[rel.from] = rows(s, rel.from).map(row => {
+      const val = row[rel.field];
+      if (!val) return row;
+      let target = map.get(String(val));
+      let nextRow = row;
+      if (!target) {
+        if (rel.to === 'users' && adminUser?.id && map.has(String(adminUser.id))) {
+          target = map.get(String(adminUser.id));
+          nextRow = { ...row, [rel.field]: String(adminUser.id) };
+        } else if (!rel.required) {
+          const copy = { ...row };
+          delete copy[rel.field];
+          if (rel.label) delete copy[rel.label];
+          return copy;
+        }
+      }
+      const label = target && rel.label ? targetLabel(rel.to, target, rel.label) : undefined;
+      return label !== undefined ? { ...nextRow, [rel.label!]: label } : nextRow;
+    });
+  }
+  if (Array.isArray(s.activities)) {
+    s.activities = rows(s, 'activities').map((act: any) => {
+      if (act?.assignedUserId && !usersMap.has(String(act.assignedUserId))) {
+        return { ...act, assignedUserId: String(adminUser.id), assignedUserName: adminUser.name };
+      }
+      return act;
+    });
+  }
+  if (Array.isArray(s.payments)) {
+    s.payments = rows(s, 'payments').map((pay: any) => {
+      if (pay?.recordedById && !usersMap.has(String(pay.recordedById))) {
+        return { ...pay, recordedById: String(adminUser.id), recordedByName: adminUser.name };
+      }
+      return pay;
+    });
+  }
+  if (Array.isArray(s.purchaseOrders)) {
+    s.purchaseOrders = rows(s, 'purchaseOrders').map((po: any) => {
+      if (po?.approvedById && !usersMap.has(String(po.approvedById))) {
+        return { ...po, approvedById: String(adminUser.id), approvedByName: adminUser.name };
+      }
+      return po;
     });
   }
   const customersById=new Map(rows(s,'customers').map(c=>[c.id,c]));

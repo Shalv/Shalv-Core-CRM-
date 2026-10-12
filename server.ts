@@ -12,6 +12,7 @@ import { fileURLToPath } from 'url';
 import {
   assignDocumentNumbers,
   auditSnapshot,
+  isRemovedPredefinedUser,
   mergeSnapshots,
   reconcileSnapshot,
   same,
@@ -136,12 +137,6 @@ app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 const MOCK_TABLES: Record<string, any[]> = {
   users: [
     { id: 'usr-1', name: 'Shalv Sharma', username: 'admin', email: 'admin@coreenact.com', passwordHash: DEFAULT_SEED_PASSWORD_HASH, phone: '9810998290', role: 'Super Admin', department: 'Executive', designation: 'Managing Director / Super Admin', status: 'Active', location: 'New Delhi', created_at: '2026-09-01T09:00:00Z' },
-    { id: 'usr-2', name: 'Tabassum', username: 'tabassum', email: 'tabassum@coreenact.com', passwordHash: DEFAULT_SEED_PASSWORD_HASH, phone: '9810998291', role: 'Sales Manager', department: 'Sales', designation: 'Sales & Support Manager', status: 'Active', location: 'New Delhi', created_at: '2026-09-01T09:05:00Z' },
-    { id: 'usr-3', name: 'Rohan Verma', username: 'rohan', email: 'rohan.verma@coreenact.com', passwordHash: DEFAULT_SEED_PASSWORD_HASH, phone: '9810998292', role: 'Sales Executive', department: 'Sales', designation: 'Senior Account Executive', status: 'Active', location: 'Mumbai', created_at: '2026-09-01T09:10:00Z' },
-    { id: 'usr-4', name: 'Priya Nair', username: 'priya', email: 'priya.nair@coreenact.com', passwordHash: DEFAULT_SEED_PASSWORD_HASH, phone: '9810998293', role: 'Finance Manager', department: 'Finance', designation: 'Head of Billing & Receivables', status: 'Active', location: 'Bengaluru', created_at: '2026-09-01T09:15:00Z' },
-    { id: 'usr-5', name: 'Amit Patel', username: 'amit', email: 'amit.patel@coreenact.com', passwordHash: DEFAULT_SEED_PASSWORD_HASH, phone: '9810998294', role: 'Finance Executive', department: 'Finance', designation: 'Accounts & GST Officer', status: 'Active', location: 'Ahmedabad', created_at: '2026-09-01T09:20:00Z' },
-    { id: 'usr-6', name: 'Neha Gupta', username: 'neha', email: 'neha.gupta@coreenact.com', passwordHash: DEFAULT_SEED_PASSWORD_HASH, phone: '9810998295', role: 'Management/Viewer', department: 'Executive', designation: 'VP of Strategy (Read-Only)', status: 'Active', location: 'New Delhi', created_at: '2026-09-01T09:25:00Z' },
-    { id: 'usr-7', name: 'Vikram Malhotra', username: 'vikram', email: 'vikram.m@coreenact.com', passwordHash: DEFAULT_SEED_PASSWORD_HASH, phone: '9810998296', role: 'Administrator', department: 'Operations', designation: 'Operations Director', status: 'Active', location: 'Pune', created_at: '2026-09-01T09:30:00Z' },
   ],
   payroll_masters: [],
   leads: [
@@ -310,7 +305,7 @@ function relinkUsersAndPayrollMasters() {
   // Process authoritative MOCK_TABLES.users first so their passwordHashes are registered before sanitized sliceUsers
   const allCandidateUsers = [...(MOCK_TABLES.users || []), ...sliceUsers];
   for (const u of allCandidateUsers) {
-    if (!u || !u.id) continue;
+    if (!u || !u.id || isRemovedPredefinedUser(u)) continue;
     const rawId = String(u.id);
     const emailLower = u.email ? String(u.email).trim().toLowerCase() : '';
     const usernameLower = u.username ? String(u.username).trim().toLowerCase() : '';
@@ -357,7 +352,7 @@ function relinkUsersAndPayrollMasters() {
   const rawMastersObj = PERSISTED_CRM_STATE.payrollMasters || {};
   const relinkedMasters: Record<string, any> = {};
   for (const m of Object.values(rawMastersObj) as any[]) {
-    if (!m || !m.userId) continue;
+    if (!m || !m.userId || isRemovedPredefinedUser({ id: m.userId, email: m.email })) continue;
     const mId = String(m.userId);
     const mEmail = m.email ? String(m.email).trim().toLowerCase() : '';
     const mUsername = m.username ? String(m.username).trim().toLowerCase() : '';
@@ -1054,7 +1049,7 @@ app.post('/api/database/query', async (req: Request, res: Response) => {
 function getCurrentSnapshot(): Snapshot {
   relinkUsersAndPayrollMasters();
   const slices = PERSISTED_CRM_STATE.crmSlices || {};
-  return {
+  const rawSnapshot: Snapshot = {
     customers: Array.isArray(slices.customers) ? slices.customers : [],
     contacts: Array.isArray(slices.contacts) ? slices.contacts : [],
     leads: Array.isArray(slices.leads) ? slices.leads : [],
@@ -1080,6 +1075,7 @@ function getCurrentSnapshot(): Snapshot {
     ...slices,
     users: (Array.isArray(MOCK_TABLES.users) ? MOCK_TABLES.users : []).filter(Boolean).map(sanitizeUserForClient),
   };
+  return reconcileSnapshot(rawSnapshot);
 }
 
 function findAccountByIdentifier(rawIdentifier: string): { user: any | null; master: any | null } {
@@ -1641,20 +1637,20 @@ app.post('/api/state', async (req: Request, res: Response) => {
       }
     }
 
-    const sanitizedIncoming: Snapshot = {
+    const sanitizedIncoming: Snapshot = reconcileSnapshot({
       ...incoming,
       ...(Array.isArray(incoming.users)
-        ? { users: incoming.users.map(sanitizeUserForClient) }
+        ? { users: incoming.users.filter((u: any) => !isRemovedPredefinedUser(u)).map(sanitizeUserForClient) }
         : {}),
-    };
+    });
     const sanitizedBase: Snapshot | undefined =
       base && typeof base === 'object'
-        ? {
+        ? reconcileSnapshot({
             ...base,
             ...(Array.isArray(base.users)
-              ? { users: base.users.map(sanitizeUserForClient) }
+              ? { users: base.users.filter((u: any) => !isRemovedPredefinedUser(u)).map(sanitizeUserForClient) }
               : {}),
-          }
+          })
         : undefined;
 
     const current = getCurrentSnapshot();
@@ -1681,14 +1677,14 @@ app.post('/api/state', async (req: Request, res: Response) => {
           .filter((u: any) => u && u.id)
           .map((u: any) => [String(u.id), u])
       );
-      const currentForMerge: Snapshot = {
+      const currentForMerge: Snapshot = reconcileSnapshot({
         ...current,
         users: (Array.isArray(current.users) ? current.users : []).map((cu: any) => {
           const inc = cu?.id ? incomingUserMap.get(String(cu.id)) : undefined;
           return inc ? sanitizeUserForClient({ ...cu, ...inc, empCode: inc.empCode || cu.empCode }) : cu;
         }),
-      };
-      const incomingForMerge: Snapshot = {
+      });
+      const incomingForMerge: Snapshot = reconcileSnapshot({
         ...sanitizedIncoming,
         users: (Array.isArray(sanitizedIncoming.users) ? sanitizedIncoming.users : []).map((inc: any) => {
           const cu = (Array.isArray(current.users) ? current.users : []).find(
@@ -1696,7 +1692,7 @@ app.post('/api/state', async (req: Request, res: Response) => {
           );
           return cu ? sanitizeUserForClient({ ...cu, ...inc, empCode: inc.empCode || cu.empCode }) : inc;
         }),
-      };
+      });
       const merged = mergeSnapshots(sanitizedBase, incomingForMerge, currentForMerge);
       if (merged.conflicts.length > 0) {
         return res.status(409).json({
@@ -2951,6 +2947,12 @@ app.delete('/api/users/:id', async (req: Request, res: Response) => {
     }
   }
   MOCK_TABLES.payroll_masters = Object.values(PERSISTED_CRM_STATE.payrollMasters || {});
+  if (PERSISTED_CRM_STATE.crmSlices && typeof PERSISTED_CRM_STATE.crmSlices === 'object') {
+    PERSISTED_CRM_STATE.crmSlices = reconcileSnapshot({
+      ...PERSISTED_CRM_STATE.crmSlices,
+      users: MOCK_TABLES.users.map(sanitizeUserForClient),
+    });
+  }
   savePersistedStore();
   try {
     await query('DELETE FROM users WHERE id = $1', [id]);

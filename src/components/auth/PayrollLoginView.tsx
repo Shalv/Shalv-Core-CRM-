@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useCrm } from '../../context/CrmContext';
+import { SwirlingRibbonEmblem } from '../common/BrandLogo';
 
 interface PayrollLoginViewProps {
   onSwitchToCrmLogin?: () => void;
@@ -544,54 +545,17 @@ const payChakraAuroraCss = `
 }
 `;
 
-function PayChakraAuroraEmblem() {
-  return (
-    <svg viewBox="0 0 120 120" fill="none" aria-hidden="true">
-      <defs>
-        <linearGradient id="pcaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#0284c7" />
-          <stop offset="50%" stopColor="#4f46e5" />
-          <stop offset="100%" stopColor="#db2777" />
-        </linearGradient>
-        <radialGradient id="pcaCore" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#0284c7" stopOpacity="0.95" />
-          <stop offset="65%" stopColor="#4f46e5" stopOpacity="0.9" />
-          <stop offset="100%" stopColor="#312e81" stopOpacity="0.98" />
-        </radialGradient>
-      </defs>
-      <circle cx="60" cy="60" r="52" stroke="url(#pcaGrad)" strokeWidth="3.5" opacity="0.85" />
-      <circle
-        cx="60"
-        cy="60"
-        r="41"
-        stroke="url(#pcaGrad)"
-        strokeWidth="2"
-        strokeDasharray="10 6"
-        opacity="0.7"
+function PayChakraAuroraEmblem({ logoUrl, companyName }: { logoUrl?: string; companyName?: string }) {
+  if (logoUrl && logoUrl !== '/favicon.svg') {
+    return (
+      <img
+        src={logoUrl}
+        alt={companyName || 'PayChakra'}
+        referrerPolicy="no-referrer"
       />
-      {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map((angle) => (
-        <g key={angle} transform={`rotate(${angle} 60 60)`}>
-          <path
-            d="M60 10 L64 26 L56 26 Z"
-            fill="url(#pcaGrad)"
-            opacity="0.9"
-          />
-        </g>
-      ))}
-      <circle cx="60" cy="60" r="24" fill="url(#pcaCore)" stroke="#ffffff" strokeWidth="1.5" />
-      <text
-        x="60"
-        y="69"
-        textAnchor="middle"
-        fill="#ffffff"
-        fontFamily="Fraunces, Georgia, serif"
-        fontWeight="600"
-        fontSize="26"
-      >
-        ₹
-      </text>
-    </svg>
-  );
+    );
+  }
+  return <SwirlingRibbonEmblem />;
 }
 
 function AuroraBackground() {
@@ -971,7 +935,7 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
       <main className="pca-stage">
         <section className="pca-intro" aria-label="About PayChakra">
           <div className="pca-brand">
-            <PayChakraAuroraEmblem />
+            <PayChakraAuroraEmblem logoUrl={supplierCompany?.logoUrl} companyName={supplierCompany?.name} />
             <span>PayChakra</span>
           </div>
 

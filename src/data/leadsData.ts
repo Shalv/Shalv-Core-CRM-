@@ -25,8 +25,8 @@ export const INITIAL_LEADS: Lead[] = [
     "productInterestIds": [
         "prod-d365"
     ],
-    "leadOwnerId": "usr-3",
-    "leadOwnerName": "Rohan Verma",
+    "leadOwnerId": "usr-1",
+    "leadOwnerName": "Shalv Sharma",
     "estimatedValue": 850000,
     "expectedClosingDate": "2027-03-15",
     "rating": "Warm",
@@ -77,8 +77,8 @@ export const INITIAL_LEADS: Lead[] = [
     "remarks": "Signed 5 milestone contract (Advance, FRD, Dev, UAT, Go-live)",
     "createdAt": "2026-09-15T04:15:51Z",
     "updatedAt": "2026-09-29T13:00:15Z",
-    "leadOwnerId": "usr-2",
-    "leadOwnerName": "Tabassum"
+    "leadOwnerId": "usr-1",
+    "leadOwnerName": "Shalv Sharma"
 },
 {
     "id": "641",
@@ -159,8 +159,8 @@ export const INITIAL_LEADS: Lead[] = [
     "remarks": "Ongoing proposal for D365 ERP enhancement",
     "createdAt": "2026-09-15T04:24:37Z",
     "updatedAt": "2026-09-15T04:24:37Z",
-    "leadOwnerId": "usr-2",
-    "leadOwnerName": "Tabassum"
+    "leadOwnerId": "usr-1",
+    "leadOwnerName": "Shalv Sharma"
 },
 {
     "id": "643",
@@ -238,8 +238,8 @@ export const INITIAL_LEADS: Lead[] = [
     "remarks": "Follow-up scheduled for commercial negotiation with Ankur Goyal",
     "createdAt": "2026-09-15T05:24:14Z",
     "updatedAt": "2026-09-28T04:15:35Z",
-    "leadOwnerId": "usr-3",
-    "leadOwnerName": "Rohan Verma"
+    "leadOwnerId": "usr-1",
+    "leadOwnerName": "Shalv Sharma"
 },
 {
     "id": "645",
