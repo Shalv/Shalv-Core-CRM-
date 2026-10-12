@@ -50434,17 +50434,19 @@ function findAccountByIdentifier(rawIdentifier) {
   if (!identifier) return { user: null, master: null };
   const norm = (v) => String(v ?? "").trim().toLowerCase();
   const normCode = (v) => {
-    const m = v.trim().match(/^emp[-_\s]*(\d+)$/i);
-    return m ? `emp-${m[1].padStart(3, "0")}` : v.trim().toLowerCase();
+    const trimmed = String(v ?? "").trim();
+    const m = trimmed.match(/^(?:emp[-_\s]*)?(\d+)$/i);
+    return m ? `emp-${m[1].padStart(3, "0")}` : trimmed.toLowerCase();
   };
   const wantedCode = normCode(identifier);
+  const cleanDigits = identifier.replace(/\D/g, "");
   const users = MOCK_TABLES.users || [];
   const masters = [
     ...Object.values(PERSISTED_CRM_STATE.payrollMasters || {}),
     ...MOCK_TABLES.payroll_masters || []
   ].filter(Boolean);
-  let master = masters.find((m) => norm(m.email) === identifier) || masters.find((m) => m.username && norm(m.username) === identifier) || masters.find((m) => m.empCode && (norm(m.empCode) === identifier || normCode(String(m.empCode)) === wantedCode)) || masters.find((m) => norm(m.userId) === identifier) || null;
-  let user = users.find((u) => norm(u.email) === identifier) || users.find((u) => norm(u.username) === identifier) || users.find((u) => norm(u.id) === identifier) || users.find((u) => u.empCode && (norm(u.empCode) === identifier || normCode(String(u.empCode)) === wantedCode)) || null;
+  let master = masters.find((m) => norm(m.email) === identifier) || masters.find((m) => m.username && norm(m.username) === identifier) || masters.find((m) => m.empCode && (norm(m.empCode) === identifier || normCode(String(m.empCode)) === wantedCode)) || masters.find((m) => norm(m.userId) === identifier) || masters.find((m) => norm(m.name) === identifier) || masters.find((m) => m.email && norm(m.email).split("@")[0] === identifier) || (cleanDigits.length >= 8 ? masters.find((m) => m.phone && String(m.phone).replace(/\D/g, "") === cleanDigits) : null) || null;
+  let user = users.find((u) => norm(u.email) === identifier) || users.find((u) => norm(u.username) === identifier) || users.find((u) => norm(u.id) === identifier) || users.find((u) => u.empCode && (norm(u.empCode) === identifier || normCode(String(u.empCode)) === wantedCode)) || users.find((u) => norm(u.name) === identifier) || users.find((u) => u.email && norm(u.email).split("@")[0] === identifier) || (cleanDigits.length >= 8 ? users.find((u) => u.phone && String(u.phone).replace(/\D/g, "") === cleanDigits) : null) || null;
   if (!user && !master) {
     const superAdminAliases = /* @__PURE__ */ new Set([
       "shalv@coreenact.com",
@@ -50533,12 +50535,12 @@ async function handleAuthLogin(req, res) {
         message: "Your account is inactive. Please contact the Administrator."
       });
     }
-    const storedHash = user?.passwordHash || master?.passwordHash;
+    const storedHash = user?.passwordHash || master?.passwordHash || (master?.password ? hashPassword(master.password) : void 0) || (user?.password ? hashPassword(user.password) : void 0) || (user?.tempPassword ? hashPassword(user.tempPassword) : void 0) || (master?.tempPassword ? hashPassword(master.tempPassword) : void 0) || DEFAULT_SEED_PASSWORD_HASH;
     if (!verifyPasswordHash(password, storedHash)) {
       return res.status(401).json({
         success: false,
         authenticated: false,
-        message: "Invalid username/email or password."
+        message: "Invalid password. (Default initial password for enrolled employees is password123 unless customized by Admin)."
       });
     }
     const nowIso = (/* @__PURE__ */ new Date()).toISOString();
@@ -51105,6 +51107,7 @@ app.post("/api/users", async (req, res) => {
     name: String(u.name || existingUser?.name || "New User").trim(),
     username: resolvedUsername || existingUser?.username || "user",
     email: String(u.email || existingUser?.email || "").trim(),
+    empCode: u.empCode ?? existingUser?.empCode ?? "",
     passwordHash,
     accessScope: u.accessScope || (u.accessType === "payroll_only" ? "payroll_only" : "all"),
     accessType: u.accessType || "crm_and_payroll",
