@@ -761,7 +761,25 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
     supplierCompany,
   } = useCrm();
 
-  const [values, setValues] = useState({ empId: '', password: '' });
+  const urlLockedIdentity = React.useMemo(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const emailParam = (params.get('email') || '').trim();
+      const empParam = (params.get('emp') || '').trim();
+      return {
+        email: emailParam,
+        empCode: empParam,
+        isLockedLink: Boolean(emailParam || empParam),
+      };
+    } catch {
+      return { email: '', empCode: '', isLockedLink: false };
+    }
+  }, []);
+
+  const [values, setValues] = useState(() => ({
+    empId: urlLockedIdentity.email || urlLockedIdentity.empCode || '',
+    password: '',
+  }));
   const [errors, setErrors] = useState({ empId: '', password: '' });
   const [attempt, setAttempt] = useState(0);
   const [showPw, setShowPw] = useState(false);
@@ -775,10 +793,11 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<{ text: string; ok: boolean }>({ text: '', ok: false });
 
-  // Forgot password / self-service reset mode
+  // Self-service password change mode (requires current password)
   const [isResetMode, setIsResetMode] = useState(false);
   const [resetForm, setResetForm] = useState({
     identifier: '',
+    currentPassword: '',
     newPassword: '',
     confirmPassword: '',
   });
@@ -808,6 +827,25 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
     }
 
     const cleanInput = values.empId.trim();
+    if (urlLockedIdentity.isLockedLink) {
+      const inputLower = cleanInput.toLowerCase();
+      const allowedEmail = urlLockedIdentity.email.toLowerCase();
+      const allowedCode = urlLockedIdentity.empCode.toLowerCase();
+      if (
+        (allowedEmail && inputLower !== allowedEmail && (!allowedCode || inputLower !== allowedCode)) ||
+        (!allowedEmail && allowedCode && inputLower !== allowedCode)
+      ) {
+        setAttempt((n) => n + 1);
+        setStatus({
+          text: `Access Restricted: This personal ESS portal link is assigned to ${
+            urlLockedIdentity.email || urlLockedIdentity.empCode
+          } only. You cannot sign in with another employee's login.`,
+          ok: false,
+        });
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       try {
@@ -816,9 +854,12 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
         // ignore
       }
 
-      const verified = await syncCredentialsFromServer(cleanInput, values.password);
+      const verified = await syncCredentialsFromServer(cleanInput, values.password, 'payroll');
       const res = verified
-        ? login(cleanInput, values.password, { portalMode: 'payroll' })
+        ? login(cleanInput, values.password, {
+            portalMode: 'payroll',
+            requiredEmail: urlLockedIdentity.email || undefined,
+          })
         : {
             success: false,
             message: 'Sign in failed. Check your details and try again.',
@@ -848,14 +889,22 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
     }
   };
 
-  const handleResetSubmit = (e: React.FormEvent) => {
+  const handleResetSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const idTrim = resetForm.identifier.trim() || values.empId.trim();
+    const currPass = resetForm.currentPassword.trim();
     const nextPass = resetForm.newPassword.trim();
     const confirmPass = resetForm.confirmPassword.trim();
 
     if (!idTrim) {
       setStatus({ text: 'Enter your employee code or work email.', ok: false });
+      return;
+    }
+    if (!currPass) {
+      setStatus({
+        text: 'Enter your current password (set by Admin or your previous password).',
+        ok: false,
+      });
       return;
     }
     if (nextPass.length < 4) {
@@ -864,6 +913,33 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
     }
     if (nextPass !== confirmPass) {
       setStatus({ text: 'New password and confirm password do not match.', ok: false });
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identifier: idTrim,
+          currentPassword: currPass,
+          newPassword: nextPass,
+          confirmPassword: confirmPass,
+        }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || data?.success === false) {
+        setStatus({
+          text: data?.message || 'Current password is incorrect. Contact Admin if you forgot your password.',
+          ok: false,
+        });
+        return;
+      }
+    } catch {
+      setStatus({
+        text: 'Could not verify current password with server. Please sign in and change your password from My Profile.',
+        ok: false,
+      });
       return;
     }
 
@@ -878,9 +954,11 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
         ok: true,
       });
     } else {
+      setValues({ empId: idTrim, password: nextPass });
+      setIsResetMode(false);
       setStatus({
-        text: 'Account not found locally. Sign in with the password set by Admin, then change it from My Profile.',
-        ok: false,
+        text: 'Password updated! Click Sign in to open your ESS portal.',
+        ok: true,
       });
     }
   };
@@ -930,7 +1008,7 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
         </section>
 
         <section className="pca-card" aria-labelledby="login-title">
-          {onSwitchToCrmLogin && (
+          {onSwitchToCrmLogin && !urlLockedIdentity.isLockedLink && (
             <div className="pca-portal-tabs" role="tablist" aria-label="Portal Switcher">
               <button
                 type="button"
@@ -1054,6 +1132,7 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
                     onClick={() => {
                       setResetForm({
                         identifier: values.empId,
+                        currentPassword: '',
                         newPassword: '',
                         confirmPassword: '',
                       });
@@ -1061,7 +1140,7 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
                       setIsResetMode(true);
                     }}
                   >
-                    Forgot password?
+                    Change password?
                   </button>
                 </div>
 
@@ -1083,9 +1162,9 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
             </>
           ) : (
             <>
-              <h2 id="login-title">Reset password</h2>
+              <h2 id="login-title">Change password</h2>
               <p className="pca-sub">
-                Update your ESS portal password using your Employee Code or Official Email ID.
+                Verify your current password set by Admin to update your ESS portal login password.
               </p>
 
               <form onSubmit={handleResetSubmit} noValidate>
@@ -1097,8 +1176,24 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
                       type="text"
                       placeholder="EMP-001 or employee@company.com"
                       value={resetForm.identifier}
+                      readOnly={urlLockedIdentity.isLockedLink}
                       onChange={(e) =>
                         setResetForm((prev) => ({ ...prev, identifier: e.target.value }))
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="pca-field">
+                  <label htmlFor="reset-curr-pw">Current password</label>
+                  <div className="pca-input-wrap">
+                    <input
+                      id="reset-curr-pw"
+                      type={showPw ? 'text' : 'password'}
+                      placeholder="Password set by Admin or current password"
+                      value={resetForm.currentPassword}
+                      onChange={(e) =>
+                        setResetForm((prev) => ({ ...prev, currentPassword: e.target.value }))
                       }
                     />
                   </div>

@@ -677,8 +677,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
 
     let res: {success:boolean; message?:string};
     try {
-      const verified = await syncCredentialsFromServer(email, password);
-      res = verified ? login(email, password) : {success:false, message:'Sign-in could not be verified.'};
+      const verified = await syncCredentialsFromServer(email, password, 'crm');
+      res = verified
+        ? login(email, password, { portalMode: 'crm' })
+        : {success:false, message:'Sign-in could not be verified.'};
     } catch (error) {
       setStatus('idle');
       setErrors({password:error instanceof Error ? error.message : 'Sign-in failed.'});

@@ -105,7 +105,11 @@ interface CrmContextType {
   };
   /** Validates credentials on the server and, if valid, refreshes the locally cached
    *  user/payroll credentials so a following login() succeeds. */
-  syncCredentialsFromServer: (identifier: string, password: string) => Promise<boolean>;
+  syncCredentialsFromServer: (
+    identifier: string,
+    password: string,
+    portalMode?: 'payroll' | 'crm'
+  ) => Promise<boolean>;
   changeEmployeePassword: (emailOrUserId: string, newPassword: string) => boolean;
   loginAsUser: (userId: string) => void;
   logout: () => void;
@@ -1229,7 +1233,30 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     void fetch('/api/auth/session', Object.keys(headers).length ? { headers } : undefined).then(async response => {
       if (!response.ok) {setIsAuthenticated(false); return;}
       const data = await response.json();
-      if (data.user) {setCurrentUser(sanitizeClientUser(data.user)); setIsAuthenticated(true);}
+      if (data.user) {
+        const sanitized = sanitizeClientUser(data.user);
+        const isAdminRole = ['Super Admin', 'Administrator'].includes(sanitized.role);
+        let preservedScope = sanitized.accessScope;
+        if (!isAdminRole) {
+          try {
+            const rawSaved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+            const parsedSaved = rawSaved ? JSON.parse(rawSaved) : null;
+            const urlParams = new URLSearchParams(window.location.search);
+            if (
+              sanitized.accessType === 'payroll_only' ||
+              parsedSaved?.accessScope === 'payroll_only' ||
+              parsedSaved?.accessType === 'payroll_only' ||
+              urlParams.get('portal') === 'payroll'
+            ) {
+              preservedScope = 'payroll_only';
+            }
+          } catch {
+            // ignore
+          }
+        }
+        setCurrentUser({ ...sanitized, accessScope: preservedScope });
+        setIsAuthenticated(true);
+      }
     }).catch(() => setIsAuthenticated(false));
   }, []);
 
@@ -1462,8 +1489,16 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const isAdminRole =
         matchedPayrollMaster.role === 'Super Admin' ||
         matchedPayrollMaster.role === 'Administrator';
-      const resolvedScope: 'all' | 'payroll_only' =
-        !isAdminRole && isPayrollPortalLogin ? 'payroll_only' : 'all';
+
+      if (!isAdminRole && !isPayrollPortalLogin) {
+        return {
+          success: false,
+          message:
+            'Access Restricted: Your account is authorized for the Payroll ESS Portal only. You cannot sign in to or access the CRM Workspace.',
+        };
+      }
+
+      const resolvedScope: 'all' | 'payroll_only' = !isAdminRole ? 'payroll_only' : 'all';
 
       const payrollUser: User = sanitizeClientUser({
         id: matchedPayrollMaster.userId || `usr-${Date.now()}`,
@@ -1529,15 +1564,43 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         matchedUser.id === 'usr-1' ||
         ['admin', 'admin@coreenact.com', 'shalv', 'shalv sharma', 'shalv@coreenact.com', 'shalv.sharma@coreenact.com', 'shalvsharma89@gmail.com', 'shalvpersonal@gmail.com', 'info@coreenact.com'].includes(cleanId);
 
+      const isAccountPayrollOnly =
+        !isAdminUser &&
+        Boolean(
+          matchedUser.accessType === 'payroll_only' ||
+            matchedUser.accessScope === 'payroll_only' ||
+            matchedPayrollMaster?.accessType === 'payroll_only'
+        );
+
+      const isAccountCrmOnly =
+        !isAdminUser &&
+        Boolean(
+          matchedUser.accessType === 'crm_only' ||
+            matchedPayrollMaster?.accessType === 'crm_only' ||
+            matchedPayrollMaster?.enrolledInPayroll === false
+        );
+
+      if (!isPayrollPortalLogin && isAccountPayrollOnly) {
+        return {
+          success: false,
+          message:
+            'Access Restricted: Your account is authorized for the Payroll ESS Portal only. You cannot sign in to or access the CRM Workspace.',
+        };
+      }
+
+      if (isPayrollPortalLogin && isAccountCrmOnly) {
+        return {
+          success: false,
+          message:
+            'Access Restricted: Your account is not enrolled in the Payroll ESS Portal. Please use the CRM Workspace login.',
+        };
+      }
+
       // Route to dedicated Payroll Portal when signing in via the Payroll & ESS login view,
       // OR when the employee was created as Payroll-Only.
       const isPayrollOnly = isAdminUser
         ? false
-        : Boolean(
-            isPayrollPortalLogin ||
-              matchedUser.accessType === 'payroll_only' ||
-              matchedPayrollMaster?.accessType === 'payroll_only'
-          );
+        : Boolean(isPayrollPortalLogin || isAccountPayrollOnly);
 
       const nowFormatted = new Date().toLocaleString('en-IN', {
         year: 'numeric',
@@ -1722,13 +1785,18 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const syncCredentialsFromServer = async (
     identifier: string,
-    password: string
+    password: string,
+    portalMode?: 'payroll' | 'crm'
   ): Promise<boolean> => {
     try {
       const response = await fetch('/api/auth/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier, password }),
+        body: JSON.stringify({
+          identifier,
+          password,
+          ...(portalMode ? { portalMode } : {}),
+        }),
       });
       if (!response.headers.get('content-type')?.includes('application/json')) {
         throw new Error(`The application backend returned HTTP ${response.status}. Check Vercel Runtime Logs for /api/auth/verify.`);
@@ -1858,10 +1926,18 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateCurrentUserProfile = (data: Partial<User>) => {
     setCurrentUser((prev) => {
+      const isAdminActor = prev.role === 'Super Admin' || prev.role === 'Administrator';
+      const lockedToPayroll =
+        !isAdminActor &&
+        (prev.accessScope === 'payroll_only' || prev.accessType === 'payroll_only');
       const safeData =
         prev.role === 'Super Admin'
           ? data
-          : { ...data, role: prev.role };
+          : {
+              ...data,
+              role: prev.role,
+              ...(lockedToPayroll ? { accessScope: 'payroll_only' as const } : {}),
+            };
       const nextPass =
         (typeof safeData.password === 'string' && safeData.password.trim()) ||
         (typeof safeData.tempPassword === 'string' && safeData.tempPassword.trim()) ||

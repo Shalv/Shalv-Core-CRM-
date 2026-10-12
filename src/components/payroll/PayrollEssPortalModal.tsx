@@ -1855,7 +1855,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
               </div>
             )}
 
-            {asDedicatedPage && (
+            {asDedicatedPage && isAdminUser && (
               <button
                 type="button"
                 onClick={() => {
@@ -4066,21 +4066,35 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                       <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
                         Work Handover To
                       </label>
-                      <select
-                        value={leaveForm.handoverTo}
-                        onChange={(e) =>
-                          setLeaveForm({ ...leaveForm, handoverTo: e.target.value })
-                        }
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs"
-                      >
-                        {users
-                          .filter((u) => u.id !== activeEmployee.id)
-                          .map((u) => (
-                            <option key={u.id} value={u.name}>
-                              {u.name} ({u.role})
-                            </option>
-                          ))}
-                      </select>
+                      {isAdminUser ? (
+                        <select
+                          value={leaveForm.handoverTo}
+                          onChange={(e) =>
+                            setLeaveForm({ ...leaveForm, handoverTo: e.target.value })
+                          }
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs"
+                        >
+                          {users
+                            .filter((u) => u.id !== activeEmployee.id)
+                            .map((u) => (
+                              <option key={u.id} value={u.name}>
+                                {u.name} ({u.role})
+                              </option>
+                            ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={leaveForm.handoverTo}
+                          onChange={(e) =>
+                            setLeaveForm({ ...leaveForm, handoverTo: e.target.value })
+                          }
+                          placeholder={
+                            activeUserMaster?.reportingManager || 'Reporting Manager / Team Lead'
+                          }
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs"
+                        />
+                      )}
                     </div>
                   </div>
 
@@ -4452,11 +4466,16 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                         className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs"
                       >
                         <option value="Internal Operations">Internal Operations</option>
-                        {customers.map((c) => (
-                          <option key={c.id} value={c.name}>
-                            {c.name}
-                          </option>
-                        ))}
+                        <option value="Official Client / Field Visit">
+                          Official Client / Field Visit
+                        </option>
+                        {isAdminUser
+                          ? customers.map((c) => (
+                              <option key={c.id} value={c.name}>
+                                {c.name}
+                              </option>
+                            ))
+                          : null}
                       </select>
                     </div>
                     <div>
@@ -4729,13 +4748,20 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
-                      Employee Code
+                      Employee Code {!isAdminUser && <span className="text-[10px] text-slate-400">(Assigned by Admin)</span>}
                     </label>
                     <input
                       type="text"
                       value={statutory.empCode}
-                      onChange={(e) => setStatutory({ ...statutory, empCode: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-bold"
+                      readOnly={!isAdminUser}
+                      onChange={(e) => {
+                        if (isAdminUser) {
+                          setStatutory({ ...statutory, empCode: e.target.value });
+                        }
+                      }}
+                      className={`w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-bold ${
+                        !isAdminUser ? 'text-slate-500 cursor-not-allowed' : ''
+                      }`}
                     />
                   </div>
                   <div>

@@ -1169,6 +1169,7 @@ async function handleAuthLogin(req: Request, res: Response) {
       .trim()
       .toLowerCase();
     const password = String(req.body?.password ?? '').trim();
+    const portalMode = req.body?.portalMode === 'payroll' ? 'payroll' : req.body?.portalMode === 'crm' ? 'crm' : undefined;
     if (!identifier || !password) {
       return res.status(400).json({
         success: false,
@@ -1183,6 +1184,42 @@ async function handleAuthLogin(req: Request, res: Response) {
         success: false,
         authenticated: false,
         message: 'Invalid username/email or password.',
+      });
+    }
+
+    const effectiveRole = user?.role || master?.role || 'Sales Executive';
+    const isAdminAccount =
+      ['Super Admin', 'Administrator'].includes(effectiveRole) ||
+      String(user?.id || master?.userId || '') === 'usr-1';
+
+    const isPayrollOnlyAccount =
+      !isAdminAccount &&
+      (user?.accessType === 'payroll_only' ||
+        user?.accessScope === 'payroll_only' ||
+        master?.accessType === 'payroll_only' ||
+        (!user && Boolean(master)));
+
+    const isCrmOnlyAccount =
+      !isAdminAccount &&
+      (user?.accessType === 'crm_only' ||
+        master?.accessType === 'crm_only' ||
+        master?.enrolledInPayroll === false);
+
+    if (portalMode === 'crm' && isPayrollOnlyAccount) {
+      return res.status(403).json({
+        success: false,
+        authenticated: false,
+        message:
+          'Access Restricted: Your account is authorized for the Payroll ESS Portal only. You cannot sign in to or access the CRM Workspace.',
+      });
+    }
+
+    if (portalMode === 'payroll' && isCrmOnlyAccount) {
+      return res.status(403).json({
+        success: false,
+        authenticated: false,
+        message:
+          'Access Restricted: Your account is not enrolled in the Payroll ESS Portal. Please use the CRM Workspace login.',
       });
     }
 
@@ -1209,19 +1246,30 @@ async function handleAuthLogin(req: Request, res: Response) {
     }
 
     const nowIso = new Date().toISOString();
+    const resolvedAccessScope: 'all' | 'payroll_only' =
+      !isAdminAccount && (portalMode === 'payroll' || isPayrollOnlyAccount)
+        ? 'payroll_only'
+        : 'all';
+
     if (user) {
       const uIdx = MOCK_TABLES.users.findIndex((u) => String(u.id) === String(user.id));
       if (uIdx >= 0) {
         MOCK_TABLES.users[uIdx] = {
           ...MOCK_TABLES.users[uIdx],
+          accessScope: resolvedAccessScope,
           lastLoginAt: nowIso,
         };
       }
     }
 
     const resolvedUser =
-      user ||
-      (master
+      user
+        ? {
+            ...user,
+            accessScope: resolvedAccessScope,
+            lastLoginAt: nowIso,
+          }
+        : master
         ? {
             id: master.userId,
             name: master.name || 'Employee',
@@ -1229,7 +1277,7 @@ async function handleAuthLogin(req: Request, res: Response) {
               master.username ||
               (master.email ? String(master.email).split('@')[0] : master.empCode || 'employee'),
             email: master.email || '',
-            accessScope: master.accessType === 'payroll_only' ? 'payroll_only' : 'all',
+            accessScope: resolvedAccessScope,
             accessType: master.accessType || 'payroll_only',
             phone: master.phone || '',
             role: master.role || 'Sales Executive',
@@ -1239,7 +1287,7 @@ async function handleAuthLogin(req: Request, res: Response) {
             location: master.location || 'Mumbai HQ',
             lastLoginAt: nowIso,
           }
-        : null);
+        : null;
 
     savePersistedStore();
     await flushStateToDatabase();
@@ -1431,7 +1479,8 @@ app.post('/api/auth/profile', async (req: Request, res: Response) => {
       req.body?.authToken ||
       sessionToken(req);
     const tokenUserId = rawAuthHeader ? verifyAuthToken(rawAuthHeader) : null;
-    const targetId = String(actor?.id || tokenUserId || req.body?.id || '').trim();
+    const requestedTargetId = String(req.body?.id || '').trim();
+    const targetId = String(actor?.id || tokenUserId || requestedTargetId || '').trim();
     if (!targetId) {
       return res.status(401).json({ success: false, message: 'Authentication required.' });
     }
@@ -1442,10 +1491,22 @@ app.post('/api/auth/profile', async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, message: 'User profile not found.' });
     }
 
+    const isAdminActor = ['Super Admin', 'Administrator'].includes(actor?.role || curr?.role);
+    if (!isAdminActor && requestedTargetId && actor?.id && requestedTargetId !== String(actor.id)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access Restricted: You can only update your own profile.',
+      });
+    }
+
     const rawPassword = String(req.body?.password ?? req.body?.newPassword ?? '').trim();
     const nextPasswordHash = rawPassword
       ? hashPassword(rawPassword)
       : curr.passwordHash || DEFAULT_SEED_PASSWORD_HASH;
+
+    const lockedToPayroll =
+      !isAdminActor &&
+      (curr.accessType === 'payroll_only' || curr.accessScope === 'payroll_only');
 
     const updatedRecord = stripPlaintextAndResetFlags({
       ...curr,
@@ -1456,7 +1517,11 @@ app.post('/api/auth/profile', async (req: Request, res: Response) => {
       designation: req.body?.designation !== undefined ? String(req.body.designation).trim() : curr.designation,
       location: req.body?.location !== undefined ? String(req.body.location).trim() : curr.location,
       avatar: req.body?.avatar !== undefined ? req.body.avatar : curr.avatar,
-      accessScope: req.body?.accessScope !== undefined ? req.body.accessScope : curr.accessScope,
+      accessScope: lockedToPayroll
+        ? 'payroll_only'
+        : req.body?.accessScope !== undefined
+        ? req.body.accessScope
+        : curr.accessScope,
       passwordHash: nextPasswordHash,
     });
 
@@ -2176,12 +2241,30 @@ app.put('/api/users/:id', async (req: Request, res: Response) => {
 });
 
 // PAYROLL EMPLOYEE MASTERS & ESS BACKEND SYNC ROUTES
-app.get('/api/payroll/masters', (_req: Request, res: Response) => {
+app.get('/api/payroll/masters', (req: Request, res: Response) => {
   const map: Record<string, any> = { ...(PERSISTED_CRM_STATE.payrollMasters || {}) };
   for (const item of MOCK_TABLES.payroll_masters) {
     if (item && item.userId) {
       map[item.userId] = item;
     }
+  }
+  const actor = (req as any).account;
+  const isAdmin = !actor || ['Super Admin', 'Administrator'].includes(actor.role);
+  if (!isAdmin && actor?.id) {
+    const ownMap: Record<string, any> = {};
+    const actorEmail = actor.email ? String(actor.email).trim().toLowerCase() : '';
+    for (const [k, m] of Object.entries(map)) {
+      if (!m) continue;
+      const mEmail = m.email ? String(m.email).trim().toLowerCase() : '';
+      if (
+        String(k) === String(actor.id) ||
+        String(m.userId) === String(actor.id) ||
+        (actorEmail && mEmail === actorEmail)
+      ) {
+        ownMap[k] = m;
+      }
+    }
+    return res.json({ success: true, masters: sanitizePayrollMastersMapForClient(ownMap) });
   }
   res.json({ success: true, masters: sanitizePayrollMastersMapForClient(map) });
 });
@@ -2320,6 +2403,7 @@ app.post('/api/payroll/masters', async (req: Request, res: Response) => {
       relinkedMap[canonicalUserId] = normalizedMaster;
 
       if (existingIdx >= 0) {
+        const nextAccessType = m.accessType || MOCK_TABLES.users[existingIdx].accessType || 'crm_and_payroll';
         MOCK_TABLES.users[existingIdx] = stripPlaintextAndResetFlags({
           ...MOCK_TABLES.users[existingIdx],
           name: m.name || MOCK_TABLES.users[existingIdx].name,
@@ -2328,6 +2412,11 @@ app.post('/api/payroll/masters', async (req: Request, res: Response) => {
           status: effectiveStatus,
           passwordHash,
           empCode: normalizedMaster.empCode,
+          accessType: nextAccessType,
+          accessScope:
+            nextAccessType === 'payroll_only'
+              ? 'payroll_only'
+              : MOCK_TABLES.users[existingIdx].accessScope || 'all',
         });
       } else {
         MOCK_TABLES.users.push(
@@ -2384,11 +2473,16 @@ app.delete('/api/payroll/masters/:id', async (req: Request, res: Response) => {
   res.json({ success: true, id });
 });
 
-app.get('/api/payroll/loans', (_req: Request, res: Response) => {
+app.get('/api/payroll/loans', (req: Request, res: Response) => {
   const delSet = new Set(PERSISTED_CRM_STATE.deletedLoanIds || []);
-  const loans = (PERSISTED_CRM_STATE.payrollLoans || []).filter(
+  const allLoans = (PERSISTED_CRM_STATE.payrollLoans || []).filter(
     (l: any) => l && l.id && !delSet.has(l.id)
   );
+  const actor = (req as any).account;
+  const isAdmin = !actor || ['Super Admin', 'Administrator'].includes(actor.role);
+  const loans = isAdmin
+    ? allLoans
+    : allLoans.filter((l: any) => String(l.employeeId) === String(actor.id));
   res.json({
     success: true,
     loans,
@@ -2397,25 +2491,47 @@ app.get('/api/payroll/loans', (_req: Request, res: Response) => {
 });
 
 app.post('/api/payroll/loans', (req: Request, res: Response) => {
+  const actor = (req as any).account;
+  const isAdmin = !actor || ['Super Admin', 'Administrator'].includes(actor.role);
   const deletedLoanId = req.body?.deletedLoanId;
   if (deletedLoanId && typeof deletedLoanId === 'string') {
-    if (!Array.isArray(PERSISTED_CRM_STATE.deletedLoanIds)) {
-      PERSISTED_CRM_STATE.deletedLoanIds = [];
-    }
-    if (!PERSISTED_CRM_STATE.deletedLoanIds.includes(deletedLoanId)) {
-      PERSISTED_CRM_STATE.deletedLoanIds.push(deletedLoanId);
+    const targetLoan = (PERSISTED_CRM_STATE.payrollLoans || []).find(
+      (l: any) => l && l.id === deletedLoanId
+    );
+    if (isAdmin || !targetLoan || String(targetLoan.employeeId) === String(actor?.id)) {
+      if (!Array.isArray(PERSISTED_CRM_STATE.deletedLoanIds)) {
+        PERSISTED_CRM_STATE.deletedLoanIds = [];
+      }
+      if (!PERSISTED_CRM_STATE.deletedLoanIds.includes(deletedLoanId)) {
+        PERSISTED_CRM_STATE.deletedLoanIds.push(deletedLoanId);
+      }
     }
   }
   const delSet = new Set(PERSISTED_CRM_STATE.deletedLoanIds || []);
   if (Array.isArray(req.body?.loans)) {
-    PERSISTED_CRM_STATE.payrollLoans = req.body.loans.filter(
-      (l: any) => l && l.id && !delSet.has(l.id)
-    );
+    if (isAdmin) {
+      PERSISTED_CRM_STATE.payrollLoans = req.body.loans.filter(
+        (l: any) => l && l.id && !delSet.has(l.id)
+      );
+    } else if (actor?.id) {
+      const otherEmployeesLoans = (PERSISTED_CRM_STATE.payrollLoans || []).filter(
+        (l: any) => l && l.id && !delSet.has(l.id) && String(l.employeeId) !== String(actor.id)
+      );
+      const ownSubmittedLoans = req.body.loans.filter(
+        (l: any) => l && l.id && !delSet.has(l.id) && String(l.employeeId) === String(actor.id)
+      );
+      PERSISTED_CRM_STATE.payrollLoans = [...otherEmployeesLoans, ...ownSubmittedLoans];
+    }
     savePersistedStore();
   }
+  const visibleLoans = isAdmin
+    ? PERSISTED_CRM_STATE.payrollLoans || []
+    : (PERSISTED_CRM_STATE.payrollLoans || []).filter(
+        (l: any) => String(l.employeeId) === String(actor?.id)
+      );
   res.json({
     success: true,
-    loans: PERSISTED_CRM_STATE.payrollLoans || [],
+    loans: visibleLoans,
     deletedLoanIds: PERSISTED_CRM_STATE.deletedLoanIds || [],
   });
 });
@@ -2470,6 +2586,14 @@ app.post('/api/payroll/ess/:empId', (req: Request, res: Response) => {
   const { empId } = req.params;
   if (!empId) {
     return res.status(400).json({ success: false, error: 'empId is required' });
+  }
+  const actor = (req as any).account;
+  const isAdmin = !actor || ['Super Admin', 'Administrator'].includes(actor.role);
+  if (!isAdmin && String(empId) !== String(actor.id)) {
+    return res.status(403).json({
+      success: false,
+      message: 'Access Restricted: You can only view or update your own payroll ESS records.',
+    });
   }
   const { attendance, leaves, claims, statutory, base } = req.body || {};
 
@@ -2539,6 +2663,24 @@ app.post('/api/payroll/ess/:empId', (req: Request, res: Response) => {
   }
   if (statutory !== undefined) {
     PERSISTED_CRM_STATE.payrollStatutory[empId] = statutory;
+    if (
+      statutory &&
+      typeof statutory === 'object' &&
+      PERSISTED_CRM_STATE.payrollMasters &&
+      PERSISTED_CRM_STATE.payrollMasters[empId]
+    ) {
+      PERSISTED_CRM_STATE.payrollMasters[empId] = {
+        ...PERSISTED_CRM_STATE.payrollMasters[empId],
+        panNumber: statutory.panNumber ?? PERSISTED_CRM_STATE.payrollMasters[empId].panNumber,
+        uanNumber: statutory.uanNumber ?? PERSISTED_CRM_STATE.payrollMasters[empId].uanNumber,
+        pfAccountNo: statutory.pfAccountNo ?? PERSISTED_CRM_STATE.payrollMasters[empId].pfAccountNo,
+        taxRegime: statutory.taxRegime ?? PERSISTED_CRM_STATE.payrollMasters[empId].taxRegime,
+        bankName: statutory.bankName ?? PERSISTED_CRM_STATE.payrollMasters[empId].bankName,
+        bankAccountNo:
+          statutory.bankAccountNo ?? PERSISTED_CRM_STATE.payrollMasters[empId].bankAccountNo,
+        ifscCode: statutory.ifscCode ?? PERSISTED_CRM_STATE.payrollMasters[empId].ifscCode,
+      };
+    }
   }
   savePersistedStore();
   res.json({ success: true, empId });
@@ -3553,8 +3695,16 @@ app.get('/api/maps/geocode', async (req: Request, res: Response) => {
 });
 
 // FULL STATE SYNC PULL
-app.get('/api/sync/pull', async (_req: Request, res: Response) => {
+app.get('/api/sync/pull', async (req: Request, res: Response) => {
   try {
+    const actor = (req as any).account;
+    const isAdmin = !actor || ['Super Admin', 'Administrator'].includes(actor.role);
+    const isPayrollRestricted =
+      !isAdmin &&
+      Boolean(
+        actor?.accessScope === 'payroll_only' || actor?.accessType === 'payroll_only'
+      );
+
     const [
       usersRes,
       leadsRes,
@@ -3594,33 +3744,68 @@ app.get('/api/sync/pull', async (_req: Request, res: Response) => {
       }
     }
 
+    const allSanitizedUsers = mergeUsersWithMemory(usersRes.rows).map(sanitizeUserForClient);
+    const allSanitizedMasters = sanitizePayrollMastersMapForClient(payrollMastersMap);
+
+    // Non-admin employees only receive their own payroll master, attendance, leaves, claims, statutory, and loan records
+    const visibleMasters = isAdmin
+      ? allSanitizedMasters
+      : Object.fromEntries(
+          Object.entries(allSanitizedMasters).filter(([k, m]: [string, any]) => {
+            if (!m || !actor?.id) return false;
+            const actorEmail = actor.email ? String(actor.email).trim().toLowerCase() : '';
+            const mEmail = m.email ? String(m.email).trim().toLowerCase() : '';
+            return (
+              String(k) === String(actor.id) ||
+              String(m.userId) === String(actor.id) ||
+              (actorEmail && mEmail === actorEmail)
+            );
+          })
+        );
+
+    const visibleLoans = isAdmin
+      ? PERSISTED_CRM_STATE.payrollLoans || []
+      : (PERSISTED_CRM_STATE.payrollLoans || []).filter(
+          (l: any) => actor?.id && String(l?.employeeId) === String(actor.id)
+        );
+
+    const filterOwnSlice = (sliceObj: Record<string, any> | undefined) => {
+      if (isAdmin) return sliceObj || {};
+      if (!sliceObj || !actor?.id) return {};
+      return sliceObj[actor.id] !== undefined ? { [actor.id]: sliceObj[actor.id] } : {};
+    };
+
     res.json({
       success: true,
       data: {
-        users: mergeUsersWithMemory(usersRes.rows).map(sanitizeUserForClient),
-        payrollMasters: sanitizePayrollMastersMapForClient(payrollMastersMap),
+        users: isPayrollRestricted
+          ? allSanitizedUsers.filter((u: any) => String(u.id) === String(actor.id))
+          : allSanitizedUsers,
+        payrollMasters: visibleMasters,
         deletedPayrollMasterIds: PERSISTED_CRM_STATE.deletedPayrollMasterIds || [],
-        payrollLoans: PERSISTED_CRM_STATE.payrollLoans || [],
+        payrollLoans: visibleLoans,
         deletedLoanIds: PERSISTED_CRM_STATE.deletedLoanIds || [],
         payrollPolicy: PERSISTED_CRM_STATE.payrollPolicy || null,
         payrollOrgMasters: PERSISTED_CRM_STATE.payrollOrgMasters || null,
-        payrollAttendance: PERSISTED_CRM_STATE.payrollAttendance || {},
-        payrollLeaves: PERSISTED_CRM_STATE.payrollLeaves || {},
-        payrollClaims: PERSISTED_CRM_STATE.payrollClaims || {},
-        payrollStatutory: PERSISTED_CRM_STATE.payrollStatutory || {},
-        payrollIntegrationConfig: PERSISTED_CRM_STATE.payrollIntegrationConfig || null,
-        crmSlices: PERSISTED_CRM_STATE.crmSlices || {},
-        leads: leadsRes.rows,
-        customers: custRes.rows,
-        contacts: contactsRes.rows,
-        products: prodRes.rows,
-        invoices: invRes.rows,
-        invoiceItems: invItemsRes.rows,
-        payments: payRes.rows,
-        orders: orderRes.rows,
-        opportunities: oppRes.rows,
-        milestones: milestoneRes.rows,
-        activities: actRes.rows,
+        payrollAttendance: filterOwnSlice(PERSISTED_CRM_STATE.payrollAttendance),
+        payrollLeaves: filterOwnSlice(PERSISTED_CRM_STATE.payrollLeaves),
+        payrollClaims: filterOwnSlice(PERSISTED_CRM_STATE.payrollClaims),
+        payrollStatutory: filterOwnSlice(PERSISTED_CRM_STATE.payrollStatutory),
+        payrollIntegrationConfig: isAdmin
+          ? PERSISTED_CRM_STATE.payrollIntegrationConfig || null
+          : null,
+        crmSlices: isPayrollRestricted ? {} : PERSISTED_CRM_STATE.crmSlices || {},
+        leads: isPayrollRestricted ? [] : leadsRes.rows,
+        customers: isPayrollRestricted ? [] : custRes.rows,
+        contacts: isPayrollRestricted ? [] : contactsRes.rows,
+        products: isPayrollRestricted ? [] : prodRes.rows,
+        invoices: isPayrollRestricted ? [] : invRes.rows,
+        invoiceItems: isPayrollRestricted ? [] : invItemsRes.rows,
+        payments: isPayrollRestricted ? [] : payRes.rows,
+        orders: isPayrollRestricted ? [] : orderRes.rows,
+        opportunities: isPayrollRestricted ? [] : oppRes.rows,
+        milestones: isPayrollRestricted ? [] : milestoneRes.rows,
+        activities: isPayrollRestricted ? [] : actRes.rows,
         companySetup: companyRes.rows[0] || null,
       },
     });

@@ -277,7 +277,7 @@ function MainAppContent() {
 
   // Dedicated full-page view for employees who ONLY have access to payroll
   if (
-    currentUser.accessScope === 'payroll_only' &&
+    (currentUser.accessScope === 'payroll_only' || currentUser.accessType === 'payroll_only') &&
     currentUser.role !== 'Super Admin' &&
     currentUser.role !== 'Administrator'
   ) {
