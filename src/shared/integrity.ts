@@ -417,6 +417,45 @@ export function validatePaymentLinks(snapshot:Snapshot,p:any):void {
   }
 }
 
+const DERIVED_FIELDS = new Set([
+  'updatedAt',
+  'lastLoginAt',
+  'paidAmount',
+  'balanceAmount',
+  'remainingBalance',
+  'runningBalance',
+  'consumedHours',
+  'openingConsumedHours',
+  'openingPaidAmount',
+  'invoicedAmount',
+  'paymentStatus',
+  'invoiceNumber',
+  'receiptNumber',
+  'orderNumber',
+  'leadNumber',
+  'customerCode',
+  'opportunityNumber',
+  'poNumber',
+  'ticketNumber',
+  'crNumber',
+  'contractNumber',
+  'netReceived',
+  'proformaInvoiceId',
+  'proformaInvoiceNumber',
+  'invoiceId',
+]);
+
+function hasDomainRecordChanged(before?: any, current?: any): boolean {
+  if (!before || !current) return before !== current;
+  const allKeys = new Set([...Object.keys(before), ...Object.keys(current)]);
+  for (const k of allKeys) {
+    if (DERIVED_FIELDS.has(k)) continue;
+    if (k === 'status' && ['Paid', 'Partially Paid', 'Issued', 'Overdue', 'Due', 'Upcoming'].includes(String(current[k]))) continue;
+    if (!same(before[k], current[k])) return true;
+  }
+  return false;
+}
+
 /** Three-way merge. Missing rows are deletions, including empty arrays. Never resurrect stale deletes. */
 export function mergeSnapshots(base:Snapshot,local:Snapshot,remote:Snapshot):{snapshot:Snapshot;conflicts:string[]} {
   const snapshot={...remote}; const conflicts:string[]=[];
@@ -430,7 +469,7 @@ export function mergeSnapshots(base:Snapshot,local:Snapshot,remote:Snapshot):{sn
         const before=b.get(id), next=l.get(id), current=r.get(id);
         if(same(before,next)) continue;
         if(!next) {
-          if(current && !same(current,before)) conflicts.push(`${key}/${id}: record changed before deletion`);
+          if(current && hasDomainRecordChanged(before, current)) conflicts.push(`${key}/${id}: record changed before deletion`);
           else r.delete(id);
         } else if(!before) {
           if(current && !same(current,next)) conflicts.push(`${key}/${id}: conflicting new record`);
@@ -440,7 +479,7 @@ export function mergeSnapshots(base:Snapshot,local:Snapshot,remote:Snapshot):{sn
           const merged={...current};
           for(const field of new Set([...Object.keys(before),...Object.keys(next)])) {
             if(same(before[field],next[field])) continue;
-            if(!same(current[field],before[field]) && !same(current[field],next[field]) && !['updatedAt','lastLoginAt','paidAmount','balanceAmount','remainingBalance','runningBalance','consumedHours','invoicedAmount','paymentStatus'].includes(field) && !(field==='status' && ['invoices','milestones'].includes(key) && ['Paid','Partially Paid','Issued','Overdue','Due','Upcoming'].includes(String(next[field])))) conflicts.push(`${key}/${id}/${field}: concurrent change`);
+            if(!same(current[field],before[field]) && !same(current[field],next[field]) && !DERIVED_FIELDS.has(field) && !(field==='status' && ['invoices','milestones','orders'].includes(key) && ['Paid','Partially Paid','Issued','Overdue','Due','Upcoming','Unpaid'].includes(String(next[field])))) conflicts.push(`${key}/${id}/${field}: concurrent change`);
             else if(next[field]===undefined) delete merged[field];
             else merged[field]=next[field];
           }
@@ -448,6 +487,21 @@ export function mergeSnapshots(base:Snapshot,local:Snapshot,remote:Snapshot):{sn
         }
       }
       snapshot[key]=[...r.values()];
+    } else if(typeof local[key] === 'object' && local[key] !== null && typeof remote[key] === 'object' && remote[key] !== null) {
+      const mergedObj: Record<string, any> = { ...(remote[key] || {}) };
+      const bObj = base[key] || {};
+      const lObj = local[key] || {};
+      const rObj = remote[key] || {};
+      for(const prop of new Set([...Object.keys(bObj), ...Object.keys(lObj)])) {
+        if(same(bObj[prop], lObj[prop])) continue;
+        if(!same(rObj[prop], bObj[prop]) && !same(rObj[prop], lObj[prop])) {
+          // Local user edit takes precedence
+          mergedObj[prop] = lObj[prop];
+        } else {
+          mergedObj[prop] = lObj[prop];
+        }
+      }
+      snapshot[key] = mergedObj;
     } else if(!same(remote[key],base[key]) && !same(remote[key],local[key])) conflicts.push(`${key}: concurrent change`);
     else snapshot[key]=local[key];
   }

@@ -85,17 +85,19 @@ export function useApplicationSync(snapshot:Snapshot, apply:(snapshot:Snapshot)=
           return;
         }
         if(!response.ok || !result.success) throw new Error(result.message || 'Save failed');
-        const changesDuringSave=mergeSnapshots(outgoing,latest.current,result.snapshot);
         base.current=result.snapshot;
-        if(changesDuringSave.conflicts.length) {
-          blocked.current=true;
-          setStatus({state:'conflict',message:'Another change occurred during saving. Reload saved data before continuing.',issues:result.issues || []});
-          return;
+        if(same(outgoing,latest.current)) {
+          hydrate(reconcileSnapshot(result.snapshot));
+          localStorage.removeItem(PENDING_KEY);
+          setStatus({state:'saved',message:'All linked records saved',issues:result.issues || []});
+        } else {
+          // The user made subsequent edits while this save was in flight. Apply user's newer changes on top of server baseline and queue next tick
+          const changesDuringSave=mergeSnapshots(outgoing,latest.current,result.snapshot);
+          const nextSnap = reconcileSnapshot(changesDuringSave.conflicts.length ? { ...result.snapshot, ...latest.current } : changesDuringSave.snapshot);
+          hydrate(nextSnap);
+          localStorage.setItem(PENDING_KEY,JSON.stringify({base:base.current,snapshot:latest.current}));
+          setStatus({state:'saved',message:'All linked records saved',issues:result.issues || []});
         }
-        hydrate(reconcileSnapshot(changesDuringSave.snapshot));
-        if(same(base.current,latest.current)) localStorage.removeItem(PENDING_KEY);
-        else localStorage.setItem(PENDING_KEY,JSON.stringify({base:base.current,snapshot:latest.current}));
-        setStatus({state:'saved',message:'All linked records saved',issues:result.issues || []});
       } else {
         const hdrs=authHeaders();
         const response=await (hdrs ? fetch('/api/state',{headers:hdrs}) : fetch('/api/state'));
@@ -137,7 +139,7 @@ export function useApplicationSync(snapshot:Snapshot, apply:(snapshot:Snapshot)=
     return ()=>window.clearTimeout(timer);
   },[snapshot,ready]);
   const reloadSaved=async()=> {
-    if(busy.current) return;
+    busy.current=false;
     blocked.current=false; base.current=null;
     localStorage.removeItem(PENDING_KEY);
     await tickRef.current();

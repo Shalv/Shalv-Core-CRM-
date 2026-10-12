@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useCrm } from '../../context/CrmContext';
-import { SwirlingRibbonEmblem } from '../common/BrandLogo';
+import { BrandLogo, SwirlingRibbonEmblem } from '../common/BrandLogo';
 
 interface PayrollLoginViewProps {
   onSwitchToCrmLogin?: () => void;
@@ -29,14 +29,23 @@ const payChakraAuroraCss = `
   min-height: 100vh;
   width: 100%;
   margin: 0;
-  background-color: #ffffff !important;
-  background: #ffffff !important;
+  background: radial-gradient(circle at 28% 48%, rgba(240, 249, 255, 0.85) 0%, rgba(255, 255, 255, 0.94) 55%, #f8fafc 100%) !important;
   color: var(--ink);
   font: 15px/1.55 var(--font-body);
   padding-inline: 16px;
   padding-block: 32px;
   overflow-x: hidden;
   box-sizing: border-box;
+}
+
+.pca-chakra-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: block;
+  z-index: 0;
+  pointer-events: none;
 }
 
 .pca-root * {
@@ -59,24 +68,59 @@ const payChakraAuroraCss = `
 .pca-brand {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 18px;
 }
 
-.pca-brand img,
-.pca-brand svg {
-  width: 80px;
-  height: 80px;
+.pca-brand-logo-img {
+  max-height: 88px;
+  max-width: 220px;
+  width: auto;
+  height: auto;
   object-fit: contain;
   display: block;
-  filter: drop-shadow(0 4px 12px rgba(37, 99, 235, 0.15));
+  filter: drop-shadow(0 6px 16px rgba(37, 99, 235, 0.18));
+  border-radius: 12px;
 }
 
-.pca-brand span {
+.pca-brand-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pca-brand-company {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(1.8rem, 4vw, 2.3rem);
-  letter-spacing: -0.01em;
+  font-size: clamp(1.6rem, 3.4vw, 2.2rem);
+  letter-spacing: -0.015em;
   color: #0f172a;
+  line-height: 1.15;
+}
+
+.pca-brand-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0284c7;
+  background: rgba(240, 249, 255, 0.95);
+  border: 1px solid #bae6fd;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  width: fit-content;
+}
+
+.pca-card-brand-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 16px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .pca-intro h1 {
@@ -512,19 +556,6 @@ const payChakraAuroraCss = `
 }
 `;
 
-function PayChakraAuroraEmblem({ logoUrl, companyName }: { logoUrl?: string; companyName?: string }) {
-  if (logoUrl && logoUrl !== '/favicon.svg') {
-    return (
-      <img
-        src={logoUrl}
-        alt={companyName || 'PayChakra'}
-        referrerPolicy="no-referrer"
-      />
-    );
-  }
-  return <SwirlingRibbonEmblem />;
-}
-
 function nextPayRun(now = new Date()) {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const payday = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -583,6 +614,254 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
     newPassword: '',
     confirmPassword: '',
   });
+
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let w = 0;
+    let h = 0;
+    let raf: number;
+    let angle = 0;
+    let innerAngle = 0;
+    let time = 0;
+    const mouse = { x: -999, y: -999, targetX: 0, targetY: 0 };
+
+    const resize = () => {
+      if (!canvas) return;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      w = window.innerWidth;
+      h = window.innerHeight;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+
+    resize();
+    window.addEventListener('resize', resize);
+
+    const onMouseMove = (e: MouseEvent) => {
+      mouse.targetX = e.clientX;
+      mouse.targetY = e.clientY;
+    };
+    window.addEventListener('mousemove', onMouseMove);
+
+    const motes = Array.from({ length: 36 }, (_, i) => ({
+      angle: (i / 36) * Math.PI * 2,
+      distRatio: 0.35 + (i % 6) * 0.14,
+      speed: (0.0016 + (i % 5) * 0.0011) * (i % 2 === 0 ? 1 : -1),
+      radius: 1.5 + (i % 4) * 0.9,
+      color: ['#0284c7', '#2563eb', '#7c3aed', '#d946ef', '#f59e0b', '#10b981'][i % 6],
+      alpha: 0.25 + (i % 5) * 0.12,
+    }));
+
+    const draw = () => {
+      ctx.clearRect(0, 0, w, h);
+
+      if (mouse.targetX > 0) {
+        mouse.x += (mouse.targetX - mouse.x) * 0.04;
+        mouse.y += (mouse.targetY - mouse.y) * 0.04;
+      }
+
+      const baseX = w >= 860 ? w * 0.34 : w * 0.5;
+      const baseY = h * 0.5;
+      const offsetX = mouse.x > 0 ? (mouse.x - w * 0.5) * 0.03 : 0;
+      const offsetY = mouse.y > 0 ? (mouse.y - h * 0.5) * 0.03 : 0;
+      const cx = baseX + offsetX;
+      const cy = baseY + offsetY;
+
+      const R = Math.max(160, Math.min(w * 0.32, h * 0.44, 340));
+      const pulse = 1 + Math.sin(time * 0.02) * 0.025;
+
+      // 1. Ambient atmospheric glow
+      const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 1.9);
+      glow.addColorStop(0, 'rgba(56, 189, 248, 0.16)');
+      glow.addColorStop(0.3, 'rgba(99, 102, 241, 0.09)');
+      glow.addColorStop(0.65, 'rgba(217, 70, 239, 0.035)');
+      glow.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, w, h);
+
+      // 2. Outer concentric geometry rings
+      ctx.save();
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = 'rgba(2, 132, 199, 0.18)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, R * 1.12 * pulse, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.setLineDash([4, 8]);
+      ctx.strokeStyle = 'rgba(99, 102, 241, 0.22)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, R * 1.04, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.setLineDash([2, 5]);
+      ctx.strokeStyle = 'rgba(14, 165, 233, 0.2)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, R * 0.94, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+
+      // 3. Rotating outer lotus/chakra petal beads (32 intervals)
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(angle * 0.75);
+      const beadCount = 32;
+      for (let i = 0; i < beadCount; i++) {
+        const theta = (i * Math.PI * 2) / beadCount;
+        const bx = Math.cos(theta) * (R * 1.04);
+        const by = Math.sin(theta) * (R * 1.04);
+        ctx.fillStyle = i % 4 === 0 ? 'rgba(37, 99, 235, 0.45)' : 'rgba(2, 132, 199, 0.28)';
+        ctx.beginPath();
+        ctx.arc(bx, by, i % 4 === 0 ? 3.2 : 2.0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // 4. Sacred 24 radiant spokes
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(angle * 0.5);
+      const spokeCount = 24;
+      for (let i = 0; i < spokeCount; i++) {
+        const theta = (i * Math.PI * 2) / spokeCount;
+        const innerX = Math.cos(theta) * (R * 0.24);
+        const innerY = Math.sin(theta) * (R * 0.24);
+        const outerX = Math.cos(theta) * (R * 0.92);
+        const outerY = Math.sin(theta) * (R * 0.92);
+
+        const isMajor = i % 6 === 0;
+        ctx.lineWidth = isMajor ? 1.8 : 0.9;
+        ctx.strokeStyle = isMajor ? 'rgba(37, 99, 235, 0.35)' : 'rgba(14, 165, 233, 0.16)';
+        ctx.beginPath();
+        ctx.moveTo(innerX, innerY);
+        ctx.lineTo(outerX, outerY);
+        ctx.stroke();
+
+        if (isMajor) {
+          const midX = Math.cos(theta) * (R * 0.62);
+          const midY = Math.sin(theta) * (R * 0.62);
+          ctx.fillStyle = 'rgba(79, 70, 229, 0.45)';
+          ctx.beginPath();
+          ctx.arc(midX, midY, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+
+      // 5. Four sweeping multi-color spiraling chakra ribbon arms
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(-innerAngle);
+      const quadColors = [
+        { c1: '#00F2FE', c2: '#1D4ED8' },
+        { c1: '#FF0844', c2: '#7C3AED' },
+        { c1: '#EF4444', c2: '#F59E0B' },
+        { c1: '#10B981', c2: '#06B6D4' },
+      ];
+
+      for (let q = 0; q < 4; q++) {
+        ctx.save();
+        ctx.rotate((q * Math.PI) / 2);
+
+        ctx.beginPath();
+        ctx.moveTo(R * 0.12, R * 0.65);
+        ctx.bezierCurveTo(R * 0.06, R * 0.38, R * 0.18, R * 0.12, R * 0.44, R * 0.08);
+        ctx.bezierCurveTo(R * 0.66, R * 0.04, R * 0.88, R * 0.12, R * 0.96, R * 0.32);
+        ctx.bezierCurveTo(R * 0.78, R * 0.18, R * 0.58, R * 0.14, R * 0.42, R * 0.18);
+        ctx.bezierCurveTo(R * 0.24, R * 0.24, R * 0.15, R * 0.42, R * 0.14, R * 0.65);
+        ctx.closePath();
+
+        const grad = ctx.createLinearGradient(R * 0.1, R * 0.65, R * 0.95, R * 0.2);
+        grad.addColorStop(0, quadColors[q].c1);
+        grad.addColorStop(1, quadColors[q].c2);
+        ctx.fillStyle = grad;
+        ctx.globalAlpha = 0.28;
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.moveTo(R * 0.38, R * 0.2);
+        ctx.bezierCurveTo(R * 0.52, R * 0.16, R * 0.68, R * 0.22, R * 0.76, R * 0.32);
+        ctx.bezierCurveTo(R * 0.64, R * 0.26, R * 0.52, R * 0.24, R * 0.42, R * 0.26);
+        ctx.bezierCurveTo(R * 0.3, R * 0.29, R * 0.22, R * 0.4, R * 0.24, R * 0.55);
+        ctx.bezierCurveTo(R * 0.18, R * 0.42, R * 0.2, R * 0.26, R * 0.38, R * 0.2);
+        ctx.closePath();
+        ctx.globalAlpha = 0.22;
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(R * 0.42, R * 0.42, 6.2, 0, Math.PI * 2);
+        ctx.globalAlpha = 0.45;
+        ctx.fillStyle = quadColors[q].c2;
+        ctx.fill();
+
+        ctx.restore();
+      }
+      ctx.restore();
+
+      // 6. Inner core rings & Bindu center
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = 'rgba(2, 132, 199, 0.4)';
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 0.24, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(79, 70, 229, 0.3)';
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 0.15, 0, Math.PI * 2);
+      ctx.stroke();
+
+      const coreGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 0.08);
+      coreGrad.addColorStop(0, '#38bdf8');
+      coreGrad.addColorStop(0.5, '#2563eb');
+      coreGrad.addColorStop(1, '#1e3a8a');
+      ctx.fillStyle = coreGrad;
+      ctx.globalAlpha = 0.65;
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 0.08 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // 7. Orbiting cosmic stardust motes
+      motes.forEach((m) => {
+        const mx = cx + Math.cos(m.angle) * (R * m.distRatio);
+        const my = cy + Math.sin(m.angle) * (R * m.distRatio);
+        ctx.fillStyle = m.color;
+        ctx.globalAlpha = m.alpha * (0.8 + Math.sin(time * 0.03 + m.angle) * 0.2);
+        ctx.beginPath();
+        ctx.arc(mx, my, m.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (!reduce) {
+          m.angle += m.speed;
+        }
+      });
+
+      if (!reduce) {
+        angle += 0.0028;
+        innerAngle += 0.002;
+        time += 1;
+        raf = requestAnimationFrame(draw);
+      }
+    };
+
+    draw();
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', resize);
+      window.removeEventListener('mousemove', onMouseMove);
+    };
+  }, []);
 
   const { date, days } = nextPayRun();
   const when = days === 0 ? 'closes today' : days === 1 ? 'in 1 day' : `in ${days} days`;
@@ -748,12 +1027,30 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
   return (
     <div className="pca-root">
       <style>{payChakraAuroraCss}</style>
+      <canvas ref={canvasRef} className="pca-chakra-canvas" aria-hidden="true" />
 
       <main className="pca-stage">
         <section className="pca-intro" aria-label="About PayChakra">
           <div className="pca-brand">
-            <PayChakraAuroraEmblem logoUrl={supplierCompany?.logoUrl} companyName={supplierCompany?.name} />
-            <span>PayChakra</span>
+            {supplierCompany?.logoUrl && supplierCompany.logoUrl !== '/favicon.svg' ? (
+              <img
+                src={supplierCompany.logoUrl}
+                alt={supplierCompany.name || 'Company Logo'}
+                className="pca-brand-logo-img"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <SwirlingRibbonEmblem className="w-20 h-20 shrink-0 drop-shadow-md" />
+            )}
+            <div className="pca-brand-copy">
+              <span className="pca-brand-company">
+                {supplierCompany?.name || 'Coreenact Solutions'}
+              </span>
+              <div className="pca-brand-pill">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
+                PayChakra ESS Portal
+              </div>
+            </div>
           </div>
 
           <h1>
@@ -789,6 +1086,14 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
         </section>
 
         <section className="pca-card" aria-labelledby="login-title">
+          <div className="pca-card-brand-bar">
+            <BrandLogo variant="full" size="sm" showTagline={false} />
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-sky-800 bg-sky-50 border border-sky-200 px-2.5 py-0.5 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
+              Verified Payroll
+            </span>
+          </div>
+
           {onSwitchToCrmLogin && !urlLockedIdentity.isLockedLink && (
             <div className="pca-portal-tabs" role="tablist" aria-label="Portal Switcher">
               <button
