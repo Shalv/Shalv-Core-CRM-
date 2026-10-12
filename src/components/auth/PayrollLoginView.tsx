@@ -1043,15 +1043,6 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
               alt="PayChakra"
               className="pca-brand-logo-img max-h-16 md:max-h-20 w-auto max-w-[280px] object-contain drop-shadow-md"
             />
-            <div className="pca-brand-copy">
-              <span className="pca-brand-company">
-                {supplierCompany?.name || 'Coreenact Solutions'}
-              </span>
-              <div className="pca-brand-pill">
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
-                PayChakra ESS Portal
-              </div>
-            </div>
           </div>
 
           <h1>
@@ -1116,7 +1107,7 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
                 aria-selected="true"
                 className="pca-portal-tab active"
               >
-                PayChakra ESS Portal
+                Payroll Portal
               </button>
             </div>
           )}
@@ -1224,6 +1215,11 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
                   </div>
                   <p className="pca-err" id="e-pw" role="alert">
                     {errors.password}
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-1.5 flex items-center gap-1">
+                    <span>Initial password:</span>
+                    <code className="font-mono font-bold text-slate-700 bg-slate-100 px-1 py-0.5 rounded">password123</code>
+                    <span>(or password configured by HR Admin)</span>
                   </p>
                 </div>
 
