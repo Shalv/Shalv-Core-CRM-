@@ -1018,19 +1018,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
                 </form>
 
                 <div className="mt-4 pt-3 border-t border-slate-200/60 flex flex-col gap-2 text-center">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('admin@coreenact.com');
-                      setPassword('password123');
-                      setErrors({});
-                    }}
-                    className="text-xs font-semibold text-slate-700 hover:text-blue-700 py-1.5 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <span>🔑 Fill Super Admin Credentials</span>
-                    <span className="font-mono text-[11px] text-slate-500 font-normal">(admin@coreenact.com / password123)</span>
-                  </button>
-
                   {onSwitchToPayrollLogin && (
                     <div className="p-3 bg-gradient-to-r from-teal-50/90 to-slate-50 border border-teal-200 rounded-xl flex items-center justify-between gap-3 text-left">
                       <div className="min-w-0">

@@ -1080,31 +1080,6 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
                   </p>
                 )}
               </form>
-
-              <div className="pca-demos">
-                <button
-                  type="button"
-                  className="pca-demo-btn"
-                  onClick={() => {
-                    setValues({ empId: 'EMP-001', password: 'password123' });
-                    setErrors({ empId: '', password: '' });
-                    setStatus({ text: 'Filled EMP-001 credentials. Click Sign in.', ok: true });
-                  }}
-                >
-                  Demo: EMP-001
-                </button>
-                <button
-                  type="button"
-                  className="pca-demo-btn"
-                  onClick={() => {
-                    setValues({ empId: 'EMP-003', password: 'password123' });
-                    setErrors({ empId: '', password: '' });
-                    setStatus({ text: 'Filled EMP-003 credentials. Click Sign in.', ok: true });
-                  }}
-                >
-                  Demo: EMP-003
-                </button>
-              </div>
             </>
           ) : (
             <>
