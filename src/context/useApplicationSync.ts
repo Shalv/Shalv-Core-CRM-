@@ -10,6 +10,15 @@ async function readState(response: Response) {
   return data;
 }
 const PENDING_KEY='crm_pending_transaction_v2';
+function authHeaders(extra?: Record<string, string>): Record<string, string> | undefined {
+  let token: string | null = null;
+  try { token = localStorage.getItem('crm_auth_token'); } catch { /* ignore */ }
+  if (!token && !extra) return undefined;
+  return {
+    ...(extra || {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
 /** One coherent transaction for all CRM slices. Server data loads before any background write. */
 export function useApplicationSync(snapshot:Snapshot, apply:(snapshot:Snapshot)=>void, enabled=true) {
   const enabledRef=useRef(enabled); enabledRef.current=enabled;
@@ -27,7 +36,8 @@ export function useApplicationSync(snapshot:Snapshot, apply:(snapshot:Snapshot)=
     busy.current=true;
     try {
       if(!base.current) {
-        const response=await fetch('/api/state');
+        const hdrs=authHeaders();
+        const response=await (hdrs ? fetch('/api/state',{headers:hdrs}) : fetch('/api/state'));
         const data=await readState(response);
         const remote=data.snapshot as Snapshot;
         let local:Snapshot;
@@ -61,7 +71,7 @@ export function useApplicationSync(snapshot:Snapshot, apply:(snapshot:Snapshot)=
         // Persist the exact baseline too, so reopening cannot overwrite intervening changes.
         localStorage.setItem(PENDING_KEY,JSON.stringify({base:base.current,snapshot:outgoing}));
         setStatus(s=>({...s,state:'saving',message:'Saving linked records…'}));
-        const response=await fetch('/api/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({base:base.current,snapshot:outgoing})});
+        const response=await fetch('/api/state',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({base:base.current,snapshot:outgoing})});
         const result=await response.json();
         if(response.status===409 || response.status===422) {
           blocked.current=true;
@@ -81,7 +91,8 @@ export function useApplicationSync(snapshot:Snapshot, apply:(snapshot:Snapshot)=
         else localStorage.setItem(PENDING_KEY,JSON.stringify({base:base.current,snapshot:latest.current}));
         setStatus({state:'saved',message:'All linked records saved',issues:result.issues || []});
       } else {
-        const response=await fetch('/api/state');
+        const hdrs=authHeaders();
+        const response=await (hdrs ? fetch('/api/state',{headers:hdrs}) : fetch('/api/state'));
         const result=await readState(response);
         // Apply incoming changes together, including deletions and genuinely empty arrays.
         if(same(latest.current,base.current)) {

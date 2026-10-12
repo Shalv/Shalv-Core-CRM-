@@ -1181,7 +1181,8 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (!isAuthenticated) return;
     let cancelled = false;
-    void fetch('/api/sync/pull').then(async res => {
+    const token = localStorage.getItem('crm_auth_token');
+    void fetch('/api/sync/pull', token ? { headers: { Authorization: `Bearer ${token}` } } : undefined).then(async res => {
       if (!res.ok) throw new Error('Payroll data could not load');
       return res.json();
     }).then(({data}) => {
@@ -1210,7 +1211,12 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [isAuthenticated]);
 
   useEffect(() => {
-    void fetch('/api/auth/session').then(async response => {
+    const token = localStorage.getItem('crm_auth_token');
+    const loggedOut = localStorage.getItem(STORAGE_KEYS.IS_AUTHENTICATED) === 'false';
+    const headers: Record<string, string> = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    if (loggedOut) headers['X-CRM-Logged-Out'] = 'true';
+    void fetch('/api/auth/session', Object.keys(headers).length ? { headers } : undefined).then(async response => {
       if (!response.ok) {setIsAuthenticated(false); return;}
       const data = await response.json();
       if (data.user) {setCurrentUser(sanitizeClientUser(data.user)); setIsAuthenticated(true);}
@@ -1683,6 +1689,9 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       const data = await response.json();
       if (!response.ok || !data?.success || !data?.authenticated) throw new Error(data.message || `Sign-in API returned HTTP ${response.status}.`);
+      if (data.token) {
+        try { localStorage.setItem('crm_auth_token', String(data.token)); } catch { /* ignore */ }
+      }
 
       const serverUser = data.user;
       const serverMaster = data.payrollMaster;
@@ -1796,6 +1805,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logout = () => {
+    try { localStorage.removeItem('crm_auth_token'); } catch { /* ignore */ }
     void fetch('/api/auth/logout', {method:'POST'});
     setIsAuthenticated(false);
   };
