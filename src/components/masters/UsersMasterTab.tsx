@@ -314,7 +314,10 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
       avatar: u.avatar || '',
     });
 
-    const baseRoleMap = rolePermissions[u.role] || DEFAULT_ROLE_PERMISSIONS[u.role];
+    const baseRoleMap =
+      rolePermissions[u.role] ||
+      DEFAULT_ROLE_PERMISSIONS[u.role] ||
+      DEFAULT_ROLE_PERMISSIONS['Sales Executive'];
     const initialMap: RolePermissionsMap = { ...baseRoleMap };
     if (u.customPermissions && Object.keys(u.customPermissions).length > 0) {
       ALL_CRM_MODULES.forEach((m) => {

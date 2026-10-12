@@ -206,7 +206,9 @@ export const RolePermissionsMatrix: React.FC<RolePermissionsMatrixProps> = ({
     : DEFAULT_ROLE_PERMISSIONS['Sales Executive'];
 
   const currentRoleMap: RolePermissionsMap =
-    rolePermissions[selectedRole] || DEFAULT_ROLE_PERMISSIONS[selectedRole];
+    rolePermissions[selectedRole] ||
+    DEFAULT_ROLE_PERMISSIONS[selectedRole] ||
+    DEFAULT_ROLE_PERMISSIONS['Sales Executive'];
 
   const activeMatrixMap = matrixMode === 'user' ? activeUserMap : currentRoleMap;
 
@@ -216,7 +218,10 @@ export const RolePermissionsMatrix: React.FC<RolePermissionsMatrixProps> = ({
     module: CrmModuleKey,
     action: PermissionAction
   ): boolean => {
-    const baseRoleMap = rolePermissions[user.role] || DEFAULT_ROLE_PERMISSIONS[user.role];
+    const baseRoleMap =
+      rolePermissions[user.role] ||
+      DEFAULT_ROLE_PERMISSIONS[user.role] ||
+      DEFAULT_ROLE_PERMISSIONS['Sales Executive'];
     const baseVal = baseRoleMap?.[module]?.[action] ?? false;
     const effVal = activeUserMap?.[module]?.[action] ?? false;
     return effVal !== baseVal;

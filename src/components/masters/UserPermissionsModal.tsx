@@ -59,6 +59,28 @@ const MODULE_ICONS: Record<CrmModuleKey, React.ComponentType<{ className?: strin
   database: Database,
 };
 
+export function getFallbackBaseRoleMap(
+  role: string | undefined,
+  rolePermissionsMap?: Record<string, RolePermissionsMap>
+): RolePermissionsMap {
+  if (role && rolePermissionsMap && rolePermissionsMap[role as UserRole]) {
+    return rolePermissionsMap[role as UserRole];
+  }
+  if (role && DEFAULT_ROLE_PERMISSIONS[role as UserRole]) {
+    return DEFAULT_ROLE_PERMISSIONS[role as UserRole];
+  }
+  if (role && /admin/i.test(role)) {
+    return DEFAULT_ROLE_PERMISSIONS['Administrator'];
+  }
+  if (role && /(finance|account)/i.test(role)) {
+    return DEFAULT_ROLE_PERMISSIONS['Finance Executive'];
+  }
+  if (role && /manager/i.test(role)) {
+    return DEFAULT_ROLE_PERMISSIONS['Sales Manager'];
+  }
+  return DEFAULT_ROLE_PERMISSIONS['Sales Executive'];
+}
+
 interface UserPermissionsModalProps {
   user: User | null;
   isOpen: boolean;
@@ -71,6 +93,7 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
   onClose,
 }) => {
   const {
+    users,
     rolePermissions,
     updateUserCustomPermissions,
     currentUser,
@@ -81,16 +104,20 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
   const [sectionFilter, setSectionFilter] = useState<string>('ALL');
   const [isInheritedMode, setIsInheritedMode] = useState<boolean>(true);
 
-  // Initialize permissions when modal opens
+  // Read latest active user from context
+  const activeUser = (user?.id ? users.find((u) => u.id === user.id) : null) || user;
+
+  // Initialize permissions only when modal opens or target user changes
   useEffect(() => {
-    if (!user) return;
-    const baseRoleMap = rolePermissions[user.role] || DEFAULT_ROLE_PERMISSIONS[user.role];
+    if (!isOpen || !activeUser) return;
+    const baseRoleMap = getFallbackBaseRoleMap(activeUser.role, rolePermissions);
     const initialMap: RolePermissionsMap = { ...baseRoleMap };
 
-    if (user.customPermissions && Object.keys(user.customPermissions).length > 0) {
+    const custom = activeUser.customPermissions;
+    if (custom && typeof custom === 'object' && Object.keys(custom).length > 0) {
       ALL_CRM_MODULES.forEach((m) => {
-        if (user.customPermissions?.[m.id]) {
-          initialMap[m.id] = { ...initialMap[m.id], ...user.customPermissions[m.id] };
+        if (custom[m.id]) {
+          initialMap[m.id] = { ...initialMap[m.id], ...custom[m.id] };
         }
       });
       setIsInheritedMode(false);
@@ -99,11 +126,11 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
     }
 
     setPerms(initialMap);
-  }, [user, rolePermissions, isOpen]);
+  }, [isOpen, activeUser?.id]);
 
-  if (!isOpen || !user || !perms) return null;
+  if (!isOpen || !activeUser || !perms) return null;
 
-  const baseRoleMap = rolePermissions[user.role] || DEFAULT_ROLE_PERMISSIONS[user.role];
+  const baseRoleMap = getFallbackBaseRoleMap(activeUser.role, rolePermissions);
 
   // Check if a specific module's action differs from role default
   const isActionOverridden = (module: CrmModuleKey, action: PermissionAction): boolean => {
@@ -157,7 +184,7 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
 
   // Preset handlers
   const handleResetToRoleDefaults = () => {
-    const base = rolePermissions[user.role] || DEFAULT_ROLE_PERMISSIONS[user.role];
+    const base = getFallbackBaseRoleMap(activeUser.role, rolePermissions);
     setPerms({ ...base });
     setIsInheritedMode(true);
   };
@@ -204,11 +231,12 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
   };
 
   const handleSave = () => {
-    if (isInheritedMode || totalOverrides === 0) {
+    if (!activeUser) return;
+    if (isInheritedMode) {
       // Clear custom overrides to inherit from role
-      updateUserCustomPermissions(user.id, undefined);
+      updateUserCustomPermissions(activeUser.id, undefined);
     } else {
-      updateUserCustomPermissions(user.id, perms);
+      updateUserCustomPermissions(activeUser.id, perms);
     }
     onClose();
   };
@@ -229,8 +257,8 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
         <div className="px-6 py-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex justify-between items-start gap-4 shrink-0">
           <div className="flex items-start gap-3.5">
             <UserAvatar
-              name={user.name}
-              avatar={user.avatar}
+              name={activeUser.name}
+              avatar={activeUser.avatar}
               className="w-12 h-12 rounded-xl bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 font-extrabold text-lg"
             />
             <div>
@@ -241,14 +269,14 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
                 <span>View, Create, Edit & Delete</span>
               </div>
               <h3 className="text-lg sm:text-xl font-extrabold text-white mt-0.5">
-                Permissions for {user.name}
+                Permissions for {activeUser.name}
               </h3>
               <div className="text-xs text-slate-300 flex flex-wrap items-center gap-2 mt-1">
-                <span className="font-mono text-slate-200">{user.email}</span>
+                <span className="font-mono text-slate-200">{activeUser.email}</span>
                 <span>·</span>
-                <span>Base Role: <strong>{user.role}</strong></span>
+                <span>Base Role: <strong>{activeUser.role}</strong></span>
                 <span>·</span>
-                <span>{user.department} Department</span>
+                <span>{activeUser.department} Department</span>
               </div>
             </div>
           </div>
@@ -271,7 +299,7 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
               {isInheritedMode || totalOverrides === 0 ? (
                 <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
                   <Lock className="w-3.5 h-3.5" />
-                  <span>Inherited from Role ({user.role})</span>
+                  <span>Inherited from Role ({activeUser.role})</span>
                 </span>
               ) : (
                 <span className="font-bold text-amber-800 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
@@ -593,10 +621,10 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
           <div className="text-xs text-slate-500">
             {totalOverrides > 0 ? (
               <span>
-                <strong>{totalOverrides} custom override(s)</strong> configured specifically for {user.name}.
+                <strong>{totalOverrides} custom override(s)</strong> configured specifically for {activeUser.name}.
               </span>
             ) : (
-              <span>Using default enterprise privileges for <strong>{user.role}</strong>.</span>
+              <span>Using default enterprise privileges for <strong>{activeUser.role}</strong>.</span>
             )}
           </div>
 

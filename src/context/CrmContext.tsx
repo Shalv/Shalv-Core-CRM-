@@ -2674,9 +2674,14 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     userId: string,
     permissions?: Partial<RolePermissionsMap>
   ) => {
+    const cleanPerms =
+      permissions && typeof permissions === 'object' && Object.keys(permissions).length > 0
+        ? permissions
+        : undefined;
+
     setUsers((prev) => {
       const nextUsers = prev.map((u) =>
-        u.id === userId ? { ...u, customPermissions: permissions } : u
+        u.id === userId ? { ...u, customPermissions: cleanPerms } : u
       );
       try {
         localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(nextUsers));
@@ -2687,7 +2692,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
     if (currentUser.id === userId) {
       setCurrentUser((prev) => {
-        const updatedCurrent = { ...prev, customPermissions: permissions };
+        const updatedCurrent = { ...prev, customPermissions: cleanPerms };
         try {
           localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updatedCurrent));
         } catch (e) {
@@ -2701,7 +2706,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       fetch(`/api/users/${userId}`, {
         method: 'PUT',
         headers: crmAuthHeaders(),
-        body: JSON.stringify({ ...targetUser, customPermissions: permissions }),
+        body: JSON.stringify({ ...targetUser, customPermissions: cleanPerms ?? null }),
       }).catch(() => {});
 
       addAuditLog({

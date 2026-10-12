@@ -305,6 +305,34 @@ function stripPlaintextAndResetFlags(obj: Record<string, any>): Record<string, a
   return clean;
 }
 
+export function hasActiveCustomOverrides(obj: any): boolean {
+  return Boolean(obj && typeof obj === 'object' && Object.keys(obj).length > 0);
+}
+
+export function resolveEffectiveCustomPermissions(primary: any, secondary?: any): any {
+  if (primary && primary.customPermissions !== undefined) {
+    return hasActiveCustomOverrides(primary.customPermissions)
+      ? primary.customPermissions
+      : null;
+  }
+  if (primary && primary.custom_permissions !== undefined) {
+    return hasActiveCustomOverrides(primary.custom_permissions)
+      ? primary.custom_permissions
+      : null;
+  }
+  if (secondary && secondary.customPermissions !== undefined) {
+    return hasActiveCustomOverrides(secondary.customPermissions)
+      ? secondary.customPermissions
+      : null;
+  }
+  if (secondary && secondary.custom_permissions !== undefined) {
+    return hasActiveCustomOverrides(secondary.custom_permissions)
+      ? secondary.custom_permissions
+      : null;
+  }
+  return null;
+}
+
 function relinkUsersAndPayrollMasters() {
   // Deduplicate users across both crmSlices.users and MOCK_TABLES.users by ID first, then email, then username
   const usersById = new Map<string, any>();
@@ -313,9 +341,30 @@ function relinkUsersAndPayrollMasters() {
   const sliceUsers = Array.isArray(PERSISTED_CRM_STATE.crmSlices?.users)
     ? PERSISTED_CRM_STATE.crmSlices.users
     : [];
-  // Process authoritative MOCK_TABLES.users first so their passwordHashes are registered before sanitized sliceUsers
-  const allCandidateUsers = [...(MOCK_TABLES.users || []), ...sliceUsers];
-  for (const u of allCandidateUsers) {
+
+  // 1. Process authoritative MOCK_TABLES.users first
+  for (const u of MOCK_TABLES.users || []) {
+    if (!u || !u.id || isRemovedPredefinedUser(u)) continue;
+    const rawId = String(u.id);
+    const emailLower = u.email ? String(u.email).trim().toLowerCase() : '';
+    const canonicalId = rawId;
+    const resolvedHash = resolveRecordPasswordHash(u);
+    const effectivePerms = resolveEffectiveCustomPermissions(u);
+    const cleanUser = stripPlaintextAndResetFlags({
+      ...u,
+      id: canonicalId,
+      username: u.username || (emailLower ? emailLower.split('@')[0] : 'user'),
+      passwordHash: resolvedHash,
+      customPermissions: effectivePerms,
+      custom_permissions: effectivePerms,
+    });
+    usersById.set(canonicalId, cleanUser);
+    if (emailLower) idByEmail.set(emailLower, canonicalId);
+    if (cleanUser.username) idByUsername.set(String(cleanUser.username).trim().toLowerCase(), canonicalId);
+  }
+
+  // 2. Next, include any users from sliceUsers that were missing from MOCK_TABLES.users
+  for (const u of sliceUsers) {
     if (!u || !u.id || isRemovedPredefinedUser(u)) continue;
     const rawId = String(u.id);
     const emailLower = u.email ? String(u.email).trim().toLowerCase() : '';
@@ -326,35 +375,30 @@ function relinkUsersAndPayrollMasters() {
         (usernameLower && idByUsername.get(usernameLower)) ||
         rawId;
     const prev = usersById.get(canonicalId);
-    const resolvedHash = resolveRecordPasswordHash(u, prev);
-    const merged = stripPlaintextAndResetFlags(
-      prev
-        ? {
-            ...prev,
-            ...u,
-            id: canonicalId,
-            username: u.username || prev.username || (emailLower ? emailLower.split('@')[0] : 'user'),
-            passwordHash: resolvedHash,
-            customPermissions:
-              u.customPermissions ||
-              u.custom_permissions ||
-              prev.customPermissions ||
-              prev.custom_permissions,
-          }
-        : {
-            ...u,
-            id: canonicalId,
-            username: u.username || (emailLower ? emailLower.split('@')[0] : 'user'),
-            passwordHash: resolvedHash,
-            customPermissions: u.customPermissions || u.custom_permissions,
-          }
-    );
-    usersById.set(canonicalId, merged);
-    if (emailLower) {
-      idByEmail.set(emailLower, canonicalId);
-    }
-    if (merged.username) {
-      idByUsername.set(String(merged.username).trim().toLowerCase(), canonicalId);
+    if (prev) {
+      // prev (from MOCK_TABLES.users) is authoritative! Prev takes precedence over stale sliceUsers
+      const effectivePerms = resolveEffectiveCustomPermissions(prev, u);
+      const merged = stripPlaintextAndResetFlags({
+        ...u,
+        ...prev,
+        customPermissions: effectivePerms,
+        custom_permissions: effectivePerms,
+      });
+      usersById.set(canonicalId, merged);
+    } else {
+      const resolvedHash = resolveRecordPasswordHash(u);
+      const effectivePerms = resolveEffectiveCustomPermissions(u);
+      const cleanUser = stripPlaintextAndResetFlags({
+        ...u,
+        id: canonicalId,
+        username: u.username || (emailLower ? emailLower.split('@')[0] : 'user'),
+        passwordHash: resolvedHash,
+        customPermissions: effectivePerms,
+        custom_permissions: effectivePerms,
+      });
+      usersById.set(canonicalId, cleanUser);
+      if (emailLower) idByEmail.set(emailLower, canonicalId);
+      if (cleanUser.username) idByUsername.set(String(cleanUser.username).trim().toLowerCase(), canonicalId);
     }
   }
   MOCK_TABLES.users = Array.from(usersById.values());
@@ -1791,9 +1835,12 @@ app.post('/api/state', async (req: Request, res: Response) => {
             passwordHash,
           });
         }
+        const effectivePerms = resolveEffectiveCustomPermissions(u, prev);
         return stripPlaintextAndResetFlags({
           ...prev,
           ...u,
+          customPermissions: effectivePerms,
+          custom_permissions: effectivePerms,
           passwordHash,
         });
       });
@@ -2007,8 +2054,12 @@ app.post('/api/users', async (req: Request, res: Response) => {
     location: u.location ?? existingUser?.location ?? '',
     reportingManager: u.reportingManager ?? existingUser?.reportingManager ?? '',
     assignedTerritory: u.assignedTerritory ?? existingUser?.assignedTerritory ?? '',
-    custom_permissions: u.customPermissions || existingUser?.custom_permissions || {},
-    customPermissions: u.customPermissions || existingUser?.customPermissions,
+    custom_permissions: hasActiveCustomOverrides(u.customPermissions)
+      ? u.customPermissions
+      : (hasActiveCustomOverrides(existingUser?.custom_permissions) ? existingUser.custom_permissions : {}),
+    customPermissions: hasActiveCustomOverrides(u.customPermissions)
+      ? u.customPermissions
+      : (hasActiveCustomOverrides(existingUser?.customPermissions) ? existingUser.customPermissions : undefined),
     created_at: existingUser?.created_at || new Date().toISOString(),
   });
 
@@ -2044,9 +2095,13 @@ app.post('/api/users', async (req: Request, res: Response) => {
     });
   }
 
+  if (PERSISTED_CRM_STATE.crmSlices && typeof PERSISTED_CRM_STATE.crmSlices === 'object') {
+    PERSISTED_CRM_STATE.crmSlices.users = MOCK_TABLES.users.map(sanitizeUserForClient);
+  }
   savePersistedStore();
   try {
     await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;').catch(() => {});
+    await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_permissions TEXT;').catch(() => {});
     await query(
       `INSERT INTO users (id, name, username, email, password_hash, phone, role, department, designation, status, avatar, location, custom_permissions)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
@@ -2167,9 +2222,13 @@ app.put('/api/users/:id', async (req: Request, res: Response) => {
       reportingManager: u.reportingManager ?? curr.reportingManager,
       assignedTerritory: u.assignedTerritory ?? curr.assignedTerritory,
       custom_permissions:
-        u.customPermissions !== undefined ? u.customPermissions : curr.custom_permissions,
+        u.customPermissions !== undefined
+          ? (hasActiveCustomOverrides(u.customPermissions) ? u.customPermissions : (u.customPermissions === null ? null : {}))
+          : (u.custom_permissions !== undefined ? (hasActiveCustomOverrides(u.custom_permissions) ? u.custom_permissions : {}) : curr.custom_permissions),
       customPermissions:
-        u.customPermissions !== undefined ? u.customPermissions : curr.customPermissions,
+        u.customPermissions !== undefined
+          ? (hasActiveCustomOverrides(u.customPermissions) ? u.customPermissions : (u.customPermissions === null ? null : undefined))
+          : (u.custom_permissions !== undefined ? (hasActiveCustomOverrides(u.custom_permissions) ? u.custom_permissions : undefined) : curr.customPermissions),
     });
     MOCK_TABLES.users[byIdIdx] = updatedRecord;
   } else {
@@ -2191,8 +2250,8 @@ app.put('/api/users/:id', async (req: Request, res: Response) => {
       status: u.status || 'Active',
       avatar: u.avatar || '',
       location: u.location || '',
-      custom_permissions: u.customPermissions || {},
-      customPermissions: u.customPermissions,
+      custom_permissions: hasActiveCustomOverrides(u.customPermissions) ? u.customPermissions : {},
+      customPermissions: hasActiveCustomOverrides(u.customPermissions) ? u.customPermissions : undefined,
       created_at: new Date().toISOString(),
     });
     MOCK_TABLES.users.push(updatedRecord);
@@ -2232,9 +2291,13 @@ app.put('/api/users/:id', async (req: Request, res: Response) => {
     }
   }
 
+  if (PERSISTED_CRM_STATE.crmSlices && typeof PERSISTED_CRM_STATE.crmSlices === 'object') {
+    PERSISTED_CRM_STATE.crmSlices.users = MOCK_TABLES.users.map(sanitizeUserForClient);
+  }
   savePersistedStore();
   try {
     await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;').catch(() => {});
+    await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_permissions TEXT;').catch(() => {});
     await query(
       `UPDATE users SET
          name = COALESCE($1, name),
@@ -2263,7 +2326,9 @@ app.put('/api/users/:id', async (req: Request, res: Response) => {
         updatedRecord.status,
         updatedRecord.avatar,
         updatedRecord.location,
-        u.customPermissions ? JSON.stringify(u.customPermissions) : null,
+        hasActiveCustomOverrides(updatedRecord.customPermissions)
+          ? JSON.stringify(updatedRecord.customPermissions)
+          : null,
         id,
       ]
     );
