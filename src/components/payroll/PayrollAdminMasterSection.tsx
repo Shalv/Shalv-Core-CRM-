@@ -146,7 +146,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
   const [userFormMode, setUserFormMode] = useState<'edit' | 'create'>('edit');
 
   // Option: "Do you want to create this user in CRM as well?" when creating in Payroll
-  const [alsoCreateInCrm, setAlsoCreateInCrm] = useState<boolean>(false);
+  const [alsoCreateInCrm, setAlsoCreateInCrm] = useState<boolean>(true);
   const [crmPermPreset, setCrmPermPreset] = useState<
     'role_default' | 'full_access' | 'read_only' | 'custom'
   >('role_default');
@@ -735,11 +735,11 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
     const existingCrmUser = users.find(
       (u) => u.id === entry.id || u.email?.toLowerCase() === entry.email.toLowerCase()
     );
-    const preservedPass =
+    const explicitPass =
       entry.master.password ||
       entry.master.tempPassword ||
       existingCrmUser?.password ||
-      'password123';
+      undefined;
 
     let targetId = entry.id;
     if (existingCrmUser) {
@@ -747,16 +747,14 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
       updateUser(targetId, {
         accessScope: 'all',
         accessType: 'crm_and_payroll',
-        password: preservedPass,
-        tempPassword: preservedPass,
+        ...(explicitPass ? { password: explicitPass, tempPassword: explicitPass } : {}),
       });
     } else {
       const createdCrmUser = addUser({
         name: entry.name,
         username: entry.email.split('@')[0],
         email: entry.email,
-        password: preservedPass,
-        tempPassword: preservedPass,
+        ...(explicitPass ? { password: explicitPass, tempPassword: explicitPass } : {}),
         accessScope: 'all',
         accessType: 'crm_and_payroll',
         phone: entry.phone,
@@ -1015,19 +1013,19 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                   </div>
                   <p className="text-[11px] text-slate-300">
                     {alsoCreateInCrm
-                      ? 'Creates the employee in Payroll AND automatically provisions their CRM login account, role, territory, and module permissions.'
-                      : 'Creates the employee only inside the Payroll & ESS Master without creating a CRM login account.'}
+                      ? 'Creates the employee in Employee Master AND automatically provisions login credentials (Official Email ID & Admin-set Password) for both ESS Portal & CRM.'
+                      : 'Creates the employee in Employee Master AND provisions ESS Portal login credentials (Official Email ID & Admin-set Password) for the Employee ESS Dashboard.'}
                   </p>
                 </div>
 
                 {/* SECTION 1: BASIC IDENTITY & ORGANIZATION ALLOCATION */}
                 <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-2.5">
                   <div className="font-bold text-slate-800 uppercase tracking-wider text-[10px] flex items-center justify-between">
-                    <span>1. Identity, Role &amp; Organization Allocation</span>
+                    <span>1. Identity, Login Credentials (Email &amp; Password) &amp; Org Allocation</span>
                     <span className="text-[#1f7e9e] font-mono">{newUserDraft.empCode}</span>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                     <div>
                       <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
                         Employee Full Name *
@@ -1058,7 +1056,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                     </div>
                     <div>
                       <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
-                        Official Email *
+                        Official Email (Login ID) *
                       </label>
                       <input
                         type="email"
@@ -1067,6 +1065,24 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                         onChange={(e) => setNewUserDraft({ ...newUserDraft, email: e.target.value })}
                         placeholder="rohan@company.com"
                         className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                        Login Password (Set by Admin) *
+                      </label>
+                      <input
+                        type="text"
+                        value={newUserDraft.password}
+                        onChange={(e) =>
+                          setNewUserDraft({
+                            ...newUserDraft,
+                            password: e.target.value,
+                            tempPassword: e.target.value,
+                          })
+                        }
+                        placeholder="Set password (e.g. Welcome@123)"
+                        className="w-full bg-white border border-indigo-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-indigo-700"
                       />
                     </div>
                     <div>

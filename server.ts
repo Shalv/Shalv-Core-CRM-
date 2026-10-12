@@ -260,9 +260,6 @@ function resolveRecordPasswordHash(record: any, existingRecord?: any, fallbackRe
       : typeof record?.password_hash === 'string' && record.password_hash.trim()
       ? record.password_hash.trim()
       : '';
-  if (explicitHash) {
-    return hashPassword(explicitHash);
-  }
   const prevHash =
     existingRecord?.passwordHash ||
     existingRecord?.password_hash ||
@@ -273,6 +270,16 @@ function resolveRecordPasswordHash(record: any, existingRecord?: any, fallbackRe
     fallbackRecord?.password ||
     fallbackRecord?.tempPassword ||
     '';
+  if (explicitHash) {
+    const normalizedExplicit = hashPassword(explicitHash);
+    if (normalizedExplicit === DEFAULT_SEED_PASSWORD_HASH && prevHash) {
+      const normalizedPrev = hashPassword(String(prevHash));
+      if (normalizedPrev !== DEFAULT_SEED_PASSWORD_HASH) {
+        return normalizedPrev;
+      }
+    }
+    return normalizedExplicit;
+  }
   if (prevHash) {
     return hashPassword(String(prevHash));
   }
@@ -1285,13 +1292,6 @@ app.post('/api/auth/change-password', async (req: Request, res: Response) => {
       tokenUserId || req.body?.actorUserId || req.headers?.['x-user-id'] || ''
     ).trim();
 
-    if (actorUserId && requestedUserId && actorUserId !== requestedUserId) {
-      return res.status(403).json({
-        success: false,
-        message: 'Users can only change their own password.',
-      });
-    }
-
     const lookupId = requestedUserId || actorUserId;
     if (!lookupId) {
       return res.status(400).json({
@@ -1301,6 +1301,14 @@ app.post('/api/auth/change-password', async (req: Request, res: Response) => {
     }
 
     const { user, master } = findAccountByIdentifier(lookupId);
+    const resolvedTargetId = String(user?.id || master?.userId || requestedUserId);
+    if (actorUserId && requestedUserId && actorUserId !== requestedUserId && actorUserId !== resolvedTargetId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Users can only change their own password.',
+      });
+    }
+
     if (!user && !master) {
       return res.status(404).json({
         success: false,
@@ -1409,6 +1417,96 @@ app.post('/api/auth/change-password', async (req: Request, res: Response) => {
   }
 });
 
+app.post('/api/auth/profile', async (req: Request, res: Response) => {
+  try {
+    if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || isDatabaseActive()) {
+      await hydrateStoreFromDatabase();
+    }
+    relinkUsersAndPayrollMasters();
+
+    const actor = (req as any).account;
+    const rawAuthHeader =
+      (req.headers?.authorization as string | undefined) ||
+      (req.headers?.['x-auth-token'] as string | undefined) ||
+      req.body?.authToken ||
+      sessionToken(req);
+    const tokenUserId = rawAuthHeader ? verifyAuthToken(rawAuthHeader) : null;
+    const targetId = String(actor?.id || tokenUserId || req.body?.id || '').trim();
+    if (!targetId) {
+      return res.status(401).json({ success: false, message: 'Authentication required.' });
+    }
+
+    const uIdx = MOCK_TABLES.users.findIndex((u) => String(u.id) === targetId);
+    const curr = uIdx >= 0 ? MOCK_TABLES.users[uIdx] : actor;
+    if (!curr) {
+      return res.status(404).json({ success: false, message: 'User profile not found.' });
+    }
+
+    const rawPassword = String(req.body?.password ?? req.body?.newPassword ?? '').trim();
+    const nextPasswordHash = rawPassword
+      ? hashPassword(rawPassword)
+      : curr.passwordHash || DEFAULT_SEED_PASSWORD_HASH;
+
+    const updatedRecord = stripPlaintextAndResetFlags({
+      ...curr,
+      name: req.body?.name !== undefined ? String(req.body.name).trim() : curr.name,
+      username: req.body?.username !== undefined ? String(req.body.username).trim() : curr.username,
+      email: req.body?.email !== undefined ? String(req.body.email).trim() : curr.email,
+      phone: req.body?.phone !== undefined ? String(req.body.phone).trim() : curr.phone,
+      designation: req.body?.designation !== undefined ? String(req.body.designation).trim() : curr.designation,
+      location: req.body?.location !== undefined ? String(req.body.location).trim() : curr.location,
+      avatar: req.body?.avatar !== undefined ? req.body.avatar : curr.avatar,
+      accessScope: req.body?.accessScope !== undefined ? req.body.accessScope : curr.accessScope,
+      passwordHash: nextPasswordHash,
+    });
+
+    if (uIdx >= 0) {
+      MOCK_TABLES.users[uIdx] = updatedRecord;
+    } else {
+      MOCK_TABLES.users.push(updatedRecord);
+    }
+
+    if (
+      PERSISTED_CRM_STATE.payrollMasters &&
+      typeof PERSISTED_CRM_STATE.payrollMasters === 'object'
+    ) {
+      for (const [k, m] of Object.entries(PERSISTED_CRM_STATE.payrollMasters) as Array<[string, any]>) {
+        if (
+          m &&
+          (String(k) === targetId ||
+            String(m.userId) === targetId ||
+            (curr.email &&
+              m.email &&
+              String(m.email).trim().toLowerCase() === String(curr.email).trim().toLowerCase()))
+        ) {
+          PERSISTED_CRM_STATE.payrollMasters[k] = stripPlaintextAndResetFlags({
+            ...m,
+            name: updatedRecord.name,
+            username: updatedRecord.username,
+            email: updatedRecord.email,
+            phone: updatedRecord.phone,
+            designation: updatedRecord.designation,
+            location: updatedRecord.location,
+            passwordHash: nextPasswordHash,
+          });
+        }
+      }
+    }
+
+    savePersistedStore();
+    await flushStateToDatabase();
+    return res.json({
+      success: true,
+      user: sanitizeUserForClient(updatedRecord),
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: err?.message || 'Failed to update profile.',
+    });
+  }
+});
+
 app.get('/api/state', async (_req: Request, res: Response) => {
   try {
     if (isDatabaseActive() && !PERSISTED_CRM_STATE.stateInitialized) {
@@ -1499,10 +1597,13 @@ app.post('/api/state', async (req: Request, res: Response) => {
     if (actor && !['Super Admin','Administrator'].includes(actor.role)) {
       const protectedUsers = (rows:any[]) => rows.map(u => {
         const copy={...u};
-        if(String(u.id)===String(actor.id)) for(const key of ['name','avatar','phone','location','lastLoginAt']) delete copy[key];
+        if(String(u.id)===String(actor.id)) for(const key of ['name','username','avatar','phone','location','designation','accessScope','lastLoginAt','empCode']) delete copy[key];
         return copy;
       });
-      if (explicitIncomingPasswordByUserId.size || !same(protectedUsers(sanitizedIncoming.users || []), protectedUsers(current.users || [])) || !same(sanitizedIncoming.rolePermissions, current.rolePermissions)) {
+      const hasOtherUserPassword = Array.from(explicitIncomingPasswordByUserId.keys()).some(
+        (uid) => String(uid) !== String(actor.id)
+      );
+      if (hasOtherUserPassword || !same(protectedUsers(sanitizedIncoming.users || []), protectedUsers(current.users || [])) || !same(sanitizedIncoming.rolePermissions, current.rolePermissions)) {
         return res.status(403).json({success:false,message:'User accounts and permissions require an administrator.'});
       }
     }

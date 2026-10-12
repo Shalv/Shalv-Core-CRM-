@@ -1311,6 +1311,72 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
               {/* SECTION 1: CRM PROFILE, CREDENTIALS & ORG ALLOCATION */}
               {modalSection === 'identity' && (
                 <div className="space-y-4">
+                  {/* Optional Auto-Fill from Employee Master when creating a user */}
+                  {!editingUserId && Object.values(payrollMasters).filter((m) => m && m.userId && m.enrolledInPayroll !== false).length > 0 && (
+                    <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="font-bold text-emerald-950 text-xs flex items-center gap-1.5">
+                          <Wallet className="w-3.5 h-3.5 text-emerald-700" />
+                          <span>Auto-Fill Credentials from Employee Master (Optional)</span>
+                        </div>
+                        <p className="text-[11px] text-emerald-800 mt-0.5">
+                          Select an employee from Employee Master to automatically use their official email ID, employee code, and department, then set their login password below.
+                        </p>
+                      </div>
+                      <select
+                        defaultValue=""
+                        onChange={(e) => {
+                          const selectedId = e.target.value;
+                          if (!selectedId) return;
+                          const emp = payrollMasters[selectedId];
+                          if (!emp) return;
+                          setForm((prev) => ({
+                            ...prev,
+                            name: emp.name || prev.name,
+                            username: emp.username || (emp.email ? emp.email.split('@')[0] : prev.username),
+                            email: emp.email || prev.email,
+                            phone: emp.phone || prev.phone,
+                            role: (emp.role as UserRole) || prev.role,
+                            department: (emp.department as User['department']) || prev.department,
+                            designation: emp.designation || emp.role || prev.designation,
+                            location: emp.location || prev.location,
+                            reportingManager: emp.reportingManager || prev.reportingManager,
+                            assignedTerritory: emp.assignedTerritory || prev.assignedTerritory,
+                          }));
+                          setAlsoCreateInPayroll(true);
+                          setPayrollDraft((prev) => ({
+                            ...prev,
+                            empCode: emp.empCode || prev.empCode,
+                            monthlyGross: emp.monthlyGross || prev.monthlyGross,
+                            basicPct: emp.basicPct ?? prev.basicPct,
+                            hraPct: emp.hraPct ?? prev.hraPct,
+                            specialPct: emp.specialPct ?? prev.specialPct,
+                            commissionPct: emp.commissionPct ?? prev.commissionPct,
+                            pfAmount: emp.pfAmount ?? prev.pfAmount,
+                            profTax: emp.profTax ?? prev.profTax,
+                            tdsPct: emp.tdsPct ?? prev.tdsPct,
+                            panNumber: emp.panNumber || prev.panNumber,
+                            uanNumber: emp.uanNumber || prev.uanNumber,
+                            pfAccountNo: emp.pfAccountNo || prev.pfAccountNo,
+                            bankName: emp.bankName || prev.bankName,
+                            bankAccountNo: emp.bankAccountNo || prev.bankAccountNo,
+                            ifscCode: emp.ifscCode || prev.ifscCode,
+                          }));
+                        }}
+                        className="bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs font-bold text-emerald-950 shrink-0 cursor-pointer"
+                      >
+                        <option value="">-- Select Employee from Master (or enter new below) --</option>
+                        {Object.values(payrollMasters)
+                          .filter((m) => m && m.userId && m.enrolledInPayroll !== false)
+                          .map((m) => (
+                            <option key={m.userId} value={m.userId}>
+                              {m.name} ({m.empCode} · {m.email})
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  )}
+
                   {/* Profile Picture Upload */}
                   <div className="p-3.5 rounded-xl bg-indigo-50/40 border border-indigo-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-3">

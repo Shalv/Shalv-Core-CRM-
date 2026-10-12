@@ -1580,6 +1580,8 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const changeEmployeePassword = (emailOrUserId: string, newPassword: string): boolean => {
     const clean = (emailOrUserId || '').trim().toLowerCase();
     const trimmedNewPass = newPassword.trim();
+    if (!trimmedNewPass) return false;
+    const isAdminActor = ['Super Admin', 'Administrator'].includes(currentUser.role);
     const matchedEmails = new Set<string>();
     const matchedUserIds = new Set<string>();
     if (clean) {
@@ -1587,7 +1589,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       matchedUserIds.add(clean);
     }
 
-    // 1. Update employeeSalaryMasters on server & keep sanitized records in localStorage
+    // 1. Update employeeSalaryMasters in localStorage & sync to server
     try {
       const savedMasters = localStorage.getItem('crm_ess_admin_employee_masters');
       if (savedMasters) {
@@ -1623,12 +1625,18 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
         if (updated) {
           localStorage.setItem('crm_ess_admin_employee_masters', JSON.stringify(mastersObj));
-          Object.keys(serverPatch).forEach((uid) => recordPendingUserPassword(uid, trimmedNewPass));
-          fetch('/api/payroll/masters', {
-            method: 'POST',
-            headers: crmAuthHeaders(),
-            body: JSON.stringify({ masters: serverPatch, patch: true }),
-          }).catch(() => {});
+          Object.keys(serverPatch).forEach((uid) => {
+            if (isAdminActor || uid === currentUser.id) {
+              recordPendingUserPassword(uid, trimmedNewPass);
+            }
+          });
+          if (isAdminActor) {
+            fetch('/api/payroll/masters', {
+              method: 'POST',
+              headers: crmAuthHeaders(),
+              body: JSON.stringify({ masters: serverPatch, patch: true }),
+            }).catch(() => {});
+          }
           window.dispatchEvent(new CustomEvent('crm-payroll-masters-updated'));
         }
       }
@@ -1636,7 +1644,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // ignore
     }
 
-    // 2. Send password update to backend /api/users/:id while keeping local state sanitized
+    // 2. Send password update to backend while keeping local state sanitized
     const updateUsersArray = (list: User[], sendToBackend = false): User[] =>
       list.map((u) => {
         const uId = (u.id || '').trim().toLowerCase();
@@ -1652,15 +1660,28 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           uName === clean
         ) {
           if (sendToBackend) {
-            recordPendingUserPassword(u.id, trimmedNewPass);
-            fetch(`/api/users/${u.id}`, {
-              method: 'PUT',
-              headers: crmAuthHeaders(),
-              body: JSON.stringify({
-                ...sanitizeClientUser(u),
-                password: trimmedNewPass,
-              }),
-            }).catch(() => {});
+            if (isAdminActor || u.id === currentUser.id) {
+              recordPendingUserPassword(u.id, trimmedNewPass);
+            }
+            if (u.id === currentUser.id) {
+              fetch('/api/auth/profile', {
+                method: 'POST',
+                headers: crmAuthHeaders(),
+                body: JSON.stringify({
+                  id: u.id,
+                  password: trimmedNewPass,
+                }),
+              }).catch(() => {});
+            } else if (isAdminActor) {
+              fetch(`/api/users/${u.id}`, {
+                method: 'PUT',
+                headers: crmAuthHeaders(),
+                body: JSON.stringify({
+                  ...sanitizeClientUser(u),
+                  password: trimmedNewPass,
+                }),
+              }).catch(() => {});
+            }
           }
           return sanitizeClientUser(u);
         }
@@ -1841,6 +1862,10 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         prev.role === 'Super Admin'
           ? data
           : { ...data, role: prev.role };
+      const nextPass =
+        (typeof safeData.password === 'string' && safeData.password.trim()) ||
+        (typeof safeData.tempPassword === 'string' && safeData.tempPassword.trim()) ||
+        '';
       const nextName = safeData.name || prev.name;
       const initials = nextName
         .split(' ')
@@ -1855,11 +1880,11 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ? prev.avatar
           : initials;
 
-      const updated: User = {
+      const updated: User = sanitizeClientUser({
         ...prev,
         ...safeData,
         avatar: nextAvatar,
-      };
+      });
       setUsers((uList) => {
         const nextList = uList.map((u) => (u.id === prev.id ? updated : u));
         try {
@@ -1871,10 +1896,56 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updated));
       } catch (e) { /* ignore */ }
 
-      fetch(`/api/users/${prev.id}`, {
-        method: 'PUT',
+      // Also keep linked Payroll Master profile fields in sync
+      try {
+        const rawMasters = localStorage.getItem('crm_ess_admin_employee_masters');
+        if (rawMasters) {
+          const parsedMasters = JSON.parse(rawMasters);
+          if (parsedMasters && typeof parsedMasters === 'object') {
+            let changed = false;
+            const prevEmailLower = (prev.email || '').trim().toLowerCase();
+            for (const [k, m] of Object.entries(parsedMasters) as Array<[string, any]>) {
+              if (
+                m &&
+                (k === prev.id ||
+                  m.userId === prev.id ||
+                  (prevEmailLower &&
+                    m.email &&
+                    String(m.email).trim().toLowerCase() === prevEmailLower))
+              ) {
+                parsedMasters[k] = sanitizeClientPayrollObj({
+                  ...m,
+                  ...(updated.name ? { name: updated.name } : {}),
+                  ...(updated.username ? { username: updated.username } : {}),
+                  ...(updated.email ? { email: updated.email } : {}),
+                  ...(updated.phone ? { phone: updated.phone } : {}),
+                  ...(updated.designation ? { designation: updated.designation } : {}),
+                  ...(updated.location ? { location: updated.location } : {}),
+                });
+                changed = true;
+              }
+            }
+            if (changed) {
+              localStorage.setItem('crm_ess_admin_employee_masters', JSON.stringify(parsedMasters));
+              window.dispatchEvent(new CustomEvent('crm-payroll-masters-updated'));
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
+
+      if (nextPass) {
+        recordPendingUserPassword(prev.id, nextPass);
+      }
+
+      fetch('/api/auth/profile', {
+        method: 'POST',
         headers: crmAuthHeaders(),
-        body: JSON.stringify(updated),
+        body: JSON.stringify({
+          ...updated,
+          ...(nextPass ? { password: nextPass } : {}),
+        }),
       }).catch(() => {});
 
       return updated;

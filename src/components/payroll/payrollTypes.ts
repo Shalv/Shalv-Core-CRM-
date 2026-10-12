@@ -14,6 +14,7 @@ function payrollAuthHeaders(extra: Record<string, string> = { 'Content-Type': 'a
 
 export type EssTabKey =
   | 'overview'
+  | 'profile'
   | 'admin_dashboard'
   | 'reports'
   | 'payslips'

@@ -324,11 +324,15 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
     setIsChangePasswordOpen(true);
   };
 
-  const handleChangePasswordSubmit = () => {
-    const current = changePwdForm.current;
+  const handleChangePasswordSubmit = async () => {
+    const current = changePwdForm.current.trim();
     const next = changePwdForm.next.trim();
     const confirm = changePwdForm.confirm.trim();
 
+    if (!current) {
+      setChangePwdError('Please enter your current password (set by Admin or your previous password).');
+      return;
+    }
     if (next.length < 4) {
       setChangePwdError('New password must be at least 4 characters.');
       return;
@@ -343,18 +347,46 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
       currentUserOwnMaster ||
       Object.values(employeeSalaryMasters).find((m) => m && m.userId === currentUser.id) ||
       null;
-    const expected = ownMaster?.password || ownMaster?.tempPassword || currentUser.password || '';
+    const identity = ownMaster?.userId || currentUser.id || currentUser.email || ownMaster?.email || '';
 
-    // Verify current password whenever one is on record.
-    if (expected && current !== expected) {
-      setChangePwdError('Current password is incorrect.');
-      return;
+    try {
+      let token: string | null = null;
+      try {
+        token = localStorage.getItem('crm_auth_token');
+      } catch {
+        // ignore
+      }
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          userId: identity,
+          identifier: currentUser.email || ownMaster?.email || statutory.empCode || identity,
+          currentPassword: current,
+          newPassword: next,
+          confirmPassword: confirm,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.success === false) {
+        setChangePwdError(data?.message || 'Current password is incorrect.');
+        return;
+      }
+    } catch {
+      // Fallback to local verification if offline
+      const expected = ownMaster?.password || ownMaster?.tempPassword || currentUser.password || '';
+      if (expected && current !== expected) {
+        setChangePwdError('Current password is incorrect.');
+        return;
+      }
     }
 
-    const identity = ownMaster?.userId || currentUser.id || currentUser.email;
     const synced = changeEmployeePassword(identity, next);
 
-    // Reflect immediately in local payroll state + persist (non-destructive upsert).
+    // Reflect immediately in local payroll state
     const targetKey = ownMaster?.userId || currentUser.id;
     if (targetKey) {
       setEmployeeSalaryMasters((prev) => {
@@ -364,32 +396,21 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
           ...prev,
           [targetKey]: {
             ...rec,
-            password: next,
-            tempPassword: next,
             mustChangePasswordOnFirstLogin: false,
           },
         };
         forgetDeletedPayrollMasterIds([targetKey]);
-        saveEmployeeSalaryMasters(nextMap, true, false, [targetKey]);
         return nextMap;
       });
     }
 
-    // Keep the CRM user's credentials in sync so the very next CRM login works.
-    if (currentUser.id) {
-      updateUser(currentUser.id, {
-        password: next,
-        tempPassword: next,
-        mustChangePassword: false,
-        mustChangePasswordOnFirstLogin: false,
-      });
-    }
-
+    setChangePwdForm({ current: '', next: '', confirm: '', show: false });
+    setChangePwdError(null);
     setIsChangePasswordOpen(false);
     setStatusBanner(
       synced
-        ? 'Password updated successfully and synced across CRM & Payroll ESS login.'
-        : 'Password updated for your payroll profile.'
+        ? '✓ Password changed successfully! Please use your new password for all future ESS Portal and CRM logins.'
+        : '✓ Password updated for your employee profile.'
     );
   };
 
@@ -1830,6 +1851,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
           <div className="flex items-center gap-1 py-2 whitespace-nowrap">
             {[
               { id: 'overview', label: 'Overview & Attendance', icon: Clock },
+              { id: 'profile', label: 'My Profile & Password', icon: KeyRound },
               ...(isAdminUser
                 ? [
                     {
@@ -2007,6 +2029,63 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
               renderNoEmployeesEmptyState('Overview & Attendance')
             ) : (
             <div className="space-y-4">
+              {/* Employee Master Profile & Self-Service Password Banner */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <UserAvatar
+                    name={activeEmployee.name}
+                    avatar={activeEmployee.avatar}
+                    className="w-12 h-12 rounded-xl bg-[#1f7e9e] text-white font-bold text-base shrink-0"
+                  />
+                  <div className="min-w-0 space-y-0.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-bold text-slate-900 text-sm">{activeEmployee.name}</h3>
+                      <span className="px-2 py-0.5 rounded-md bg-sky-50 border border-sky-200 text-[#1f7e9e] font-mono font-bold text-xs">
+                        {statutory.empCode}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800 font-semibold text-xs">
+                        {activeEmployee.designation || activeEmployee.role} · {activeEmployee.department}
+                      </span>
+                    </div>
+                    <div className="text-slate-600 text-xs flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span>
+                        Login Email ID: <strong className="font-mono text-slate-900">{activeEmployee.email}</strong>
+                      </span>
+                      {activeEmployee.phone && (
+                        <span>
+                          Phone: <strong className="font-mono text-slate-800">{activeEmployee.phone}</strong>
+                        </span>
+                      )}
+                      <span>
+                        Location: <strong className="text-slate-800">{activeEmployee.location}</strong>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('profile')}
+                    className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition"
+                  >
+                    <Users className="w-3.5 h-3.5 text-[#1f7e9e]" />
+                    <span>My Employee Profile</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setChangePwdForm({ current: '', next: '', confirm: '', show: false });
+                      setChangePwdError(null);
+                      setActiveTab('profile');
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-[#1f7e9e] hover:bg-[#17647e] text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer transition shadow-2xs"
+                  >
+                    <KeyRound className="w-3.5 h-3.5" />
+                    <span>Change Password from Profile</span>
+                  </button>
+                </div>
+              </div>
+
               {/* KPI Summary Row */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
@@ -4811,6 +4890,187 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                 </div>
               </div>
             </div>
+            )
+          )}
+
+          {/* TAB: EMPLOYEE MY PROFILE & CHANGE PASSWORD FOR FURTHER LOGINS */}
+          {activeTab === 'profile' && (
+            !activeEmployee ? (
+              renderNoEmployeesEmptyState('My Profile & Password')
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                {/* Left Column: Employee Master Profile Details */}
+                <div className="lg:col-span-7 bg-white rounded-xl border border-slate-200 p-5 space-y-4 shadow-2xs">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
+                    <div className="flex items-center gap-3">
+                      <UserAvatar
+                        name={activeEmployee.name}
+                        avatar={activeEmployee.avatar}
+                        className="w-12 h-12 rounded-xl bg-[#1f7e9e] text-white font-bold text-base"
+                      />
+                      <div>
+                        <h3 className="font-bold text-slate-900 text-sm">
+                          Employee Master Profile &amp; Login Identity
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Official credentials and employment details linked to your Employee Master record
+                        </p>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 font-mono font-bold text-xs">
+                      {statutory.empCode}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="text-[11px] font-semibold text-slate-500">Full Name</div>
+                      <div className="font-bold text-slate-900 mt-0.5">{activeEmployee.name}</div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-indigo-50/60 border border-indigo-200">
+                      <div className="text-[11px] font-semibold text-indigo-900">
+                        Official Login Email ID (Employee Master)
+                      </div>
+                      <div className="font-mono font-bold text-indigo-700 mt-0.5 break-all">
+                        {activeEmployee.email}
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="text-[11px] font-semibold text-slate-500">Employee Code</div>
+                      <div className="font-mono font-bold text-[#1f7e9e] mt-0.5">
+                        {statutory.empCode}
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="text-[11px] font-semibold text-slate-500">Role &amp; Department</div>
+                      <div className="font-bold text-slate-900 mt-0.5">
+                        {activeEmployee.designation || activeEmployee.role} · {activeEmployee.department}
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="text-[11px] font-semibold text-slate-500">Mobile Phone</div>
+                      <div className="font-mono font-semibold text-slate-900 mt-0.5">
+                        {activeEmployee.phone || '—'}
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="text-[11px] font-semibold text-slate-500">Work Location</div>
+                      <div className="font-semibold text-slate-900 mt-0.5">
+                        {activeEmployee.location || 'Corporate HQ'}
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="text-[11px] font-semibold text-slate-500">Salary Bank Account</div>
+                      <div className="font-mono font-semibold text-slate-900 mt-0.5">
+                        {statutory.bankName} ({statutory.bankAccountNo})
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="text-[11px] font-semibold text-slate-500">PAN / UAN</div>
+                      <div className="font-mono font-semibold text-slate-900 mt-0.5">
+                        {statutory.panNumber} / {statutory.uanNumber}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column: Change Password from Profile for Further Logins */}
+                <div className="lg:col-span-5 bg-white rounded-xl border border-slate-200 p-5 space-y-4 shadow-2xs">
+                  <div className="flex items-center gap-3 border-b border-slate-100 pb-3.5">
+                    <div className="w-10 h-10 rounded-xl bg-[#1f7e9e]/10 border border-[#1f7e9e]/30 flex items-center justify-center text-[#1f7e9e] shrink-0">
+                      <KeyRound className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-sm">
+                        Change Password for Further Logins
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        Replace the initial password set by Admin with your own personal password
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-sky-50/70 border border-sky-200 text-xs text-sky-950">
+                    Your login email ID is <strong className="font-mono">{activeEmployee.email}</strong> (or Employee Code <strong className="font-mono">{statutory.empCode}</strong>). Once you update your password below, use your new password for all future ESS Portal and CRM logins.
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">
+                        Current Password (Set by Admin or Previous Password) *
+                      </label>
+                      <input
+                        type={changePwdForm.show ? 'text' : 'password'}
+                        value={changePwdForm.current}
+                        onChange={(e) => {
+                          setChangePwdForm((p) => ({ ...p, current: e.target.value }));
+                          setChangePwdError(null);
+                        }}
+                        placeholder="Enter current password"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">
+                        New Login Password *
+                      </label>
+                      <input
+                        type={changePwdForm.show ? 'text' : 'password'}
+                        value={changePwdForm.next}
+                        onChange={(e) => {
+                          setChangePwdForm((p) => ({ ...p, next: e.target.value }));
+                          setChangePwdError(null);
+                        }}
+                        placeholder="Enter new password (min 4 characters)"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">
+                        Confirm New Password *
+                      </label>
+                      <input
+                        type={changePwdForm.show ? 'text' : 'password'}
+                        value={changePwdForm.confirm}
+                        onChange={(e) => {
+                          setChangePwdForm((p) => ({ ...p, confirm: e.target.value }));
+                          setChangePwdError(null);
+                        }}
+                        placeholder="Re-enter new password"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                      />
+                    </div>
+
+                    <label className="flex items-center gap-2 text-slate-600 font-medium cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={changePwdForm.show}
+                        onChange={(e) => setChangePwdForm((p) => ({ ...p, show: e.target.checked }))}
+                        className="rounded text-[#1f7e9e]"
+                      />
+                      <span>Show passwords</span>
+                    </label>
+
+                    {changePwdError && (
+                      <div className="flex items-start gap-2 text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2 font-semibold text-xs">
+                        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                        <span>{changePwdError}</span>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleChangePasswordSubmit}
+                      className="w-full py-2.5 px-4 rounded-xl bg-[#1f7e9e] hover:bg-[#17647e] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm cursor-pointer transition"
+                    >
+                      <KeyRound className="w-4 h-4" />
+                      <span>Update My Password for Further Logins</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
             )
           )}
 

@@ -60,6 +60,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     loginAsUser,
     logout,
     updateCurrentUserProfile,
+    changeEmployeePassword,
     users,
     notifications,
     markNotificationAsRead,
@@ -104,7 +105,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     phone: currentUser.phone || '',
     designation: currentUser.designation || '',
     location: currentUser.location || '',
-    password: currentUser.password || 'password123',
+    password: '',
     department: currentUser.department,
     role: currentUser.role,
     avatar: currentUser.avatar || '',
@@ -118,7 +119,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       phone: currentUser.phone || '+91 98100 00000',
       designation: currentUser.designation || currentUser.role,
       location: currentUser.location || 'New Delhi HQ',
-      password: currentUser.password || 'password123',
+      password: '',
       department: currentUser.department,
       role: currentUser.role,
       avatar: currentUser.avatar || '',
@@ -144,7 +145,15 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
-    updateCurrentUserProfile(profileForm);
+    const { password, ...restProfile } = profileForm;
+    const trimmedPassword = password.trim();
+    updateCurrentUserProfile({
+      ...restProfile,
+      ...(trimmedPassword ? { password: trimmedPassword } : {}),
+    });
+    if (trimmedPassword) {
+      changeEmployeePassword(currentUser.id || currentUser.email, trimmedPassword);
+    }
     setIsProfileModalOpen(false);
   };
   const [showNotifications, setShowNotifications] = useState(false);
@@ -1071,14 +1080,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Login Password *</label>
+                  <label className="font-semibold text-slate-700 block mb-1">New Login Password (Optional)</label>
                   <div className="relative">
                     <input
                       type={showProfilePassword ? 'text' : 'password'}
-                      required
                       value={profileForm.password}
                       onChange={(e) => setProfileForm({ ...profileForm, password: e.target.value })}
-                      placeholder="Enter new password"
+                      placeholder="Leave blank to keep current password"
                       className="w-full bg-slate-50 focus:bg-white border border-slate-200 rounded-xl px-3 py-2 pr-14 text-xs font-mono font-bold text-[#1f7e9e] outline-none focus:ring-2 focus:ring-[#1f7e9e]/20 focus:border-[#1f7e9e]"
                     />
                     <button
@@ -1090,7 +1098,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </button>
                   </div>
                   <span className="text-[10px] text-slate-500 mt-1 block">
-                    Change your password here whenever needed and click Save.
+                    Enter a new password and click Save to update your password for further logins.
                   </span>
                 </div>
               </div>
