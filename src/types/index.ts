@@ -152,6 +152,8 @@ export interface CompanyProfileMaster {
     accountName: string;
   };
   bankAccounts?: CompanyBankAccount[];
+  uiFontSize?: 'compact' | 'standard' | 'comfortable' | 'large';
+  uiTheme?: 'indigo' | 'emerald' | 'violet' | 'amber' | 'ocean' | 'midnight';
 }
 
 export type LeadStatus =

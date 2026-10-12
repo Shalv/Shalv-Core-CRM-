@@ -27,7 +27,14 @@ import { Invoice, CrmModuleKey } from './types';
 import { ALL_CRM_MODULES } from './data/initialData';
 
 function MainAppContent() {
-  const { isAuthenticated, canView, currentUser, rolePermissions, logout, syncStatus, retrySync, reloadSavedSync } = useCrm();
+  const { isAuthenticated, canView, currentUser, rolePermissions, logout, syncStatus, retrySync, reloadSavedSync, supplierCompany } = useCrm();
+
+  useEffect(() => {
+    const fontSize = supplierCompany?.uiFontSize || 'standard';
+    const appTheme = supplierCompany?.uiTheme || 'indigo';
+    document.documentElement.setAttribute('data-font-size', fontSize);
+    document.documentElement.setAttribute('data-app-theme', appTheme);
+  }, [supplierCompany?.uiFontSize, supplierCompany?.uiTheme]);
 
   // Helper to read initial navigation from URL or localStorage so page refresh or back/forward stays on last section
   const initialNav = React.useMemo(() => {

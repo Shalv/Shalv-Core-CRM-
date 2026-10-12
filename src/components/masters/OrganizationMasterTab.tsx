@@ -200,6 +200,96 @@ export const OrganizationMasterTab: React.FC = () => {
         )}
       </div>
 
+      {/* Global Font Size & Multi-Theme Master Studio */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div>
+            <div className="font-bold text-slate-900 text-sm mb-1">
+              Application Font Size Scale (Global Master)
+            </div>
+            <p className="text-[11px] text-slate-500 mb-3">
+              Set the default typography scale across the entire CRM and Payroll application.
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {(
+                [
+                  { id: 'compact', label: 'Compact', sub: '12.25px · Dense' },
+                  { id: 'standard', label: 'Standard', sub: '13.5px · Default' },
+                  { id: 'comfortable', label: 'Comfortable', sub: '14.5px · Roomy' },
+                  { id: 'large', label: 'Large', sub: '15.5px · High Legibility' },
+                ] as const
+              ).map((opt) => {
+                const active = (supplierCompany.uiFontSize || 'standard') === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => {
+                      updateSupplierCompany({ uiFontSize: opt.id });
+                      setUploadStatusMsg(`Application font size set to "${opt.label}"!`);
+                      setTimeout(() => setUploadStatusMsg(null), 3000);
+                    }}
+                    className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                      active
+                        ? 'border-indigo-600 bg-indigo-50/70 text-indigo-950 ring-2 ring-indigo-500/20'
+                        : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    <div className="font-bold text-xs">{opt.label}</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">{opt.sub}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <div className="font-bold text-slate-900 text-sm mb-1">
+              Application Theme Palette (Global Master)
+            </div>
+            <p className="text-[11px] text-slate-500 mb-3">
+              Switch between curated workspace themes for the entire organization.
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {(
+                [
+                  { id: 'indigo', label: 'Indigo Slate', dot: '#4f46e5' },
+                  { id: 'emerald', label: 'Emerald Mint', dot: '#059669' },
+                  { id: 'violet', label: 'Royal Violet', dot: '#7c3aed' },
+                  { id: 'amber', label: 'Saffron Gold', dot: '#d97706' },
+                  { id: 'ocean', label: 'Ocean Cyan', dot: '#0284c7' },
+                  { id: 'midnight', label: 'Midnight Navy', dot: '#312e81' },
+                ] as const
+              ).map((thm) => {
+                const active = (supplierCompany.uiTheme || 'indigo') === thm.id;
+                return (
+                  <button
+                    key={thm.id}
+                    type="button"
+                    onClick={() => {
+                      updateSupplierCompany({ uiTheme: thm.id });
+                      setUploadStatusMsg(`Application theme switched to "${thm.label}"!`);
+                      setTimeout(() => setUploadStatusMsg(null), 3000);
+                    }}
+                    className={`px-3 py-2 rounded-xl border flex items-center gap-2.5 transition cursor-pointer ${
+                      active
+                        ? 'border-indigo-600 bg-indigo-50/70 text-indigo-950 font-bold ring-2 ring-indigo-500/20'
+                        : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100 text-slate-700 font-semibold'
+                    }`}
+                  >
+                    <span
+                      className="w-3.5 h-3.5 rounded-full shrink-0 border border-black/10"
+                      style={{ backgroundColor: thm.dot }}
+                    />
+                    <span className="text-xs truncate">{thm.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* 2-Column Layout: Form on Left, Live Tax ID Card & Letterhead Preview on Right */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Left Form (7 Cols) */}

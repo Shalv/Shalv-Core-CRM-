@@ -21,11 +21,53 @@
     font-family: var(--font-sans);
     background-color: var(--crm-bg-canvas);
     color: var(--crm-text-primary);
-    font-size: 13.5px;
+    font-size: var(--app-base-font-size, 13.5px);
     line-height: 1.48;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+  }
+
+  html[data-font-size="compact"] {
+    --app-base-font-size: 12.25px;
+    zoom: 0.94;
+  }
+  html[data-font-size="standard"] {
+    --app-base-font-size: 13.5px;
+  }
+  html[data-font-size="comfortable"] {
+    --app-base-font-size: 14.5px;
+    zoom: 1.04;
+  }
+  html[data-font-size="large"] {
+    --app-base-font-size: 15.5px;
+    zoom: 1.09;
+  }
+
+  html[data-app-theme="emerald"] {
+    --crm-accent: #059669;
+    --crm-accent-dark: #047857;
+    --crm-bg-canvas: #f2faf6;
+  }
+  html[data-app-theme="violet"] {
+    --crm-accent: #7c3aed;
+    --crm-accent-dark: #6d28d9;
+    --crm-bg-canvas: #f6f4fc;
+  }
+  html[data-app-theme="amber"] {
+    --crm-accent: #d97706;
+    --crm-accent-dark: #b45309;
+    --crm-bg-canvas: #fdf8f2;
+  }
+  html[data-app-theme="ocean"] {
+    --crm-accent: #0284c7;
+    --crm-accent-dark: #0369a1;
+    --crm-bg-canvas: #f0f8fc;
+  }
+  html[data-app-theme="midnight"] {
+    --crm-accent: #4f46e5;
+    --crm-accent-dark: #4338ca;
+    --crm-bg-canvas: #eef2f8;
   }
 
   /* Enforce tabular numerals on all monospace and financial readouts */
