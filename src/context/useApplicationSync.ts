@@ -147,7 +147,7 @@ export function useApplicationSync(snapshot:Snapshot, apply:(snapshot:Snapshot)=
       if(!same(base.current,outgoing)) {
         // Persist the exact baseline too, so reopening cannot overwrite intervening changes.
         localStorage.setItem(PENDING_KEY,JSON.stringify({base:base.current,snapshot:outgoing}));
-        setStatus(s=>({...s,state:'saving',message:'Saving linked records…'}));
+        setStatus(s=>({...s,state:'saving',message:''}));
         const userPasswords=getPendingUserPasswords();
         const response=await fetch('/api/state',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({base:base.current,snapshot:outgoing,...(Object.keys(userPasswords).length ? {userPasswords} : {})})});
         const result=await response.json();

@@ -27,7 +27,7 @@ import { Invoice, CrmModuleKey } from './types';
 import { ALL_CRM_MODULES } from './data/initialData';
 
 function MainAppContent() {
-  const { isAuthenticated, canView, currentUser, rolePermissions, logout, syncStatus, retrySync, reloadSavedSync, supplierCompany } = useCrm();
+  const { isAuthenticated, canView, canEdit, currentUser, rolePermissions, logout, syncStatus, retrySync, reloadSavedSync, supplierCompany } = useCrm();
 
   useEffect(() => {
     const fontSize = supplierCompany?.uiFontSize || 'standard';
@@ -262,33 +262,114 @@ function MainAppContent() {
       ) {
         return 'payroll';
       }
+      const stored = sessionStorage.getItem('crm_session_portal');
+      if (stored === 'payroll') return 'payroll';
     } catch {
       /* ignore */
     }
     return 'crm';
   });
 
+  const [sessionPortal, setSessionPortal] = useState<'crm' | 'payroll' | null>(() => {
+    try {
+      const stored = sessionStorage.getItem('crm_session_portal');
+      if (stored === 'payroll' || stored === 'crm') return stored;
+      const urlParams = new URLSearchParams(window.location.search);
+      if (
+        urlParams.get('portal') === 'payroll' ||
+        urlParams.get('mode') === 'payroll' ||
+        urlParams.get('auth') === 'payroll'
+      ) {
+        return 'payroll';
+      }
+    } catch {
+      /* ignore */
+    }
+    return null;
+  });
+
   if (!isAuthenticated) {
     if (authView === 'payroll') {
-      return <PayrollLoginView onSwitchToCrmLogin={() => setAuthView('crm')} />;
+      return (
+        <PayrollLoginView
+          onSwitchToCrmLogin={() => {
+            setAuthView('crm');
+            setSessionPortal('crm');
+            try {
+              sessionStorage.setItem('crm_session_portal', 'crm');
+            } catch {
+              /* ignore */
+            }
+          }}
+        />
+      );
     }
-    return <LoginView onSwitchToPayrollLogin={() => setAuthView('payroll')} />;
+    return (
+      <LoginView
+        onSwitchToPayrollLogin={() => {
+          setAuthView('payroll');
+          setSessionPortal('payroll');
+          try {
+            sessionStorage.setItem('crm_session_portal', 'payroll');
+          } catch {
+            /* ignore */
+          }
+        }}
+      />
+    );
   }
 
-  // Dedicated full-page view for employees who ONLY have access to payroll
-  if (
-    (currentUser.accessScope === 'payroll_only' || currentUser.accessType === 'payroll_only') &&
-    currentUser.role !== 'Super Admin' &&
-    currentUser.role !== 'Administrator'
-  ) {
+  // Redirect to Payroll Dashboard as per role & rights defined when logging in from the payroll login page,
+  // or when the user is configured for Payroll ESS Portal access only
+  const isPayrollSession =
+    sessionPortal === 'payroll' ||
+    (sessionPortal === null && authView === 'payroll') ||
+    currentUser.accessScope === 'payroll_only' ||
+    currentUser.accessType === 'payroll_only';
+
+  const isPayrollAdmin =
+    (currentUser.role === 'Super Admin' ||
+      currentUser.role === 'Administrator' ||
+      currentUser.role?.toLowerCase().includes('admin') ||
+      currentUser.role?.toLowerCase().includes('hr') ||
+      canEdit('masters')) &&
+    currentUser.accessScope !== 'payroll_only';
+
+  if (isPayrollSession) {
+    const defaultPayrollTab = isPayrollAdmin ? 'admin_dashboard' : 'overview';
+
     const handlePayrollPortalSignOut = () => {
+      try {
+        sessionStorage.removeItem('crm_session_portal');
+      } catch {
+        /* ignore */
+      }
+      setSessionPortal(null);
       logout();
     };
+
+    const handleSwitchToCrmWorkspace = () => {
+      try {
+        sessionStorage.setItem('crm_session_portal', 'crm');
+        const url = new URL(window.location.href);
+        url.searchParams.delete('portal');
+        url.searchParams.delete('email');
+        url.searchParams.delete('emp');
+        window.history.replaceState({}, '', url.toString());
+      } catch {
+        /* ignore */
+      }
+      setSessionPortal('crm');
+      setAuthView('crm');
+    };
+
     return (
       <PayrollEssPortalModal
         isOpen={true}
         onClose={handlePayrollPortalSignOut}
         asDedicatedPage={true}
+        initialTab={defaultPayrollTab}
+        onSwitchToCrm={isPayrollAdmin ? handleSwitchToCrmWorkspace : undefined}
       />
     );
   }

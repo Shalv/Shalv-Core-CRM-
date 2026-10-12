@@ -95,6 +95,7 @@ interface PayrollEssPortalModalProps {
   onClose: () => void;
   initialTab?: EssTabKey;
   asDedicatedPage?: boolean;
+  onSwitchToCrm?: () => void;
 }
 
 export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
@@ -102,6 +103,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
   onClose,
   initialTab = 'overview',
   asDedicatedPage = false,
+  onSwitchToCrm,
 }) => {
   const {
     currentUser,
@@ -116,18 +118,24 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
     updateCurrentUserProfile,
   } = useCrm();
 
-  // If accessed as a dedicated Payroll Login session (from login link) or by a Payroll-Only / non-admin employee,
-  // strictly isolate access to ONLY that authenticated user's own payroll information.
-  const isDedicatedEmployeePortal =
-    asDedicatedPage || currentUser.accessScope === 'payroll_only';
-
   const isAdminUser =
-    !isDedicatedEmployeePortal &&
     (currentUser.role === 'Super Admin' ||
       currentUser.role === 'Administrator' ||
-      canEdit('masters'));
+      currentUser.role?.toLowerCase().includes('admin') ||
+      currentUser.role?.toLowerCase().includes('hr') ||
+      canEdit('masters')) &&
+    currentUser.accessScope !== 'payroll_only';
 
-  const [activeTab, setActiveTab] = useState<EssTabKey>(initialTab);
+  // If accessed by a non-admin / payroll-only employee, strictly isolate access to ONLY that employee's own payroll records
+  const isDedicatedEmployeePortal =
+    !isAdminUser && (asDedicatedPage || currentUser.accessScope === 'payroll_only');
+
+  const [activeTab, setActiveTab] = useState<EssTabKey>(() => {
+    if (!isAdminUser && (initialTab === 'admin_master' || initialTab === 'admin_dashboard' || initialTab === 'reports')) {
+      return 'overview';
+    }
+    return initialTab || 'overview';
+  });
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>('2026-09');
   const [isPayslipPreviewOpen, setIsPayslipPreviewOpen] = useState(false);
   const [statusBanner, setStatusBanner] = useState<string | null>(null);
@@ -1868,9 +1876,13 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                   } catch {
                     // ignore
                   }
-                  updateCurrentUserProfile({ accessScope: 'all' });
+                  if (onSwitchToCrm) {
+                    onSwitchToCrm();
+                  } else {
+                    updateCurrentUserProfile({ accessScope: 'all' });
+                  }
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1f7e9e] hover:bg-[#17647e] text-white font-semibold text-xs cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1f7e9e] hover:bg-[#17647e] text-white font-semibold text-xs cursor-pointer shadow-xs"
                 title="Open full CRM Enterprise Workspace"
               >
                 <ArrowRightLeft className="w-3.5 h-3.5" />

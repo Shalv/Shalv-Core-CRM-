@@ -935,8 +935,14 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
         return;
       }
 
+      try {
+        sessionStorage.setItem('crm_session_portal', 'payroll');
+      } catch {
+        // ignore
+      }
+
       setStatus({
-        text: 'Signed in.',
+        text: 'Signed in. Redirecting to Payroll Dashboard…',
         ok: true,
       });
     } catch (err: any) {

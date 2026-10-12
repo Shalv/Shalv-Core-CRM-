@@ -1589,6 +1589,15 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       setCurrentUser(updated);
       setIsAuthenticated(true);
+      try {
+        if (isPayrollPortalLogin) {
+          sessionStorage.setItem('crm_session_portal', 'payroll');
+        } else {
+          sessionStorage.setItem('crm_session_portal', 'crm');
+        }
+      } catch {
+        // ignore
+      }
       return { success: true, user: updated, mustChangePassword: false };
     }
 
@@ -1680,6 +1689,15 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       setCurrentUser(updatedUser);
       setIsAuthenticated(true);
+      try {
+        if (isPayrollPortalLogin) {
+          sessionStorage.setItem('crm_session_portal', 'payroll');
+        } else {
+          sessionStorage.setItem('crm_session_portal', 'crm');
+        }
+      } catch {
+        // ignore
+      }
 
       return { success: true, user: updatedUser, mustChangePassword: false };
     }
@@ -1967,6 +1985,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const logout = () => {
     try { localStorage.removeItem('crm_auth_token'); } catch { /* ignore */ }
+    try { sessionStorage.removeItem('crm_session_portal'); } catch { /* ignore */ }
     void fetch('/api/auth/logout', {method:'POST'});
     setIsAuthenticated(false);
   };

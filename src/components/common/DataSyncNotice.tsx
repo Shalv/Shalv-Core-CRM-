@@ -4,7 +4,11 @@ export function DataSyncNotice({status,retry,reload,showIssues}:{status:SyncStat
   const [open,setOpen]=useState(false);
   const problematic=['offline','conflict'].includes(status.state);
   const count=showIssues ? status.issues.length : 0;
-  if(status.state==='saved' && !count) return null;
+  // Never show "Saving linked records…" or routine background saving notices on screen
+  if (status.state==='saved' || status.state==='saving' || status.message?.includes('Saving linked records') || status.message?.includes('Saving')) {
+    if (!problematic && !count) return null;
+  }
+  if (!problematic && !count) return null;
   return <aside aria-live="polite" className={`fixed bottom-4 right-4 z-[99999] max-w-xl rounded-xl border p-3 shadow-lg ${problematic || count ? 'border-amber-300 bg-amber-50 text-amber-950' : 'border-blue-200 bg-white text-slate-700'}`}>
     <div className="text-xs font-semibold">{status.message}</div>
     <div className="mt-2 flex gap-3 text-xs">

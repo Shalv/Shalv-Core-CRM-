@@ -28368,23 +28368,14 @@ var initial_store_default = {
   users: [
     {
       id: "usr-1",
-      name: "Shalv Sharma",
+      name: "Admin",
       username: "admin",
       email: "admin@coreenact.com",
-      passwordHash: "$2b$08$id5mmf8BQGhkPiGkeXsOV.AD96gtEc.3zpd/1gX5LdohGtmJflGvK",
       phone: "9810998290",
       role: "Super Admin",
       department: "Executive",
       designation: "Managing Director / Super Admin",
-      status: "Active",
-      location: "New Delhi",
-      created_at: "2026-09-01T09:00:00Z",
-      accessScope: "all",
-      avatar: "",
-      customPermissions: null,
-      last_login_at: null,
-      custom_permissions: null,
-      updated_at: "2026-10-06T17:06:56.585Z"
+      status: "Active"
     }
   ],
   payroll_masters: [],
@@ -34759,22 +34750,14 @@ var initial_store_default = {
     users: [
       {
         id: "usr-1",
-        name: "Shalv Sharma",
+        name: "Admin",
         username: "admin",
         email: "admin@coreenact.com",
         phone: "9810998290",
         role: "Super Admin",
         department: "Executive",
         designation: "Managing Director / Super Admin",
-        status: "Active",
-        location: "New Delhi",
-        created_at: "2026-09-01T09:00:00Z",
-        accessScope: "all",
-        avatar: "",
-        customPermissions: null,
-        last_login_at: null,
-        custom_permissions: null,
-        updated_at: "2026-10-06T17:06:56.585Z"
+        status: "Active"
       }
     ],
     milestoneTemplates: []
@@ -49222,6 +49205,9 @@ var REMOVED_PREDEFINED_USER_IDS = /* @__PURE__ */ new Set([
   "usr-7"
 ]);
 var REMOVED_PREDEFINED_USER_EMAILS = /* @__PURE__ */ new Set([
+  "shalv@coreenact.com",
+  "shalv.sharma@coreenact.com",
+  "shalvpersonal@gmail.com",
   "tabassum@coreenact.com",
   "rohan.verma@coreenact.com",
   "priya.nair@coreenact.com",
@@ -49244,7 +49230,7 @@ function reconcileSnapshot(input, today = (/* @__PURE__ */ new Date()).toISOStri
     }));
     s.users = filteredUsers;
   }
-  const adminUser = rows(s, "users").find((u) => String(u.id) === "usr-1" || u.role === "Super Admin") || rows(s, "users")[0] || { id: "usr-1", name: "Shalv Sharma" };
+  const adminUser = rows(s, "users").find((u) => u.role === "Super Admin") || rows(s, "users")[0] || null;
   const usersMap = new Map(rows(s, "users").map((u) => [String(u.id), u]));
   for (const rel of RELATIONS.filter((r) => !r.nested)) {
     const map2 = new Map(rows(s, rel.to).map((r) => [String(r.id), r]));
@@ -49272,7 +49258,13 @@ function reconcileSnapshot(input, today = (/* @__PURE__ */ new Date()).toISOStri
   if (Array.isArray(s.activities)) {
     s.activities = rows(s, "activities").map((act) => {
       if (act?.assignedUserId && !usersMap.has(String(act.assignedUserId))) {
-        return { ...act, assignedUserId: String(adminUser.id), assignedUserName: adminUser.name };
+        if (adminUser?.id) {
+          return { ...act, assignedUserId: String(adminUser.id), assignedUserName: adminUser.name };
+        }
+        const c = { ...act };
+        delete c.assignedUserId;
+        delete c.assignedUserName;
+        return c;
       }
       return act;
     });
@@ -49280,7 +49272,13 @@ function reconcileSnapshot(input, today = (/* @__PURE__ */ new Date()).toISOStri
   if (Array.isArray(s.payments)) {
     s.payments = rows(s, "payments").map((pay) => {
       if (pay?.recordedById && !usersMap.has(String(pay.recordedById))) {
-        return { ...pay, recordedById: String(adminUser.id), recordedByName: adminUser.name };
+        if (adminUser?.id) {
+          return { ...pay, recordedById: String(adminUser.id), recordedByName: adminUser.name };
+        }
+        const c = { ...pay };
+        delete c.recordedById;
+        delete c.recordedByName;
+        return c;
       }
       return pay;
     });
@@ -49288,7 +49286,13 @@ function reconcileSnapshot(input, today = (/* @__PURE__ */ new Date()).toISOStri
   if (Array.isArray(s.purchaseOrders)) {
     s.purchaseOrders = rows(s, "purchaseOrders").map((po) => {
       if (po?.approvedById && !usersMap.has(String(po.approvedById))) {
-        return { ...po, approvedById: String(adminUser.id), approvedByName: adminUser.name };
+        if (adminUser?.id) {
+          return { ...po, approvedById: String(adminUser.id), approvedByName: adminUser.name };
+        }
+        const c = { ...po };
+        delete c.approvedById;
+        delete c.approvedByName;
+        return c;
       }
       return po;
     });
@@ -49372,6 +49376,52 @@ function reconcileSnapshot(input, today = (/* @__PURE__ */ new Date()).toISOStri
   });
   return s;
 }
+var DERIVED_FIELDS = /* @__PURE__ */ new Set([
+  "updatedAt",
+  "lastLoginAt",
+  "paidAmount",
+  "balanceAmount",
+  "remainingBalance",
+  "runningBalance",
+  "consumedHours",
+  "openingConsumedHours",
+  "openingPaidAmount",
+  "invoicedAmount",
+  "paymentStatus",
+  "invoiceNumber",
+  "receiptNumber",
+  "orderNumber",
+  "leadNumber",
+  "customerCode",
+  "opportunityNumber",
+  "poNumber",
+  "ticketNumber",
+  "crNumber",
+  "contractNumber",
+  "netReceived",
+  "proformaInvoiceId",
+  "proformaInvoiceNumber",
+  "invoiceId",
+  "createdAt",
+  "createdDate",
+  "created_at",
+  "updated_at",
+  "modifiedAt",
+  "timestamp",
+  "assignedUserName",
+  "customerName",
+  "salesOrderNumber"
+]);
+function hasDomainRecordChanged(before, current) {
+  if (!before || !current) return before !== current;
+  const allKeys = /* @__PURE__ */ new Set([...Object.keys(before), ...Object.keys(current)]);
+  for (const k of allKeys) {
+    if (DERIVED_FIELDS.has(k)) continue;
+    if (k === "status" && ["Paid", "Partially Paid", "Issued", "Overdue", "Due", "Upcoming"].includes(String(current[k]))) continue;
+    if (!same(before[k], current[k])) return true;
+  }
+  return false;
+}
 function mergeSnapshots(base2, local, remote) {
   const snapshot = { ...remote };
   const conflicts = [];
@@ -49385,7 +49435,7 @@ function mergeSnapshots(base2, local, remote) {
         const before = b.get(id), next = l.get(id), current = r.get(id);
         if (same(before, next)) continue;
         if (!next) {
-          if (current && !same(current, before)) conflicts.push(`${key}/${id}: record changed before deletion`);
+          if (current && hasDomainRecordChanged(before, current)) conflicts.push(`${key}/${id}: record changed before deletion`);
           else r.delete(id);
         } else if (!before) {
           if (current && !same(current, next)) conflicts.push(`${key}/${id}: conflicting new record`);
@@ -49395,7 +49445,7 @@ function mergeSnapshots(base2, local, remote) {
           const merged = { ...current };
           for (const field of /* @__PURE__ */ new Set([...Object.keys(before), ...Object.keys(next)])) {
             if (same(before[field], next[field])) continue;
-            if (!same(current[field], before[field]) && !same(current[field], next[field]) && !["updatedAt", "lastLoginAt", "paidAmount", "balanceAmount", "remainingBalance", "runningBalance", "consumedHours", "invoicedAmount", "paymentStatus"].includes(field) && !(field === "status" && ["invoices", "milestones"].includes(key) && ["Paid", "Partially Paid", "Issued", "Overdue", "Due", "Upcoming"].includes(String(next[field])))) conflicts.push(`${key}/${id}/${field}: concurrent change`);
+            if (!same(current[field], before[field]) && !same(current[field], next[field]) && !DERIVED_FIELDS.has(field) && !(field === "status" && ["invoices", "milestones", "orders"].includes(key) && ["Paid", "Partially Paid", "Issued", "Overdue", "Due", "Upcoming", "Unpaid"].includes(String(next[field])))) conflicts.push(`${key}/${id}/${field}: concurrent change`);
             else if (next[field] === void 0) delete merged[field];
             else merged[field] = next[field];
           }
@@ -49403,6 +49453,20 @@ function mergeSnapshots(base2, local, remote) {
         }
       }
       snapshot[key] = [...r.values()];
+    } else if (typeof local[key] === "object" && local[key] !== null && typeof remote[key] === "object" && remote[key] !== null) {
+      const mergedObj = { ...remote[key] || {} };
+      const bObj = base2[key] || {};
+      const lObj = local[key] || {};
+      const rObj = remote[key] || {};
+      for (const prop of /* @__PURE__ */ new Set([...Object.keys(bObj), ...Object.keys(lObj)])) {
+        if (same(bObj[prop], lObj[prop])) continue;
+        if (!same(rObj[prop], bObj[prop]) && !same(rObj[prop], lObj[prop])) {
+          mergedObj[prop] = lObj[prop];
+        } else {
+          mergedObj[prop] = lObj[prop];
+        }
+      }
+      snapshot[key] = mergedObj;
     } else if (!same(remote[key], base2[key]) && !same(remote[key], local[key])) conflicts.push(`${key}: concurrent change`);
     else snapshot[key] = local[key];
   }
@@ -49527,7 +49591,18 @@ app.use(import_express.default.json({ limit: "15mb" }));
 app.use(import_express.default.urlencoded({ extended: true, limit: "15mb" }));
 var MOCK_TABLES = {
   users: [
-    { id: "usr-1", name: "Shalv Sharma", username: "admin", email: "admin@coreenact.com", passwordHash: DEFAULT_SEED_PASSWORD_HASH, phone: "9810998290", role: "Super Admin", department: "Executive", designation: "Managing Director / Super Admin", status: "Active", location: "New Delhi", created_at: "2026-09-01T09:00:00Z" }
+    {
+      id: "usr-1",
+      name: "Admin",
+      username: "admin",
+      email: "admin@coreenact.com",
+      passwordHash: DEFAULT_SEED_PASSWORD_HASH,
+      role: "Super Admin",
+      status: "Active",
+      department: "Executive",
+      designation: "Managing Director / Super Admin",
+      accessScope: "all"
+    }
   ],
   payroll_masters: [],
   leads: [
@@ -50199,8 +50274,11 @@ app.use("/api", (req, res, next) => {
   if (isTestMode() || ["/health", "/auth/login", "/auth/verify", "/auth/logout"].includes(req.path)) return next();
   const id = verifyAuthToken(sessionToken(req));
   let account = MOCK_TABLES.users.find((u) => String(u.id) === id);
+  if (!account && id === "usr-1") {
+    account = { id: "usr-1", name: "Admin", username: "admin", email: "admin@coreenact.com", passwordHash: DEFAULT_SEED_PASSWORD_HASH, role: "Super Admin", status: "Active" };
+  }
   if (!account && !isServerlessRuntime() && req.headers["x-crm-logged-out"] !== "true") {
-    account = MOCK_TABLES.users[0];
+    account = MOCK_TABLES.users[0] || { id: "usr-1", name: "Admin", username: "admin", email: "admin@coreenact.com", passwordHash: DEFAULT_SEED_PASSWORD_HASH, role: "Super Admin", status: "Active" };
   }
   if (!account || String(account.status).toLowerCase() === "inactive") return res.status(401).json({ success: false, message: "Please sign in again." });
   req.account = account;
@@ -50381,6 +50459,9 @@ function findAccountByIdentifier(rawIdentifier) {
     ]);
     if (superAdminAliases.has(identifier)) {
       user = users.find((u) => String(u.id) === "usr-1" || norm(u.username) === "admin" || u.role === "Super Admin") || null;
+      if (!user && (identifier === "admin" || identifier === "admin@coreenact.com")) {
+        user = { id: "usr-1", name: "Admin", username: "admin", email: "admin@coreenact.com", passwordHash: DEFAULT_SEED_PASSWORD_HASH, role: "Super Admin", status: "Active" };
+      }
     } else {
       const idLocal = identifier.includes("@") ? identifier.split("@")[0] : identifier;
       user = users.find((u) => {
@@ -50812,6 +50893,7 @@ app.post("/api/state", async (req, res) => {
       if (merged.conflicts.length > 0) {
         return res.status(409).json({
           error: "Conflict detected while merging state",
+          message: "Another change occurred during saving. Reload saved data before continuing.",
           conflicts: merged.conflicts,
           snapshot: current
         });
