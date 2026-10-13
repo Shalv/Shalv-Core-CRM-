@@ -49846,8 +49846,24 @@ function relinkUsersAndPayrollMasters() {
           ...currU,
           passwordHash: syncedHash,
           empCode: m.empCode || currU?.empCode,
-          status: m.status || currU?.status || "Active"
+          status: m.status || currU?.status || "Active",
+          ...m.accessType !== void 0 ? {
+            accessType: m.accessType,
+            accessScope: m.accessType === "payroll_only" ? "payroll_only" : currU?.accessScope === "payroll_only" ? "all" : currU?.accessScope || "all"
+          } : {}
         });
+        if (Array.isArray(PERSISTED_CRM_STATE.crmSlices?.users)) {
+          const sliceIdx = PERSISTED_CRM_STATE.crmSlices.users.findIndex(
+            (su) => su && String(su.id) === targetId
+          );
+          if (sliceIdx >= 0 && m.accessType !== void 0) {
+            PERSISTED_CRM_STATE.crmSlices.users[sliceIdx] = {
+              ...PERSISTED_CRM_STATE.crmSlices.users[sliceIdx],
+              accessType: m.accessType,
+              accessScope: m.accessType === "payroll_only" ? "payroll_only" : PERSISTED_CRM_STATE.crmSlices.users[sliceIdx].accessScope || "all"
+            };
+          }
+        }
         relinkedMasters[targetId].passwordHash = syncedHash;
       }
     } else if (effectiveStatus !== "Inactive") {
@@ -50556,7 +50572,7 @@ async function handleAuthLogin(req, res) {
     }
     const effectiveRole = user?.role || master?.role || "Sales Executive";
     const isAdminAccount = ["Super Admin", "Administrator"].includes(effectiveRole) || String(user?.id || master?.userId || "") === "usr-1";
-    const isPayrollOnlyAccount = !isAdminAccount && (user?.accessType === "payroll_only" || user?.accessScope === "payroll_only" || master?.accessType === "payroll_only" || !user && Boolean(master));
+    const isPayrollOnlyAccount = !isAdminAccount && (user?.accessType === "payroll_only" || user?.accessScope === "payroll_only" || user?.accessScope === "PAYROLL_ONLY" || master?.accessType === "payroll_only" || !user && Boolean(master));
     const isCrmOnlyAccount = !isAdminAccount && (user?.accessType === "crm_only" || master?.accessType === "crm_only" || master?.enrolledInPayroll === false);
     if (portalMode === "crm" && isPayrollOnlyAccount) {
       return res.status(403).json({
@@ -51428,6 +51444,10 @@ app.get("/api/payroll/masters", (req, res) => {
   res.json({ success: true, masters: sanitizePayrollMastersMapForClient(map2) });
 });
 app.post("/api/payroll/masters", async (req, res) => {
+  const actor = req.account;
+  if (actor && !["Super Admin", "Administrator"].includes(actor.role)) {
+    return res.status(403).json({ success: false, message: "Administrator permission required." });
+  }
   const rawMasters = req.body?.masters;
   const masters = Array.isArray(rawMasters) ? Object.fromEntries(
     rawMasters.filter((m) => m && m.userId).map((m) => [String(m.userId), m])
@@ -51570,6 +51590,10 @@ app.post("/api/payroll/masters", async (req, res) => {
   });
 });
 app.delete("/api/payroll/masters/:id", async (req, res) => {
+  const actor = req.account;
+  if (actor && !["Super Admin", "Administrator"].includes(actor.role)) {
+    return res.status(403).json({ success: false, message: "Administrator permission required." });
+  }
   const { id } = req.params;
   if (id) {
     delete PERSISTED_CRM_STATE.payrollMasters[id];

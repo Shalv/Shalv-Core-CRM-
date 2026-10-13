@@ -1327,12 +1327,23 @@ async function handleAuthLogin(req: Request, res: Response) {
       });
     }
 
-    const userInactive = user && String(user.status || '').toLowerCase() === 'inactive';
-    const masterInactive =
+    const userInactive = Boolean(user && String(user.status || '').toLowerCase() === 'inactive');
+    const masterInactive = Boolean(
       master &&
       (String(master.status || '').toLowerCase() === 'inactive' ||
-        String(master.employmentStatus || '').toLowerCase() === 'inactive');
-    if (userInactive || (masterInactive && !user)) {
+        String(master.employmentStatus || '').toLowerCase() === 'inactive')
+    );
+    // In Payroll Portal mode, check the employee's payroll master status first (if enrolled in payroll)
+    // so employees active in Payroll are not blocked just because CRM workspace access is deactivated.
+    // In CRM Portal mode, check the CRM user status.
+    const isInactiveForPortal =
+      portalMode === 'payroll'
+        ? (master ? masterInactive : userInactive)
+        : portalMode === 'crm'
+        ? userInactive
+        : (userInactive || (masterInactive && !user));
+
+    if (isInactiveForPortal) {
       return res.status(403).json({
         success: false,
         authenticated: false,

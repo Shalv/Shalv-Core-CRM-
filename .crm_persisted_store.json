@@ -18,6 +18,7 @@
       "name": "Shalv Sharma",
       "username": "admin",
       "email": "admin@coreenact.com",
+      "passwordHash": "$2b$08$id5mmf8BQGhkPiGkeXsOV.AD96gtEc.3zpd/1gX5LdohGtmJflGvK",
       "role": "Super Admin",
       "status": "Active",
       "department": "Executive",
@@ -25,13 +26,13 @@
       "accessScope": "all",
       "phone": "9810998290",
       "customPermissions": null,
+      "custom_permissions": null,
       "location": "New Delhi",
       "created_at": "2026-09-01T09:00:00Z",
       "avatar": "",
       "last_login_at": null,
-      "custom_permissions": null,
       "updated_at": "2026-10-06T17:06:56.585Z",
-      "passwordHash": "$2b$08$id5mmf8BQGhkPiGkeXsOV.AD96gtEc.3zpd/1gX5LdohGtmJflGvK"
+      "lastLoginAt": "2026-10-13T08:43:07.750Z"
     },
     {
       "id": "usr-1791811952136",
@@ -55,6 +56,26 @@
       "lastLoginAt": "2026-10-12T13:32:37.287Z",
       "empCode": "EMP-101",
       "passwordHash": "$2b$08$S9Qye2gVNiouPZZklLbMceP3du2MyCEYhT8Rtgx0tKXWLMnTrdkya"
+    },
+    {
+      "id": "usr-shivam-test-1",
+      "name": "Shivam Yadav",
+      "username": "shivam.yadav",
+      "email": "shivam.yadav@coreenact.com",
+      "passwordHash": "$2b$08$Yp1UnCpnDENp1ujaz06rf.BCQam5/VqdCr7LHC1QZ7l3nNy/b/LdK",
+      "accessScope": "payroll_only",
+      "accessType": "payroll_only",
+      "empCode": "EMP-102",
+      "phone": "",
+      "role": "Sales Executive",
+      "department": "Operations",
+      "designation": "Employee",
+      "status": "Active",
+      "location": "Mumbai HQ",
+      "created_at": "2026-10-13T08:43:07.794Z",
+      "customPermissions": null,
+      "custom_permissions": null,
+      "lastLoginAt": "2026-10-13T08:43:07.838Z"
     }
   ],
   "payroll_masters": [
@@ -73,6 +94,16 @@
       "designation": "",
       "location": "",
       "phone": ""
+    },
+    {
+      "userId": "usr-shivam-test-1",
+      "empCode": "EMP-102",
+      "name": "Shivam Yadav",
+      "email": "shivam.yadav@coreenact.com",
+      "status": "Active",
+      "accessType": "payroll_only",
+      "enrolledInPayroll": true,
+      "passwordHash": "$2b$08$Yp1UnCpnDENp1ujaz06rf.BCQam5/VqdCr7LHC1QZ7l3nNy/b/LdK"
     }
   ],
   "payrollMasters": {
@@ -91,6 +122,16 @@
       "designation": "",
       "location": "",
       "phone": ""
+    },
+    "usr-shivam-test-1": {
+      "userId": "usr-shivam-test-1",
+      "empCode": "EMP-102",
+      "name": "Shivam Yadav",
+      "email": "shivam.yadav@coreenact.com",
+      "status": "Active",
+      "accessType": "payroll_only",
+      "enrolledInPayroll": true,
+      "passwordHash": "$2b$08$Yp1UnCpnDENp1ujaz06rf.BCQam5/VqdCr7LHC1QZ7l3nNy/b/LdK"
     }
   },
   "deletedPayrollMasterIds": [],
@@ -6474,12 +6515,13 @@
         "accessScope": "all",
         "phone": "9810998290",
         "customPermissions": null,
+        "custom_permissions": null,
         "location": "New Delhi",
         "created_at": "2026-09-01T09:00:00Z",
         "avatar": "",
         "last_login_at": null,
-        "custom_permissions": null,
-        "updated_at": "2026-10-06T17:06:56.585Z"
+        "updated_at": "2026-10-06T17:06:56.585Z",
+        "lastLoginAt": "2026-10-13T08:43:07.750Z"
       },
       {
         "id": "usr-1791811952136",
@@ -6502,6 +6544,25 @@
         "created_at": "2026-10-12T13:32:32.171Z",
         "lastLoginAt": "2026-10-12T13:32:37.287Z",
         "empCode": "EMP-101"
+      },
+      {
+        "id": "usr-shivam-test-1",
+        "name": "Shivam Yadav",
+        "username": "shivam.yadav",
+        "email": "shivam.yadav@coreenact.com",
+        "accessScope": "payroll_only",
+        "accessType": "payroll_only",
+        "empCode": "EMP-102",
+        "phone": "",
+        "role": "Sales Executive",
+        "department": "Operations",
+        "designation": "Employee",
+        "status": "Active",
+        "location": "Mumbai HQ",
+        "created_at": "2026-10-13T08:43:07.794Z",
+        "customPermissions": null,
+        "custom_permissions": null,
+        "lastLoginAt": "2026-10-13T08:43:07.838Z"
       }
     ],
     "milestoneTemplates": []
@@ -6544,5 +6605,5 @@
       "updated_at": "2026-10-10T07:21:10.792Z"
     }
   ],
-  "updatedAt": "2026-10-12T17:31:09.700Z"
+  "updatedAt": "2026-10-13T09:02:40.343Z"
 }

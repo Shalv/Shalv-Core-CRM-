@@ -1609,14 +1609,19 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Case 2: User exists in CRM users (may also be in payroll master)
     if (matchedUser) {
-      if (
-        matchedUser.status === 'Inactive' ||
-        matchedPayrollMaster?.status === 'Inactive' ||
-        matchedPayrollMaster?.employmentStatus === 'Inactive'
-      ) {
+      const isAccountInactive =
+        isPayrollPortalLogin
+          ? (matchedPayrollMaster
+              ? matchedPayrollMaster.status === 'Inactive' || matchedPayrollMaster.employmentStatus === 'Inactive'
+              : matchedUser.status === 'Inactive')
+          : matchedUser.status === 'Inactive';
+
+      if (isAccountInactive) {
         return {
           success: false,
-          message: 'This user account is currently inactive. Contact Super Admin.',
+          message: isPayrollPortalLogin
+            ? 'Your account is inactive. Please contact the Administrator.'
+            : 'This user account is currently inactive. Contact Super Admin.',
         };
       }
 
