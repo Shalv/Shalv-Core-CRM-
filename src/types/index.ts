@@ -59,6 +59,38 @@ export interface User {
   reportingManager?: string;
   assignedTerritory?: string;
   customPermissions?: Partial<RolePermissionsMap>;
+  // Unified Employee Extended Fields
+  dateOfBirth?: string;
+  gender?: 'Male' | 'Female' | 'Other' | string;
+  bloodGroup?: string;
+  maritalStatus?: string;
+  alternatePhone?: string;
+  personalEmail?: string;
+  currentAddress?: string;
+  permanentAddress?: string;
+  city?: string;
+  state?: string;
+  pinCode?: string;
+  bankName?: string;
+  bankAccountNo?: string;
+  ifscCode?: string;
+  panNumber?: string;
+  uanNumber?: string;
+  pfAccountNo?: string;
+  taxRegime?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  emergencyContactRelation?: string;
+  highestQualification?: string;
+  institute?: string;
+  passingYear?: string;
+  documents?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    documentNumber?: string;
+    uploadedAt: string;
+  }>;
 }
 
 export interface StateMasterItem {
@@ -830,11 +862,12 @@ export interface OutlookEmailNotificationConfig {
 
 export interface AuditLogItem {
   id: string;
-  entityType: 'Lead' | 'Opportunity' | 'Customer' | 'SalesOrder' | 'PurchaseOrder' | 'Milestone' | 'Invoice' | 'Payment' | 'User' | 'Master' | 'SupportTicket' | 'AmcContract' | 'ChangeRequest';
+  entityType: 'Lead' | 'Opportunity' | 'Customer' | 'SalesOrder' | 'PurchaseOrder' | 'Milestone' | 'Invoice' | 'Payment' | 'User' | 'Employee' | 'Master' | 'SupportTicket' | 'AmcContract' | 'ChangeRequest';
   entityId: string;
   entityNumber: string;
   action: 'Created' | 'Updated' | 'Converted' | 'Approved' | 'Rejected' | 'Status Changed' | 'Payment Recorded' | 'Deleted';
   description: string;
+  fieldName?: string;
   oldValue?: string;
   newValue?: string;
   performedById: string;

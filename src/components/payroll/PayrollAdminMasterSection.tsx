@@ -67,6 +67,11 @@ import {
   EyeOff,
   Share2,
   Unlink,
+  Users,
+  FileText,
+  Clock,
+  Landmark,
+  Wallet,
 } from 'lucide-react';
 
 interface PayrollAdminMasterSectionProps {
@@ -139,7 +144,10 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
     supplierCompany,
     formatCurrency,
     canEdit,
+    auditLogs,
   } = useCrm();
+
+  const [employeeDetailView, setEmployeeDetailView] = useState<'allocations' | 'employee_info'>('allocations');
 
   const isSystemAdmin =
     currentUser.role === 'Super Admin' ||
@@ -173,6 +181,29 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
     window.addEventListener(PAYROLL_ORG_MASTERS_SYNC_EVENT, syncOrg);
     return () => window.removeEventListener(PAYROLL_ORG_MASTERS_SYNC_EVENT, syncOrg);
   }, []);
+
+  // Real-time auto-refresh open admin views when an employee updates fields via ESS or PostgreSQL updates
+  useEffect(() => {
+    const syncPayrollMasters = () => {
+      const reloaded = loadEmployeeSalaryMasters(
+        users,
+        supplierCompany?.bankName || 'HDFC Bank Ltd',
+        supplierCompany?.ifscCode || 'HDFC0001245'
+      );
+      setEmployeeSalaryMasters((prev) => {
+        if (JSON.stringify(prev) === JSON.stringify(reloaded)) return prev;
+        return reloaded;
+      });
+    };
+    window.addEventListener(PAYROLL_MASTERS_SYNC_EVENT, syncPayrollMasters);
+    window.addEventListener('crm-employee-updated', syncPayrollMasters);
+    window.addEventListener('crm-payroll-refresh', syncPayrollMasters);
+    return () => {
+      window.removeEventListener(PAYROLL_MASTERS_SYNC_EVENT, syncPayrollMasters);
+      window.removeEventListener('crm-employee-updated', syncPayrollMasters);
+      window.removeEventListener('crm-payroll-refresh', syncPayrollMasters);
+    };
+  }, [users, supplierCompany?.bankName, supplierCompany?.ifscCode, setEmployeeSalaryMasters]);
 
   const [orgMasterCategory, setOrgMasterCategory] = useState<
     'roles' | 'designations' | 'locations' | 'departments'
@@ -1891,435 +1922,891 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                   )}
                 </div>
 
-                {/* Direct Credentials & Link Quick Access */}
-                <div className="flex flex-wrap items-center justify-between gap-2 bg-amber-50/70 border border-amber-200 rounded-lg p-2.5">
-                  <div className="flex items-center gap-1.5 text-amber-900 font-semibold text-xs min-w-0 truncate">
-                    <Key className="w-4 h-4 text-amber-700 shrink-0" />
-                    <span className="shrink-0">Portal Login:</span>
-                    <span className="font-mono text-slate-800 font-bold truncate">
-                      {targetMaster.email || targetEntry?.email}
-                    </span>
-                    <span className="text-slate-500 font-mono text-[11px] shrink-0">
-                      ({targetMaster.empCode})
-                    </span>
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${
-                        targetEntry?.inCrm
-                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                          : 'bg-amber-200/70 text-amber-900 border border-amber-300'
-                      }`}
-                    >
-                      {targetEntry?.inCrm ? 'CRM + Payroll' : 'Payroll-Only'}
-                    </span>
-                    {targetEntry && targetEntry.inCrm && targetEntry.id !== 'usr-1' && targetEntry.role !== 'Super Admin' && (
-                      <button
-                        type="button"
-                        onClick={() => setUnlinkConfirmTarget(targetEntry)}
-                        className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300 transition cursor-pointer flex items-center gap-1 shadow-2xs shrink-0"
-                        title="Unlink from CRM Workspace (Revoke CRM access)"
-                      >
-                        <Unlink className="w-2.5 h-2.5 text-rose-600" />
-                        <span>Unlink CRM</span>
-                      </button>
-                    )}
-                    {targetEntry && !targetEntry.inCrm && (
-                      <button
-                        type="button"
-                        onClick={() => handleSyncPayrollEmployeeToCrm(targetEntry)}
-                        className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 hover:bg-indigo-200 text-indigo-800 border border-indigo-200 transition cursor-pointer flex items-center gap-1 shadow-2xs shrink-0"
-                        title="Promote / Link to CRM Workspace"
-                      >
-                        <ArrowRightLeft className="w-2.5 h-2.5 text-indigo-600" />
-                        <span>Link to CRM</span>
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <input
-                      type="text"
-                      value={editEmpPasswordDraft}
-                      onChange={(e) => setEditEmpPasswordDraft(e.target.value)}
-                      placeholder="Set new login password..."
-                      className="bg-white border border-amber-300 rounded-lg px-2.5 py-1 text-xs font-mono text-slate-900 w-48"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!targetEntry) return;
-                        if (!editEmpPasswordDraft.trim()) {
-                          setStatusBanner('Please enter a password to set for this employee.');
-                          return;
-                        }
-                        handleRegeneratePasswordForEmployee(targetEntry.id, editEmpPasswordDraft.trim());
-                        setEditEmpPasswordDraft('');
-                      }}
-                      className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs cursor-pointer whitespace-nowrap"
-                    >
-                      Set Password
-                    </button>
-                  </div>
+                {/* View Switcher: Allocations vs Employee Information Screen */}
+                <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => setEmployeeDetailView('allocations')}
+                    className={`flex-1 py-1.5 px-3 rounded-md text-xs font-bold transition cursor-pointer ${
+                      employeeDetailView === 'allocations'
+                        ? 'bg-white text-slate-900 shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    1. Salary &amp; Deductions Allocations (Admin)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEmployeeDetailView('employee_info')}
+                    className={`flex-1 py-1.5 px-3 rounded-md text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                      employeeDetailView === 'employee_info'
+                        ? 'bg-[#1f7e9e] text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    <span>2. Employee Information &amp; ESS Profile</span>
+                  </button>
                 </div>
 
-                {/* Identity & Role Fields */}
-                <div className="grid grid-cols-3 gap-2.5">
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
-                      Employee Full Name
-                    </label>
-                    <input
-                      type="text"
-                      value={targetEntry?.name || ''}
-                      onChange={(e) => {
-                        if (targetEntry?.inCrm) {
-                          updateUser(targetEntry.id, { name: e.target.value });
-                        }
-                        updateSelectedMaster({ name: e.target.value });
-                      }}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
-                      Official Email
-                    </label>
-                    <input
-                      type="email"
-                      value={targetEntry?.email || ''}
-                      onChange={(e) => {
-                        if (targetEntry?.inCrm) {
-                          updateUser(targetEntry.id, { email: e.target.value });
-                        }
-                        updateSelectedMaster({ email: e.target.value });
-                      }}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
-                      Role &amp; Department
-                    </label>
-                    <select
-                      value={targetEntry?.role || 'Sales Executive'}
-                      onChange={(e) => {
-                        const nextRole = e.target.value as UserRole;
-                        if (targetEntry?.inCrm) {
-                          updateUser(targetEntry.id, {
-                            role: nextRole,
-                            designation: nextRole,
-                          });
-                        }
-                        updateSelectedMaster({ role: nextRole, designation: nextRole });
-                      }}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-900"
-                    >
-                      {dynamicRoles.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Payroll Compensation & Statutory Fields */}
-                <div className="grid grid-cols-3 gap-2.5 pt-2 border-t border-slate-100">
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
-                      Employee Code
-                    </label>
-                    <input
-                      type="text"
-                      value={targetMaster.empCode}
-                      onChange={(e) =>
-                        updateSelectedMaster({ empCode: e.target.value.toUpperCase() })
-                      }
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-[#1f7e9e]"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
-                      Monthly Gross Salary (₹)
-                    </label>
-                    <input
-                      type="number"
-                      value={targetMaster.monthlyGross}
-                      onChange={(e) =>
-                        updateSelectedMaster({ monthlyGross: Number(e.target.value) })
-                      }
-                      className="w-full bg-emerald-50/70 border border-emerald-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-emerald-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
-                      Sales Comm %
-                    </label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={targetMaster.commissionPct}
-                      onChange={(e) =>
-                        updateSelectedMaster({ commissionPct: Number(e.target.value) })
-                      }
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
-                      Basic %
-                    </label>
-                    <input
-                      type="number"
-                      value={targetMaster.basicPct}
-                      onChange={(e) => updateSelectedMaster({ basicPct: Number(e.target.value) })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
-                      HRA %
-                    </label>
-                    <input
-                      type="number"
-                      value={targetMaster.hraPct}
-                      onChange={(e) => updateSelectedMaster({ hraPct: Number(e.target.value) })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
-                      Special Allowance %
-                    </label>
-                    <input
-                      type="number"
-                      value={targetMaster.specialPct}
-                      onChange={(e) =>
-                        updateSelectedMaster({ specialPct: Number(e.target.value) })
-                      }
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold"
-                    />
-                  </div>
-                </div>
-
-                {/* ADMIN DEDUCTIONS CONTROL PANEL (LOCKED UNTIL ADMIN EDITS) */}
-                <div className="p-3 rounded-xl bg-rose-50/70 border border-rose-200 space-y-2 min-w-0">
-                  <div className="flex items-center justify-between gap-2 whitespace-nowrap min-w-0">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-rose-950 flex items-center gap-1 min-w-0 truncate">
-                      <Lock className="w-3 h-3 text-rose-700 shrink-0" />
-                      <span className="truncate">Admin Deduction Controls (PF Amount, PT, TDS &amp; LOP)</span>
-                    </span>
-                    <span className="text-[10px] font-semibold text-rose-800 bg-white px-2 py-0.5 rounded border border-rose-200 shrink-0">
-                      Locked Until Admin Edits
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center justify-between gap-1 mb-1 whitespace-nowrap min-w-0">
-                        <label className="font-semibold text-rose-950 block truncate text-[11px]">
-                          PF Amount (₹)
-                        </label>
+                {employeeDetailView === 'allocations' ? (
+                  <>
+                    {/* Direct Credentials & Link Quick Access */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 bg-amber-50/70 border border-amber-200 rounded-lg p-2.5">
+                      <div className="flex items-center gap-1.5 text-amber-900 font-semibold text-xs min-w-0 truncate">
+                        <Key className="w-4 h-4 text-amber-700 shrink-0" />
+                        <span className="shrink-0">Portal Login:</span>
+                        <span className="font-mono text-slate-800 font-bold truncate">
+                          {targetMaster.email || targetEntry?.email}
+                        </span>
+                        <span className="text-slate-500 font-mono text-[11px] shrink-0">
+                          ({targetMaster.empCode})
+                        </span>
+                        <span
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${
+                            targetEntry?.inCrm
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                              : 'bg-amber-200/70 text-amber-900 border border-amber-300'
+                          }`}
+                        >
+                          {targetEntry?.inCrm ? 'CRM + Payroll' : 'Payroll-Only'}
+                        </span>
+                        {targetEntry && targetEntry.inCrm && targetEntry.id !== 'usr-1' && targetEntry.role !== 'Super Admin' && (
+                          <button
+                            type="button"
+                            onClick={() => setUnlinkConfirmTarget(targetEntry)}
+                            className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300 transition cursor-pointer flex items-center gap-1 shadow-2xs shrink-0"
+                            title="Unlink from CRM Workspace (Revoke CRM access)"
+                          >
+                            <Unlink className="w-2.5 h-2.5 text-rose-600" />
+                            <span>Unlink CRM</span>
+                          </button>
+                        )}
+                        {targetEntry && !targetEntry.inCrm && (
+                          <button
+                            type="button"
+                            onClick={() => handleSyncPayrollEmployeeToCrm(targetEntry)}
+                            className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 hover:bg-indigo-200 text-indigo-800 border border-indigo-200 transition cursor-pointer flex items-center gap-1 shadow-2xs shrink-0"
+                            title="Promote / Link to CRM Workspace"
+                          >
+                            <ArrowRightLeft className="w-2.5 h-2.5 text-indigo-600" />
+                            <span>Link to CRM</span>
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <input
+                          type="text"
+                          value={editEmpPasswordDraft}
+                          onChange={(e) => setEditEmpPasswordDraft(e.target.value)}
+                          placeholder="Set new login password..."
+                          className="bg-white border border-amber-300 rounded-lg px-2.5 py-1 text-xs font-mono text-slate-900 w-48"
+                        />
                         <button
                           type="button"
                           onClick={() => {
-                            const basicAmt = Math.round(
-                              (targetMaster.monthlyGross || 0) *
-                                ((targetMaster.basicPct || 50) / 100)
-                            );
-                            const autoPf = Math.round(
-                              Math.min(basicAmt, adminPolicyMaster.defaultPfCapBasic || 15000) * 0.12
-                            );
-                            updateSelectedMaster({
-                              pfAmount: autoPf,
-                              deductionsLockedByAdmin: true,
-                            });
+                            if (!targetEntry) return;
+                            if (!editEmpPasswordDraft.trim()) {
+                              setStatusBanner('Please enter a password to set for this employee.');
+                              return;
+                            }
+                            handleRegeneratePasswordForEmployee(targetEntry.id, editEmpPasswordDraft.trim());
+                            setEditEmpPasswordDraft('');
                           }}
-                          className="text-[9.5px] font-bold text-[#1f7e9e] hover:underline cursor-pointer shrink-0"
-                          title="Reset PF Amount to 12% of Basic (capped)"
+                          className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs cursor-pointer whitespace-nowrap"
                         >
-                          12% Calc
+                          Set Password
                         </button>
                       </div>
-                      <input
-                        type="number"
-                        min={0}
-                        value={
-                          targetMaster.pfAmount ??
-                          Math.round(
-                            Math.min(
+                    </div>
+
+                    {/* Identity & Role Fields */}
+                    <div className="grid grid-cols-3 gap-2.5">
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                          Employee Full Name
+                        </label>
+                        <input
+                          type="text"
+                          value={targetEntry?.name || ''}
+                          onChange={(e) => {
+                            if (targetEntry?.inCrm) {
+                              updateUser(targetEntry.id, { name: e.target.value });
+                            }
+                            updateSelectedMaster({ name: e.target.value });
+                          }}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                          Official Email
+                        </label>
+                        <input
+                          type="email"
+                          value={targetEntry?.email || ''}
+                          onChange={(e) => {
+                            if (targetEntry?.inCrm) {
+                              updateUser(targetEntry.id, { email: e.target.value });
+                            }
+                            updateSelectedMaster({ email: e.target.value });
+                          }}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                          Role &amp; Department
+                        </label>
+                        <select
+                          value={targetEntry?.role || 'Sales Executive'}
+                          onChange={(e) => {
+                            const nextRole = e.target.value as UserRole;
+                            if (targetEntry?.inCrm) {
+                              updateUser(targetEntry.id, {
+                                role: nextRole,
+                                designation: nextRole,
+                              });
+                            }
+                            updateSelectedMaster({ role: nextRole, designation: nextRole });
+                          }}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-900"
+                        >
+                          {dynamicRoles.map((r) => (
+                            <option key={r} value={r}>
+                              {r}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Payroll Compensation & Statutory Fields */}
+                    <div className="grid grid-cols-3 gap-2.5 pt-2 border-t border-slate-100">
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                          Employee Code
+                        </label>
+                        <input
+                          type="text"
+                          value={targetMaster.empCode}
+                          onChange={(e) =>
+                            updateSelectedMaster({ empCode: e.target.value.toUpperCase() })
+                          }
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-[#1f7e9e]"
+                        />
+                      </div>
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                          Monthly Gross Salary (₹)
+                        </label>
+                        <input
+                          type="number"
+                          value={targetMaster.monthlyGross}
+                          onChange={(e) =>
+                            updateSelectedMaster({ monthlyGross: Number(e.target.value) })
+                          }
+                          className="w-full bg-emerald-50/70 border border-emerald-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-emerald-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                          Sales Comm %
+                        </label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={targetMaster.commissionPct}
+                          onChange={(e) =>
+                            updateSelectedMaster({ commissionPct: Number(e.target.value) })
+                          }
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                          Basic %
+                        </label>
+                        <input
+                          type="number"
+                          value={targetMaster.basicPct}
+                          onChange={(e) => updateSelectedMaster({ basicPct: Number(e.target.value) })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                          HRA %
+                        </label>
+                        <input
+                          type="number"
+                          value={targetMaster.hraPct}
+                          onChange={(e) => updateSelectedMaster({ hraPct: Number(e.target.value) })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                          Special Allowance %
+                        </label>
+                        <input
+                          type="number"
+                          value={targetMaster.specialPct}
+                          onChange={(e) =>
+                            updateSelectedMaster({ specialPct: Number(e.target.value) })
+                          }
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold"
+                        />
+                      </div>
+                    </div>
+
+                    {/* ADMIN DEDUCTIONS CONTROL PANEL (LOCKED UNTIL ADMIN EDITS) */}
+                    <div className="p-3 rounded-xl bg-rose-50/70 border border-rose-200 space-y-2 min-w-0">
+                      <div className="flex items-center justify-between gap-2 whitespace-nowrap min-w-0">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-rose-950 flex items-center gap-1 min-w-0 truncate">
+                          <Lock className="w-3 h-3 text-rose-700 shrink-0" />
+                          <span className="truncate">Admin Deduction Controls (PF Amount, PT, TDS &amp; LOP)</span>
+                        </span>
+                        <span className="text-[10px] font-semibold text-rose-800 bg-white px-2 py-0.5 rounded border border-rose-200 shrink-0">
+                          Locked Until Admin Edits
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center justify-between gap-1 mb-1 whitespace-nowrap min-w-0">
+                            <label className="font-semibold text-rose-950 block truncate text-[11px]">
+                              PF Amount (₹)
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const basicAmt = Math.round(
+                                  (targetMaster.monthlyGross || 0) *
+                                    ((targetMaster.basicPct || 50) / 100)
+                                );
+                                const autoPf = Math.round(
+                                  Math.min(basicAmt, adminPolicyMaster.defaultPfCapBasic || 15000) * 0.12
+                                );
+                                updateSelectedMaster({
+                                  pfAmount: autoPf,
+                                  deductionsLockedByAdmin: true,
+                                });
+                              }}
+                              className="text-[9.5px] font-bold text-[#1f7e9e] hover:underline cursor-pointer shrink-0"
+                              title="Reset PF Amount to 12% of Basic (capped)"
+                            >
+                              12% Calc
+                            </button>
+                          </div>
+                          <input
+                            type="number"
+                            min={0}
+                            value={
+                              targetMaster.pfAmount ??
                               Math.round(
-                                (targetMaster.monthlyGross || 0) *
-                                  ((targetMaster.basicPct || 50) / 100)
-                              ),
-                              adminPolicyMaster.defaultPfCapBasic || 15000
-                            ) * 0.12
-                          )
-                        }
-                        onChange={(e) =>
-                          updateSelectedMaster({
-                            pfAmount: Math.max(0, Number(e.target.value)),
-                            deductionsLockedByAdmin: true,
-                          })
-                        }
-                        className="w-full bg-white border border-rose-300 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-rose-900"
-                      />
+                                Math.min(
+                                  Math.round(
+                                    (targetMaster.monthlyGross || 0) *
+                                      ((targetMaster.basicPct || 50) / 100)
+                                  ),
+                                  adminPolicyMaster.defaultPfCapBasic || 15000
+                                ) * 0.12
+                              )
+                            }
+                            onChange={(e) =>
+                              updateSelectedMaster({
+                                pfAmount: Math.max(0, Number(e.target.value)),
+                                deductionsLockedByAdmin: true,
+                              })
+                            }
+                            className="w-full bg-white border border-rose-300 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-rose-900"
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <label className="font-semibold text-rose-950 block mb-1 whitespace-nowrap truncate text-[11px]">
+                            Prof. Tax (₹)
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={targetMaster.profTax}
+                            onChange={(e) =>
+                              updateSelectedMaster({
+                                profTax: Math.max(0, Number(e.target.value)),
+                                deductionsLockedByAdmin: true,
+                              })
+                            }
+                            className="w-full bg-white border border-rose-300 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-rose-900"
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <label className="font-semibold text-rose-950 block mb-1 whitespace-nowrap truncate text-[11px]">
+                            TDS Tax %
+                          </label>
+                          <input
+                            type="number"
+                            step="0.5"
+                            min={0}
+                            value={targetMaster.tdsPct}
+                            onChange={(e) =>
+                              updateSelectedMaster({
+                                tdsPct: Math.max(0, Number(e.target.value)),
+                                deductionsLockedByAdmin: true,
+                              })
+                            }
+                            className="w-full bg-white border border-rose-300 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-rose-900"
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <label className="font-semibold text-rose-950 block mb-1 whitespace-nowrap truncate text-[11px]">
+                            LOP Days
+                          </label>
+                          <input
+                            type="number"
+                            step="0.5"
+                            min={0}
+                            max={30}
+                            value={targetMaster.lopDays}
+                            onChange={(e) =>
+                              updateSelectedMaster({
+                                lopDays: Math.max(0, Number(e.target.value)),
+                                deductionsLockedByAdmin: true,
+                              })
+                            }
+                            className="w-full bg-white border border-rose-300 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-rose-900"
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <label className="font-semibold text-rose-950 block mb-1 whitespace-nowrap truncate text-[11px]">
-                        Prof. Tax (₹)
-                      </label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={targetMaster.profTax}
-                        onChange={(e) =>
-                          updateSelectedMaster({
-                            profTax: Math.max(0, Number(e.target.value)),
-                            deductionsLockedByAdmin: true,
-                          })
-                        }
-                        className="w-full bg-white border border-rose-300 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-rose-900"
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <label className="font-semibold text-rose-950 block mb-1 whitespace-nowrap truncate text-[11px]">
-                        TDS Tax %
-                      </label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        min={0}
-                        value={targetMaster.tdsPct}
-                        onChange={(e) =>
-                          updateSelectedMaster({
-                            tdsPct: Math.max(0, Number(e.target.value)),
-                            deductionsLockedByAdmin: true,
-                          })
-                        }
-                        className="w-full bg-white border border-rose-300 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-rose-900"
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <label className="font-semibold text-rose-950 block mb-1 whitespace-nowrap truncate text-[11px]">
-                        LOP Days
-                      </label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        min={0}
-                        max={30}
-                        value={targetMaster.lopDays}
-                        onChange={(e) =>
-                          updateSelectedMaster({
-                            lopDays: Math.max(0, Number(e.target.value)),
-                            deductionsLockedByAdmin: true,
-                          })
-                        }
-                        className="w-full bg-white border border-rose-300 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-rose-900"
-                      />
-                    </div>
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-4 gap-2">
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
-                      PL Quota
-                    </label>
-                    <input
-                      type="number"
-                      value={targetMaster.plQuota ?? adminPolicyMaster.plQuota}
-                      onChange={(e) => updateSelectedMaster({ plQuota: Number(e.target.value) })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
-                      CL Quota
-                    </label>
-                    <input
-                      type="number"
-                      value={targetMaster.clQuota ?? adminPolicyMaster.clQuota}
-                      onChange={(e) => updateSelectedMaster({ clQuota: Number(e.target.value) })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
-                      SL Quota
-                    </label>
-                    <input
-                      type="number"
-                      value={targetMaster.slQuota ?? adminPolicyMaster.slQuota}
-                      onChange={(e) => updateSelectedMaster({ slQuota: Number(e.target.value) })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
-                      Shift Timing
-                    </label>
-                    <input
-                      type="text"
-                      value={targetMaster.shiftTiming || '09:30 AM - 06:30 PM'}
-                      onChange={(e) => updateSelectedMaster({ shiftTiming: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono"
-                    />
-                  </div>
-                </div>
+                    <div className="grid grid-cols-4 gap-2">
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                          PL Quota
+                        </label>
+                        <input
+                          type="number"
+                          value={targetMaster.plQuota ?? adminPolicyMaster.plQuota}
+                          onChange={(e) => updateSelectedMaster({ plQuota: Number(e.target.value) })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                          CL Quota
+                        </label>
+                        <input
+                          type="number"
+                          value={targetMaster.clQuota ?? adminPolicyMaster.clQuota}
+                          onChange={(e) => updateSelectedMaster({ clQuota: Number(e.target.value) })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                          SL Quota
+                        </label>
+                        <input
+                          type="number"
+                          value={targetMaster.slQuota ?? adminPolicyMaster.slQuota}
+                          onChange={(e) => updateSelectedMaster({ slQuota: Number(e.target.value) })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                          Shift Timing
+                        </label>
+                        <input
+                          type="text"
+                          value={targetMaster.shiftTiming || '09:30 AM - 06:30 PM'}
+                          onChange={(e) => updateSelectedMaster({ shiftTiming: e.target.value })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono"
+                        />
+                      </div>
+                    </div>
 
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
-                      PAN Number
-                    </label>
-                    <input
-                      type="text"
-                      value={targetMaster.panNumber}
-                      onChange={(e) =>
-                        updateSelectedMaster({ panNumber: e.target.value.toUpperCase() })
-                      }
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono"
-                    />
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                          PAN Number
+                        </label>
+                        <input
+                          type="text"
+                          value={targetMaster.panNumber}
+                          onChange={(e) =>
+                            updateSelectedMaster({ panNumber: e.target.value.toUpperCase() })
+                          }
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                          Bank Name
+                        </label>
+                        <input
+                          type="text"
+                          value={targetMaster.bankName}
+                          onChange={(e) => updateSelectedMaster({ bankName: e.target.value })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                          Bank Account No
+                        </label>
+                        <input
+                          type="text"
+                          value={targetMaster.bankAccountNo}
+                          onChange={(e) => updateSelectedMaster({ bankAccountNo: e.target.value })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  /* EMPLOYEE INFORMATION SCREEN: 360° Profile synchronized with ESS & PostgreSQL */
+                  <div className="space-y-3.5 pt-1">
+                    <div className="p-2.5 rounded-xl bg-teal-50 border border-teal-200 text-xs text-teal-950 flex items-center justify-between gap-2">
+                      <div>
+                        <strong className="block">Employee Information Screen (PostgreSQL Record)</strong>
+                        <span className="text-[11px] text-teal-800">
+                          Linked by Employee ID: <strong className="font-mono">{targetMaster.empCode}</strong> ({targetEntry?.id}). Showing real-time values from PostgreSQL. Updates made by employee in ESS portal reflect here automatically.
+                        </span>
+                      </div>
+                      <span className="px-2 py-0.5 rounded bg-teal-200/80 text-teal-900 font-bold text-[10px] shrink-0">
+                        Live Synced
+                      </span>
+                    </div>
+
+                    {/* 1. PERSONAL INFORMATION */}
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 border-b border-slate-200 pb-1">
+                        <Users className="w-3.5 h-3.5 text-[#1f7e9e]" />
+                        <span>1. Personal Information</span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                        <div>
+                          <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">Gender</label>
+                          <select
+                            value={(targetMaster as any).gender || 'Male'}
+                            onChange={(e) => updateSelectedMaster({ gender: e.target.value as any })}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900"
+                          >
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">Date of Birth</label>
+                          <input
+                            type="date"
+                            value={(targetMaster as any).dateOfBirth || ''}
+                            onChange={(e) => updateSelectedMaster({ dateOfBirth: e.target.value })}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">Blood Group</label>
+                          <input
+                            type="text"
+                            value={(targetMaster as any).bloodGroup || ''}
+                            onChange={(e) => updateSelectedMaster({ bloodGroup: e.target.value })}
+                            placeholder="e.g. O+"
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">Marital Status</label>
+                          <select
+                            value={(targetMaster as any).maritalStatus || 'Single'}
+                            onChange={(e) => updateSelectedMaster({ maritalStatus: e.target.value })}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900"
+                          >
+                            <option value="Single">Single</option>
+                            <option value="Married">Married</option>
+                            <option value="Divorced">Divorced</option>
+                            <option value="Widowed">Widowed</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 2. CONTACT DETAILS & ADDRESSES */}
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 border-b border-slate-200 pb-1">
+                        <MapPin className="w-3.5 h-3.5 text-[#1f7e9e]" />
+                        <span>2. Contact &amp; Residential Addresses</span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                        <div>
+                          <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">Personal Email</label>
+                          <input
+                            type="email"
+                            value={(targetMaster as any).personalEmail || ''}
+                            onChange={(e) => updateSelectedMaster({ personalEmail: e.target.value })}
+                            placeholder="personal@email.com"
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">Primary Mobile</label>
+                          <input
+                            type="text"
+                            value={targetMaster.phone || ''}
+                            onChange={(e) => updateSelectedMaster({ phone: e.target.value })}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono text-slate-900"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">Alternate Phone</label>
+                          <input
+                            type="text"
+                            value={(targetMaster as any).alternatePhone || ''}
+                            onChange={(e) => updateSelectedMaster({ alternatePhone: e.target.value })}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono text-slate-900"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">Work Location</label>
+                          <input
+                            type="text"
+                            value={targetMaster.location || ''}
+                            onChange={(e) => updateSelectedMaster({ location: e.target.value })}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">Current Address</label>
+                          <textarea
+                            rows={2}
+                            value={(targetMaster as any).currentAddress || ''}
+                            onChange={(e) => updateSelectedMaster({ currentAddress: e.target.value })}
+                            placeholder="Flat/House, Street, Area"
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">Permanent Address</label>
+                          <textarea
+                            rows={2}
+                            value={(targetMaster as any).permanentAddress || ''}
+                            onChange={(e) => updateSelectedMaster({ permanentAddress: e.target.value })}
+                            placeholder="Permanent family address"
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div>
+                          <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">City</label>
+                          <input
+                            type="text"
+                            value={(targetMaster as any).city || ''}
+                            onChange={(e) => updateSelectedMaster({ city: e.target.value })}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">State</label>
+                          <input
+                            type="text"
+                            value={(targetMaster as any).state || ''}
+                            onChange={(e) => updateSelectedMaster({ state: e.target.value })}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">PIN Code</label>
+                          <input
+                            type="text"
+                            value={(targetMaster as any).pinCode || ''}
+                            onChange={(e) => updateSelectedMaster({ pinCode: e.target.value })}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono text-slate-900"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 3. BANK & STATUTORY */}
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 border-b border-slate-200 pb-1">
+                        <Wallet className="w-3.5 h-3.5 text-[#1f7e9e]" />
+                        <span>3. Bank Account &amp; Statutory Identifiers</span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                        <div>
+                          <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">Salary Bank Name</label>
+                          <input
+                            type="text"
+                            value={targetMaster.bankName || ''}
+                            onChange={(e) => updateSelectedMaster({ bankName: e.target.value })}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">Account Number</label>
+                          <input
+                            type="text"
+                            value={targetMaster.bankAccountNo || ''}
+                            onChange={(e) => updateSelectedMaster({ bankAccountNo: e.target.value })}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono text-slate-900"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">IFSC Code</label>
+                          <input
+                            type="text"
+                            value={targetMaster.ifscCode || ''}
+                            onChange={(e) => updateSelectedMaster({ ifscCode: e.target.value.toUpperCase() })}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono text-slate-900"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">Account Holder Name</label>
+                          <input
+                            type="text"
+                            value={(targetMaster as any).accountHolderName || ''}
+                            onChange={(e) => updateSelectedMaster({ accountHolderName: e.target.value })}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1">
+                        <div>
+                          <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">PAN Number</label>
+                          <input
+                            type="text"
+                            value={targetMaster.panNumber || ''}
+                            onChange={(e) => updateSelectedMaster({ panNumber: e.target.value.toUpperCase() })}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono text-slate-900"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">UAN Number</label>
+                          <input
+                            type="text"
+                            value={targetMaster.uanNumber || ''}
+                            onChange={(e) => updateSelectedMaster({ uanNumber: e.target.value })}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono text-slate-900"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">PF Account No</label>
+                          <input
+                            type="text"
+                            value={targetMaster.pfAccountNo || ''}
+                            onChange={(e) => updateSelectedMaster({ pfAccountNo: e.target.value })}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono text-slate-900"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">Tax Regime</label>
+                          <select
+                            value={targetMaster.taxRegime || 'New Tax Regime (Section 115BAC)'}
+                            onChange={(e) => updateSelectedMaster({ taxRegime: e.target.value as any })}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900"
+                          >
+                            <option value="New Tax Regime (Section 115BAC)">New Tax Regime (115BAC)</option>
+                            <option value="Old Tax Regime (With Exemptions)">Old Tax Regime</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 4. EMERGENCY & QUALIFICATIONS */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 border-b border-slate-200 pb-1">
+                          <ShieldCheck className="w-3.5 h-3.5 text-rose-600" />
+                          <span>4. Emergency Contact</span>
+                        </div>
+                        <div>
+                          <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">Contact Name</label>
+                          <input
+                            type="text"
+                            value={(targetMaster as any).emergencyContactName || ''}
+                            onChange={(e) => updateSelectedMaster({ emergencyContactName: e.target.value })}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">Phone Number</label>
+                            <input
+                              type="text"
+                              value={(targetMaster as any).emergencyContactPhone || ''}
+                              onChange={(e) => updateSelectedMaster({ emergencyContactPhone: e.target.value })}
+                              className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono text-slate-900"
+                            />
+                          </div>
+                          <div>
+                            <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">Relationship</label>
+                            <input
+                              type="text"
+                              value={(targetMaster as any).emergencyContactRelation || ''}
+                              onChange={(e) => updateSelectedMaster({ emergencyContactRelation: e.target.value })}
+                              className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 border-b border-slate-200 pb-1">
+                          <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>5. Qualifications &amp; Education</span>
+                        </div>
+                        <div>
+                          <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">Highest Qualification</label>
+                          <input
+                            type="text"
+                            value={(targetMaster as any).highestQualification || ''}
+                            onChange={(e) => updateSelectedMaster({ highestQualification: e.target.value })}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900"
+                          />
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="col-span-2">
+                            <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">Institute / University</label>
+                            <input
+                              type="text"
+                              value={(targetMaster as any).institute || ''}
+                              onChange={(e) => updateSelectedMaster({ institute: e.target.value })}
+                              className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900"
+                            />
+                          </div>
+                          <div>
+                            <label className="font-semibold text-slate-500 block text-[10px] mb-0.5">Passing Year</label>
+                            <input
+                              type="text"
+                              value={(targetMaster as any).passingYear || ''}
+                              onChange={(e) => updateSelectedMaster({ passingYear: e.target.value })}
+                              className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono text-slate-900"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 5. DOCUMENTS REPOSITORY */}
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-1">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                          <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>6. Uploaded Documents &amp; Identity Proofs ({((targetMaster as any).documents || []).length})</span>
+                        </div>
+                        <span className="text-[10px] text-slate-500 font-medium">Uploaded by employee in ESS portal</span>
+                      </div>
+                      {((targetMaster as any).documents || []).length === 0 ? (
+                        <div className="py-2.5 text-center text-slate-400 italic">No documents attached to this employee record yet.</div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {((targetMaster as any).documents || []).map((doc: any, i: number) => (
+                            <div key={doc.id || i} className="bg-white p-2 rounded-lg border border-slate-200 flex items-center justify-between gap-2 shadow-2xs">
+                              <div className="min-w-0">
+                                <div className="font-bold text-slate-900 truncate">{doc.name}</div>
+                                <div className="text-[10px] text-slate-500">
+                                  {doc.type} {doc.documentNumber ? `· Ref: ${doc.documentNumber}` : ''}
+                                </div>
+                              </div>
+                              <span className="text-[10px] font-mono text-slate-400 shrink-0">
+                                {doc.uploadedAt ? doc.uploadedAt.slice(0, 10) : ''}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 6. EMPLOYEE CHANGE AUDIT HISTORY */}
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-1">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>7. Employee Change History &amp; Audit Trail</span>
+                        </div>
+                        <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded">
+                          Immutable Trace
+                        </span>
+                      </div>
+                      {(() => {
+                        const targetIdStr = String(targetEntry?.id || '');
+                        const targetCodeStr = String(targetMaster.empCode || '').toUpperCase();
+                        const empLogs = (auditLogs || []).filter(
+                          (l) =>
+                            l.entityType === 'Employee' &&
+                            (String(l.entityId) === targetIdStr ||
+                              String(l.entityNumber).toUpperCase() === targetCodeStr ||
+                              String((l as any).employeeId) === targetIdStr)
+                        );
+                        if (empLogs.length === 0) {
+                          return (
+                            <div className="py-2.5 text-center text-slate-400 italic">
+                              No changes recorded for this employee yet. Changes saved via ESS portal or Admin will appear here.
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="overflow-x-auto max-h-48 overflow-y-auto border border-slate-200 rounded-lg bg-white">
+                            <table className="w-full text-left text-[11px] whitespace-nowrap">
+                              <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 sticky top-0">
+                                <tr>
+                                  <th className="py-1.5 px-2.5">Timestamp</th>
+                                  <th className="py-1.5 px-2">Field</th>
+                                  <th className="py-1.5 px-2">Old Value</th>
+                                  <th className="py-1.5 px-2">New Value</th>
+                                  <th className="py-1.5 px-2.5 text-right">Changed By</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 font-mono">
+                                {empLogs.map((log) => (
+                                  <tr key={log.id} className="hover:bg-slate-50">
+                                    <td className="py-1 px-2.5 text-slate-500 font-sans">
+                                      {log.timestamp ? log.timestamp.replace('T', ' ').slice(0, 16) : '—'}
+                                    </td>
+                                    <td className="py-1 px-2 font-bold text-slate-800">
+                                      {log.fieldName || log.action}
+                                    </td>
+                                    <td className="py-1 px-2 text-rose-700 max-w-xs truncate">
+                                      {log.oldValue || '—'}
+                                    </td>
+                                    <td className="py-1 px-2 text-emerald-700 max-w-xs truncate font-bold">
+                                      {log.newValue || '—'}
+                                    </td>
+                                    <td className="py-1 px-2.5 text-right font-sans text-slate-600">
+                                      {log.performedByName}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })()}
+                    </div>
                   </div>
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
-                      Bank Name
-                    </label>
-                    <input
-                      type="text"
-                      value={targetMaster.bankName}
-                      onChange={(e) => updateSelectedMaster({ bankName: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
-                      Bank Account No
-                    </label>
-                    <input
-                      type="text"
-                      value={targetMaster.bankAccountNo}
-                      onChange={(e) => updateSelectedMaster({ bankAccountNo: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono"
-                    />
-                  </div>
-                </div>
+                )}
 
                 <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() =>
                       setStatusBanner(
-                        `Saved CRM & Payroll Master allocations for ${targetEntry?.name} (${
+                        `Saved CRM & Payroll Master details for ${targetEntry?.name} (${
                           targetMaster.empCode
-                        }) — Monthly Gross ${formatCurrency(targetMaster.monthlyGross)}.`
+                        }) — PostgreSQL employee record updated successfully.`
                       )
                     }
                     className="flex-1 py-2 px-4 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-lg shadow-2xs whitespace-nowrap transition cursor-pointer"
                   >
-                    Save Employee Allocations
+                    Save Employee Record
                   </button>
 
                   {targetEntry && targetEntry.inCrm && targetEntry.id !== 'usr-1' && targetEntry.role !== 'Super Admin' && (

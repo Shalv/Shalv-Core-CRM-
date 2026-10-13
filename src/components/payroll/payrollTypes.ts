@@ -293,6 +293,32 @@ export interface EmployeeSalaryMasterRecord {
   status?: 'Active' | 'Inactive';
   reportingManager?: string;
   assignedTerritory?: string;
+  // Extended ESS & Admin Profile Fields
+  dateOfBirth?: string;
+  gender?: 'Male' | 'Female' | 'Other' | string;
+  bloodGroup?: string;
+  maritalStatus?: string;
+  alternatePhone?: string;
+  personalEmail?: string;
+  currentAddress?: string;
+  permanentAddress?: string;
+  city?: string;
+  state?: string;
+  pinCode?: string;
+  accountHolderName?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  emergencyContactRelation?: string;
+  highestQualification?: string;
+  institute?: string;
+  passingYear?: string;
+  documents?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    documentNumber?: string;
+    uploadedAt: string;
+  }>;
   // Cross-system sync flags
   syncedWithCrm?: boolean; // true if user exists in CRM Users Master
   enrolledInPayroll?: boolean; // true if user is enrolled in Payroll Master

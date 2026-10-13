@@ -55,6 +55,9 @@ export const AuditTrailMasterTab: React.FC<AuditTrailMasterTabProps> = ({
         return <Receipt className="w-3.5 h-3.5" />;
       case 'Payment':
         return <CreditCard className="w-3.5 h-3.5" />;
+      case 'Employee':
+      case 'User':
+        return <UserCheck className="w-3.5 h-3.5" />;
       default:
         return <Clock className="w-3.5 h-3.5" />;
     }
@@ -62,6 +65,8 @@ export const AuditTrailMasterTab: React.FC<AuditTrailMasterTabProps> = ({
 
   const getEntityColor = (type: string) => {
     switch (type) {
+      case 'Employee':
+        return 'bg-teal-50 text-teal-700 border-teal-200';
       case 'Lead':
         return 'bg-blue-50 text-blue-700 border-blue-200';
       case 'Opportunity':
@@ -153,7 +158,7 @@ export const AuditTrailMasterTab: React.FC<AuditTrailMasterTabProps> = ({
 
           {/* Entity Type Filter Chips */}
           <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-            {['ALL', 'Lead', 'Opportunity', 'Customer', 'SalesOrder', 'Invoice', 'Payment'].map(
+            {['ALL', 'Employee', 'Lead', 'Opportunity', 'Customer', 'SalesOrder', 'Invoice', 'Payment'].map(
               (ent) => (
                 <button
                   key={ent}
@@ -226,7 +231,17 @@ export const AuditTrailMasterTab: React.FC<AuditTrailMasterTabProps> = ({
                         </span>
                         <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 transition" />
                       </div>
-                      <p className="text-slate-600 text-[11px] mt-0.5 truncate">{log.description}</p>
+                      <p className="text-slate-600 text-[11px] mt-0.5 truncate">
+                        {log.fieldName ? (
+                          <span>
+                            <strong className="text-slate-800">Field: {log.fieldName}</strong> &middot;{' '}
+                            <span className="text-slate-400 line-through mr-1">{log.oldValue || '""'}</span> &rarr;{' '}
+                            <span className="text-emerald-700 font-semibold">{log.newValue || '""'}</span>
+                          </span>
+                        ) : (
+                          log.description
+                        )}
+                      </p>
                     </div>
                   </div>
 

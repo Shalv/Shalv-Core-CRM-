@@ -29,7 +29,7 @@ test('server login rejects bad credentials and issues a working HttpOnly session
  assert.equal((await call('/api/auth/verify',{identifier:'admin',password:'wrong'})).status,401);
  assert.equal((await call('/api/auth/verify',{identifier:'admin',password:'password123'})).status,401);
  assert.equal((await call('/api/auth/verify',{identifier:'admin',password:''})).status,400);
- const response=await call('/api/auth/verify',{identifier:'admin',password:process.env.ADMIN_PASSWORD || 'Admin@CoreEnact2026'});assert.equal(response.status,200);
+ const response=await call('/api/auth/verify',{identifier:'admin',password:process.env.ADMIN_PASSWORD || 'Coreenact@321#'});assert.equal(response.status,200);
  assert.match(response.headers.get('set-cookie')||'',/HttpOnly/);adminCookie=(response.headers.get('set-cookie')||'').split(';')[0];
  const account=await response.json();assert.equal(account.user.passwordHash,undefined);
  assert.equal((await call('/api/state',undefined,adminCookie)).status,200);
@@ -45,7 +45,7 @@ test('created account logs in; password change persists and ordinary users canno
  response=await call('/api/auth/change-password',{userId:user.id,currentPassword:user.password,newPassword:'Changed@123',confirmPassword:'Changed@123'},cookie);assert.equal(response.status,200);
  assert.equal((await call('/api/auth/verify',{identifier:user.username,password:user.password})).status,401);
  assert.equal((await call('/api/auth/verify',{identifier:user.username,password:'Changed@123'})).status,200);
- assert.equal((await call('/api/auth/change-password',{userId:'usr-1',currentPassword:process.env.ADMIN_PASSWORD || 'Admin@CoreEnact2026',newPassword:'Wrong@123',confirmPassword:'Wrong@123'},cookie)).status,403);
+ assert.equal((await call('/api/auth/change-password',{userId:'usr-1',currentPassword:process.env.ADMIN_PASSWORD || 'Coreenact@321#',newPassword:'Wrong@123',confirmPassword:'Wrong@123'},cookie)).status,403);
 });
 test('employee created in Payroll Master logs into ESS portal with email and admin-set password, then changes password from profile for further login',async()=>{
  const empMaster={
@@ -80,5 +80,85 @@ test('employee created in Payroll Master logs into ESS portal with email and adm
  assert.equal(crmLoginAttempt.status, 403);
  const crmLoginJson = await crmLoginAttempt.json();
  assert.match(crmLoginJson.message, /Access Restricted/);
+});
+test('ESS updates permitted employee fields with audit trail, protects admin fields, and reflects in admin state', async () => {
+ const adminLogin = await call('/api/auth/verify', { identifier: 'admin', password: 'Coreenact@321#' });
+ assert.equal(adminLogin.status, 200);
+ const adminData = await adminLogin.json();
+ assert.equal(adminData.user.username, 'admin');
+ assert.equal(adminData.user.mustChangePasswordOnFirstLogin || false, false);
+
+ const empLogin = await call('/api/auth/verify', { identifier: 'EMP-901', password: 'NehaPersonal@999' });
+ assert.equal(empLogin.status, 200);
+ const empCookie = (empLogin.headers.get('set-cookie') || '').split(';')[0];
+
+ const patchPayload = {
+  profile: {
+   personalEmail: 'neha.personal@gmail.com',
+   phone: '+91 98765 43210',
+   alternatePhone: '+91 98765 43211',
+   currentAddress: 'Flat 402, Lotus Heights, Bengaluru',
+   permanentAddress: '12, Shanti Nagar, Pune',
+   city: 'Bengaluru',
+   state: 'Karnataka',
+   pinCode: '560001',
+   emergencyContactName: 'Rohan Kulkarni',
+   emergencyContactPhone: '+91 98765 00000',
+   emergencyContactRelation: 'Spouse',
+   highestQualification: 'B.Tech Computer Science',
+   institute: 'Pune University',
+   passingYear: '2020',
+   documents: [{ id: 'doc-1', name: 'PAN Card Copy.pdf', type: 'PAN Card', uploadedAt: '2026-10-13T10:00:00.000Z' }],
+   monthlyGross: 999999,
+   role: 'Super Admin',
+   status: 'Terminated',
+  },
+  statutory: {
+   bankName: 'Axis Bank',
+   bankAccountNo: '912345678901234',
+   ifscCode: 'UTIB0000123',
+   panNumber: 'ABCDE1234F',
+   uanNumber: '100987654321',
+   pfAccountNo: 'MH/PUN/0012345/000/0001234',
+   taxRegime: 'New Tax Regime (Section 115BAC)',
+  },
+ };
+
+ const updateRes = await call('/api/payroll/ess/emp-ess-901', patchPayload, empCookie);
+ assert.equal(updateRes.status, 200);
+ const updateJson = await updateRes.json();
+ assert.equal(updateJson.success, true);
+
+ assert.equal(updateJson.updatedEmployee.monthlyGross, 72000);
+ assert.notEqual(updateJson.updatedEmployee.role, 'Super Admin');
+
+ assert.equal(updateJson.updatedEmployee.personalEmail, 'neha.personal@gmail.com');
+ assert.equal(updateJson.updatedEmployee.bankName, 'Axis Bank');
+ assert.equal(updateJson.updatedEmployee.bankAccountNo, '912345678901234');
+ assert.equal(updateJson.updatedEmployee.ifscCode, 'UTIB0000123');
+ assert.equal(updateJson.updatedEmployee.highestQualification, 'B.Tech Computer Science');
+ assert.equal(updateJson.updatedEmployee.emergencyContactName, 'Rohan Kulkarni');
+ assert.equal(updateJson.updatedEmployee.documents?.length, 1);
+
+ const adminMastersRes = await call('/api/payroll/masters', undefined, adminCookie);
+ assert.equal(adminMastersRes.status, 200);
+ const adminMastersJson = await adminMastersRes.json();
+ const syncedRecord = adminMastersJson.masters?.['emp-ess-901'];
+ assert.ok(syncedRecord);
+ assert.equal(syncedRecord.personalEmail, 'neha.personal@gmail.com');
+ assert.equal(syncedRecord.emergencyContactName, 'Rohan Kulkarni');
+ assert.equal(syncedRecord.monthlyGross, 72000);
+
+ const auditLogsRes = await call('/api/audit-logs', undefined, adminCookie);
+ assert.equal(auditLogsRes.status, 200);
+ const auditLogsJson = await auditLogsRes.json();
+ const allLogs = auditLogsJson.logs || auditLogsJson.auditLogs || [];
+ const empAudits = allLogs.filter((l: any) => (l.entityType === 'Employee' || l.entity_type === 'Employee') && (l.entityId === 'emp-ess-901' || l.entity_id === 'emp-ess-901' || l.empCode === 'EMP-901'));
+ assert.ok(empAudits.length > 0);
+ const personalEmailAudit = empAudits.find((l: any) => (l.fieldName || l.field_name) === 'personalEmail');
+ assert.ok(personalEmailAudit);
+ assert.equal(personalEmailAudit.newValue || personalEmailAudit.new_value, 'neha.personal@gmail.com');
+ assert.ok(personalEmailAudit.timestamp || personalEmailAudit.created_at);
+ assert.ok(personalEmailAudit.performedByName || personalEmailAudit.user_name);
 });
 after(async()=>{Pool.prototype.connect=originalConnect;await new Promise<void>((r,e)=>server.close(err=>err?e(err):r()));});

@@ -28,6 +28,7 @@ import {
   Edit3,
   X,
   UserPlus,
+  Plus,
   Navigation,
   AlertTriangle,
   BarChart3,
@@ -152,14 +153,48 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
 
   // Self-service Employee Profile Information Editing (syncs with Admin Dashboard & CRM)
   const [isEditingProfileInfo, setIsEditingProfileInfo] = useState<boolean>(false);
+  const [isSavingProfile, setIsSavingProfile] = useState<boolean>(false);
   const [profileEditForm, setProfileEditForm] = useState({
     name: '',
     phone: '',
+    alternatePhone: '',
+    personalEmail: '',
     location: '',
+    gender: 'Male',
+    dateOfBirth: '',
+    bloodGroup: '',
+    maritalStatus: 'Single',
+    currentAddress: '',
+    permanentAddress: '',
+    city: '',
+    state: '',
+    pinCode: '',
     bankName: '',
     bankAccountNo: '',
     ifscCode: '',
     panNumber: '',
+    uanNumber: '',
+    pfAccountNo: '',
+    taxRegime: 'New Tax Regime (Section 115BAC)',
+    accountHolderName: '',
+    emergencyContactName: '',
+    emergencyContactPhone: '',
+    emergencyContactRelation: '',
+    highestQualification: '',
+    institute: '',
+    passingYear: '',
+    documents: [] as Array<{
+      id: string;
+      name: string;
+      type: string;
+      documentNumber?: string;
+      uploadedAt: string;
+    }>,
+  });
+  const [newDocDraft, setNewDocDraft] = useState({
+    name: '',
+    type: 'Identity Proof / Aadhaar',
+    documentNumber: '',
   });
 
   // 0A. Admin Global Leave, Shift & Payroll Formula Policy Master (Policy CS-HR-POL-001 · Version 1.0)
@@ -436,14 +471,37 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
 
   const handleStartEditProfile = () => {
     if (!activeEmployee) return;
+    const currentMaster = employeeSalaryMasters[activeEmployee.id] || activeUserMaster || ({} as EmployeeSalaryMasterRecord);
     setProfileEditForm({
-      name: activeEmployee.name || currentUser.name || '',
-      phone: activeEmployee.phone || currentUser.phone || '',
-      location: activeEmployee.location || currentUser.location || '',
-      bankName: statutory.bankName || '',
-      bankAccountNo: statutory.bankAccountNo || '',
-      ifscCode: statutory.ifscCode || '',
-      panNumber: statutory.panNumber || '',
+      name: currentMaster.name || activeEmployee.name || currentUser.name || '',
+      phone: currentMaster.phone || activeEmployee.phone || currentUser.phone || '',
+      alternatePhone: currentMaster.alternatePhone || (currentUser as any).alternatePhone || '',
+      personalEmail: currentMaster.personalEmail || (currentUser as any).personalEmail || '',
+      location: currentMaster.location || activeEmployee.location || currentUser.location || '',
+      gender: currentMaster.gender || (currentUser as any).gender || 'Male',
+      dateOfBirth: currentMaster.dateOfBirth || (currentUser as any).dateOfBirth || '',
+      bloodGroup: currentMaster.bloodGroup || (currentUser as any).bloodGroup || '',
+      maritalStatus: currentMaster.maritalStatus || (currentUser as any).maritalStatus || 'Single',
+      currentAddress: currentMaster.currentAddress || (currentUser as any).currentAddress || '',
+      permanentAddress: currentMaster.permanentAddress || (currentUser as any).permanentAddress || '',
+      city: currentMaster.city || (currentUser as any).city || '',
+      state: currentMaster.state || (currentUser as any).state || '',
+      pinCode: currentMaster.pinCode || (currentUser as any).pinCode || '',
+      bankName: currentMaster.bankName || statutory.bankName || '',
+      bankAccountNo: currentMaster.bankAccountNo || statutory.bankAccountNo || '',
+      ifscCode: currentMaster.ifscCode || statutory.ifscCode || '',
+      panNumber: currentMaster.panNumber || statutory.panNumber || '',
+      uanNumber: currentMaster.uanNumber || statutory.uanNumber || '',
+      pfAccountNo: currentMaster.pfAccountNo || statutory.pfAccountNo || '',
+      taxRegime: currentMaster.taxRegime || statutory.taxRegime || 'New Tax Regime (Section 115BAC)',
+      accountHolderName: currentMaster.accountHolderName || (currentUser as any).accountHolderName || '',
+      emergencyContactName: currentMaster.emergencyContactName || (currentUser as any).emergencyContactName || '',
+      emergencyContactPhone: currentMaster.emergencyContactPhone || (currentUser as any).emergencyContactPhone || '',
+      emergencyContactRelation: currentMaster.emergencyContactRelation || (currentUser as any).emergencyContactRelation || '',
+      highestQualification: currentMaster.highestQualification || (currentUser as any).highestQualification || '',
+      institute: currentMaster.institute || (currentUser as any).institute || '',
+      passingYear: currentMaster.passingYear || (currentUser as any).passingYear || '',
+      documents: currentMaster.documents || (currentUser as any).documents || [],
     });
     setIsEditingProfileInfo(true);
   };
@@ -456,90 +514,139 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
     }
     const cleanName = profileEditForm.name.trim();
     const cleanPhone = profileEditForm.phone.trim();
+    const cleanAlternatePhone = profileEditForm.alternatePhone.trim();
+    const cleanPersonalEmail = profileEditForm.personalEmail.trim();
     const cleanLocation = profileEditForm.location.trim();
     const cleanBank = profileEditForm.bankName.trim();
     const cleanAccount = profileEditForm.bankAccountNo.trim();
     const cleanIfsc = profileEditForm.ifscCode.trim().toUpperCase();
     const cleanPan = profileEditForm.panNumber.trim().toUpperCase();
+    const cleanUan = profileEditForm.uanNumber.trim();
+    const cleanPf = profileEditForm.pfAccountNo.trim();
+    const cleanTaxRegime = profileEditForm.taxRegime;
+    const cleanHolder = profileEditForm.accountHolderName.trim();
+    const cleanCurrentAddress = profileEditForm.currentAddress.trim();
+    const cleanPermanentAddress = profileEditForm.permanentAddress.trim();
+    const cleanCity = profileEditForm.city.trim();
+    const cleanState = profileEditForm.state.trim();
+    const cleanPin = profileEditForm.pinCode.trim();
+    const cleanEmergName = profileEditForm.emergencyContactName.trim();
+    const cleanEmergPhone = profileEditForm.emergencyContactPhone.trim();
+    const cleanEmergRel = profileEditForm.emergencyContactRelation.trim();
+    const cleanQual = profileEditForm.highestQualification.trim();
+    const cleanInst = profileEditForm.institute.trim();
+    const cleanYear = profileEditForm.passingYear.trim();
 
-    // 1. Update CRM current user profile
-    updateCurrentUserProfile({
-      name: cleanName,
-      phone: cleanPhone,
-      location: cleanLocation,
-    });
+    setIsSavingProfile(true);
+    setStatusBanner('Persisting employee information to PostgreSQL database...');
 
-    // 2. Update local statutory state
     const nextStatutory: StatutoryDetails = {
       ...statutory,
       bankName: cleanBank,
       bankAccountNo: cleanAccount,
       ifscCode: cleanIfsc,
       panNumber: cleanPan,
+      uanNumber: cleanUan || statutory.uanNumber || '',
+      pfAccountNo: cleanPf || statutory.pfAccountNo || '',
+      taxRegime: cleanTaxRegime as any,
     };
-    setStatutory(nextStatutory);
-    try {
-      localStorage.setItem(`crm_ess_${activeEmployee.id}_statutory`, JSON.stringify(nextStatutory));
-    } catch {
-      // ignore
-    }
 
-    // 3. Update employeeSalaryMasters
-    const currentMaster = employeeSalaryMasters[activeEmployee.id] || activeUserMaster;
-    if (currentMaster) {
-      const updatedMaster: EmployeeSalaryMasterRecord = {
-        ...currentMaster,
-        name: cleanName,
-        phone: cleanPhone,
-        location: cleanLocation,
-        bankName: cleanBank,
-        bankAccountNo: cleanAccount,
-        ifscCode: cleanIfsc,
-        panNumber: cleanPan,
-      };
-      const nextMasters = {
-        ...employeeSalaryMasters,
-        [activeEmployee.id]: updatedMaster,
-      };
-      setEmployeeSalaryMasters(nextMasters);
-      saveEmployeeSalaryMasters(nextMasters, true, false, [activeEmployee.id]);
-    }
+    const updatedFields: Partial<EmployeeSalaryMasterRecord> = {
+      name: cleanName,
+      phone: cleanPhone,
+      alternatePhone: cleanAlternatePhone,
+      personalEmail: cleanPersonalEmail,
+      location: cleanLocation,
+      gender: profileEditForm.gender,
+      dateOfBirth: profileEditForm.dateOfBirth,
+      bloodGroup: profileEditForm.bloodGroup,
+      maritalStatus: profileEditForm.maritalStatus,
+      currentAddress: cleanCurrentAddress,
+      permanentAddress: cleanPermanentAddress,
+      city: cleanCity,
+      state: cleanState,
+      pinCode: cleanPin,
+      bankName: cleanBank,
+      bankAccountNo: cleanAccount,
+      ifscCode: cleanIfsc,
+      panNumber: cleanPan,
+      uanNumber: cleanUan,
+      pfAccountNo: cleanPf,
+      taxRegime: cleanTaxRegime as any,
+      accountHolderName: cleanHolder,
+      emergencyContactName: cleanEmergName,
+      emergencyContactPhone: cleanEmergPhone,
+      emergencyContactRelation: cleanEmergRel,
+      highestQualification: cleanQual,
+      institute: cleanInst,
+      passingYear: cleanYear,
+      documents: profileEditForm.documents,
+    };
 
-    // 4. Save to server ESS endpoint & profile endpoint
     try {
-      await fetch(`/api/payroll/ess/${activeEmployee.id}`, {
+      let token: string | null = null;
+      try {
+        token = localStorage.getItem('crm_auth_token');
+      } catch {
+        /* ignore */
+      }
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`/api/payroll/ess/${activeEmployee.id}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
-          profile: {
-            name: cleanName,
-            phone: cleanPhone,
-            location: cleanLocation,
-          },
+          profile: updatedFields,
           statutory: nextStatutory,
         }),
       });
-      await fetch('/api/auth/profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: activeEmployee.id,
-          name: cleanName,
-          phone: cleanPhone,
-          location: cleanLocation,
-          bankName: cleanBank,
-          bankAccountNo: cleanAccount,
-          ifscCode: cleanIfsc,
-          panNumber: cleanPan,
-        }),
-      });
-    } catch {
-      // ignore
-    }
 
-    window.dispatchEvent(new CustomEvent(PAYROLL_MASTERS_SYNC_EVENT));
-    setIsEditingProfileInfo(false);
-    setStatusBanner('✓ Your profile changes have been saved and synced to the Admin Dashboard & CRM.');
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok || !resData.success) {
+        throw new Error(resData.message || resData.error || 'Database persistence failed');
+      }
+
+      // Success: Database update confirmed
+      setStatutory(nextStatutory);
+      try {
+        localStorage.setItem(`crm_ess_${activeEmployee.id}_statutory`, JSON.stringify(nextStatutory));
+      } catch {
+        /* ignore */
+      }
+
+      updateCurrentUserProfile({
+        name: cleanName,
+        phone: cleanPhone,
+        location: cleanLocation,
+        ...updatedFields,
+      });
+
+      const currentMaster = employeeSalaryMasters[activeEmployee.id] || activeUserMaster;
+      if (currentMaster) {
+        const nextUpdatedMaster: EmployeeSalaryMasterRecord = {
+          ...currentMaster,
+          ...updatedFields,
+        };
+        const nextMasters = {
+          ...employeeSalaryMasters,
+          [activeEmployee.id]: nextUpdatedMaster,
+        };
+        setEmployeeSalaryMasters(nextMasters);
+        saveEmployeeSalaryMasters(nextMasters, true, false, [activeEmployee.id]);
+      }
+
+      window.dispatchEvent(new CustomEvent('crm-employee-updated', { detail: { empId: activeEmployee.id } }));
+      window.dispatchEvent(new CustomEvent(PAYROLL_MASTERS_SYNC_EVENT));
+      window.dispatchEvent(new CustomEvent('crm-payroll-refresh'));
+
+      setIsEditingProfileInfo(false);
+      setStatusBanner('✓ Your profile changes have been persisted to PostgreSQL database and synced with Admin.');
+    } catch (err: any) {
+      setStatusBanner(`✗ Failed to update employee record in database: ${err?.message || 'Server error'}`);
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   // Persist employeeSalaryMasters when modal is active
@@ -5196,88 +5303,479 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                         e.preventDefault();
                         handleSaveProfileInfo();
                       }}
-                      className="space-y-3.5"
+                      className="space-y-4"
                     >
-                      <div className="p-3 rounded-xl bg-sky-50/80 border border-sky-200 text-xs text-sky-900">
-                        Edit your personal information below. Changes save immediately and sync with the Admin Dashboard &amp; CRM.
+                      <div className="p-3 rounded-xl bg-sky-50/80 border border-sky-200 text-xs text-sky-900 flex items-center justify-between gap-2">
+                        <span>
+                          Edit your permitted personal, address, bank, qualification, and document information. Changes persist directly to the PostgreSQL database upon saving and sync in real-time with the Admin Portal.
+                        </span>
+                        <span className="text-[10px] font-bold text-sky-700 bg-sky-100 px-2 py-0.5 rounded shrink-0">
+                          PostgreSQL Synced
+                        </span>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                        <div>
-                          <label className="font-bold text-slate-700 block mb-1">Full Name *</label>
-                          <input
-                            type="text"
-                            required
-                            value={profileEditForm.name}
-                            onChange={(e) => setProfileEditForm({ ...profileEditForm, name: e.target.value })}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
-                          />
+                      {/* 1. PERSONAL INFORMATION */}
+                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
+                          <Users className="w-3.5 h-3.5 text-[#1f7e9e]" />
+                          <span>1. Personal Information</span>
                         </div>
-                        <div>
-                          <label className="font-bold text-slate-700 block mb-1">Mobile Phone</label>
-                          <input
-                            type="text"
-                            value={profileEditForm.phone}
-                            onChange={(e) => setProfileEditForm({ ...profileEditForm, phone: e.target.value })}
-                            placeholder="+91 98000 00000"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
-                          />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                          <div className="sm:col-span-2 lg:col-span-1">
+                            <label className="font-bold text-slate-700 block mb-1">Full Name *</label>
+                            <input
+                              type="text"
+                              required
+                              value={profileEditForm.name}
+                              onChange={(e) => setProfileEditForm({ ...profileEditForm, name: e.target.value })}
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                            />
+                          </div>
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Gender</label>
+                            <select
+                              value={profileEditForm.gender}
+                              onChange={(e) => setProfileEditForm({ ...profileEditForm, gender: e.target.value as any })}
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                            >
+                              <option value="Male">Male</option>
+                              <option value="Female">Female</option>
+                              <option value="Other">Other</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Date of Birth</label>
+                            <input
+                              type="date"
+                              value={profileEditForm.dateOfBirth}
+                              onChange={(e) => setProfileEditForm({ ...profileEditForm, dateOfBirth: e.target.value })}
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                            />
+                          </div>
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Blood Group</label>
+                            <select
+                              value={profileEditForm.bloodGroup}
+                              onChange={(e) => setProfileEditForm({ ...profileEditForm, bloodGroup: e.target.value })}
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                            >
+                              <option value="">Select Blood Group</option>
+                              <option value="A+">A+</option>
+                              <option value="A-">A-</option>
+                              <option value="B+">B+</option>
+                              <option value="B-">B-</option>
+                              <option value="AB+">AB+</option>
+                              <option value="AB-">AB-</option>
+                              <option value="O+">O+</option>
+                              <option value="O-">O-</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Marital Status</label>
+                            <select
+                              value={profileEditForm.maritalStatus}
+                              onChange={(e) => setProfileEditForm({ ...profileEditForm, maritalStatus: e.target.value })}
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                            >
+                              <option value="Single">Single</option>
+                              <option value="Married">Married</option>
+                              <option value="Divorced">Divorced</option>
+                              <option value="Widowed">Widowed</option>
+                            </select>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                        <div>
-                          <label className="font-bold text-slate-700 block mb-1">Work Location</label>
-                          <input
-                            type="text"
-                            value={profileEditForm.location}
-                            onChange={(e) => setProfileEditForm({ ...profileEditForm, location: e.target.value })}
-                            placeholder="e.g. New Delhi HQ / Remote"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
-                          />
+                      {/* 2. CONTACT DETAILS */}
+                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-[#1f7e9e]" />
+                          <span>2. Contact Information</span>
                         </div>
-                        <div>
-                          <label className="font-bold text-slate-700 block mb-1">Salary Bank Name</label>
-                          <input
-                            type="text"
-                            value={profileEditForm.bankName}
-                            onChange={(e) => setProfileEditForm({ ...profileEditForm, bankName: e.target.value })}
-                            placeholder="e.g. HDFC Bank Ltd"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
-                          />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Personal Email</label>
+                            <input
+                              type="email"
+                              value={profileEditForm.personalEmail}
+                              onChange={(e) => setProfileEditForm({ ...profileEditForm, personalEmail: e.target.value })}
+                              placeholder="employee@personal.com"
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                            />
+                          </div>
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Mobile Phone</label>
+                            <input
+                              type="text"
+                              value={profileEditForm.phone}
+                              onChange={(e) => setProfileEditForm({ ...profileEditForm, phone: e.target.value })}
+                              placeholder="+91 98000 00000"
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                            />
+                          </div>
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Alternate Phone</label>
+                            <input
+                              type="text"
+                              value={profileEditForm.alternatePhone}
+                              onChange={(e) => setProfileEditForm({ ...profileEditForm, alternatePhone: e.target.value })}
+                              placeholder="+91 98111 22233"
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                            />
+                          </div>
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Work Location</label>
+                            <input
+                              type="text"
+                              value={profileEditForm.location}
+                              onChange={(e) => setProfileEditForm({ ...profileEditForm, location: e.target.value })}
+                              placeholder="e.g. Mumbai HQ / Remote"
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                            />
+                          </div>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                        <div>
-                          <label className="font-bold text-slate-700 block mb-1">Bank Account Number</label>
-                          <input
-                            type="text"
-                            value={profileEditForm.bankAccountNo}
-                            onChange={(e) => setProfileEditForm({ ...profileEditForm, bankAccountNo: e.target.value })}
-                            placeholder="50100482910482"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
-                          />
+                      {/* 3. RESIDENTIAL ADDRESSES */}
+                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
+                          <Landmark className="w-3.5 h-3.5 text-[#1f7e9e]" />
+                          <span>3. Residential Address Details</span>
                         </div>
-                        <div>
-                          <label className="font-bold text-slate-700 block mb-1">Bank IFSC Code</label>
-                          <input
-                            type="text"
-                            value={profileEditForm.ifscCode}
-                            onChange={(e) => setProfileEditForm({ ...profileEditForm, ifscCode: e.target.value.toUpperCase() })}
-                            placeholder="HDFC0001245"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
-                          />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Current Residential Address</label>
+                            <textarea
+                              rows={2}
+                              value={profileEditForm.currentAddress}
+                              onChange={(e) => setProfileEditForm({ ...profileEditForm, currentAddress: e.target.value })}
+                              placeholder="House/Flat No, Street, Landmark"
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                            />
+                          </div>
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Permanent Residential Address</label>
+                            <textarea
+                              rows={2}
+                              value={profileEditForm.permanentAddress}
+                              onChange={(e) => setProfileEditForm({ ...profileEditForm, permanentAddress: e.target.value })}
+                              placeholder="Permanent family address"
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                            />
+                          </div>
                         </div>
-                        <div>
-                          <label className="font-bold text-slate-700 block mb-1">PAN Number</label>
-                          <input
-                            type="text"
-                            value={profileEditForm.panNumber}
-                            onChange={(e) => setProfileEditForm({ ...profileEditForm, panNumber: e.target.value.toUpperCase() })}
-                            placeholder="ABCDE1234F"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
-                          />
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">City</label>
+                            <input
+                              type="text"
+                              value={profileEditForm.city}
+                              onChange={(e) => setProfileEditForm({ ...profileEditForm, city: e.target.value })}
+                              placeholder="Mumbai / Delhi / Bengaluru"
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                            />
+                          </div>
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">State</label>
+                            <input
+                              type="text"
+                              value={profileEditForm.state}
+                              onChange={(e) => setProfileEditForm({ ...profileEditForm, state: e.target.value })}
+                              placeholder="Maharashtra / Delhi NCR"
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                            />
+                          </div>
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">PIN Code</label>
+                            <input
+                              type="text"
+                              value={profileEditForm.pinCode}
+                              onChange={(e) => setProfileEditForm({ ...profileEditForm, pinCode: e.target.value })}
+                              placeholder="400001"
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 4. BANK & STATUTORY DETAILS */}
+                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
+                          <Wallet className="w-3.5 h-3.5 text-[#1f7e9e]" />
+                          <span>4. Bank Account &amp; Statutory Identifiers</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Salary Bank Name</label>
+                            <input
+                              type="text"
+                              value={profileEditForm.bankName}
+                              onChange={(e) => setProfileEditForm({ ...profileEditForm, bankName: e.target.value })}
+                              placeholder="e.g. HDFC Bank Ltd"
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                            />
+                          </div>
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Bank Account Number</label>
+                            <input
+                              type="text"
+                              value={profileEditForm.bankAccountNo}
+                              onChange={(e) => setProfileEditForm({ ...profileEditForm, bankAccountNo: e.target.value })}
+                              placeholder="50100482910482"
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                            />
+                          </div>
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Bank IFSC Code</label>
+                            <input
+                              type="text"
+                              value={profileEditForm.ifscCode}
+                              onChange={(e) => setProfileEditForm({ ...profileEditForm, ifscCode: e.target.value.toUpperCase() })}
+                              placeholder="HDFC0001245"
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                            />
+                          </div>
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Account Holder Name</label>
+                            <input
+                              type="text"
+                              value={profileEditForm.accountHolderName}
+                              onChange={(e) => setProfileEditForm({ ...profileEditForm, accountHolderName: e.target.value })}
+                              placeholder="As per bank passbook"
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">PAN Number</label>
+                            <input
+                              type="text"
+                              value={profileEditForm.panNumber}
+                              onChange={(e) => setProfileEditForm({ ...profileEditForm, panNumber: e.target.value.toUpperCase() })}
+                              placeholder="ABCDE1234F"
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                            />
+                          </div>
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">UAN Number</label>
+                            <input
+                              type="text"
+                              value={profileEditForm.uanNumber}
+                              onChange={(e) => setProfileEditForm({ ...profileEditForm, uanNumber: e.target.value })}
+                              placeholder="100900100900"
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                            />
+                          </div>
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">PF Account No</label>
+                            <input
+                              type="text"
+                              value={profileEditForm.pfAccountNo}
+                              onChange={(e) => setProfileEditForm({ ...profileEditForm, pfAccountNo: e.target.value })}
+                              placeholder="MH/BAN/0012345/000/0000001"
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                            />
+                          </div>
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Tax Regime</label>
+                            <select
+                              value={profileEditForm.taxRegime}
+                              onChange={(e) => setProfileEditForm({ ...profileEditForm, taxRegime: e.target.value as any })}
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                            >
+                              <option value="New Tax Regime (Section 115BAC)">New Tax Regime (Sec 115BAC)</option>
+                              <option value="Old Tax Regime (With Exemptions)">Old Tax Regime (Exemptions)</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 5. EMERGENCY CONTACT & QUALIFICATIONS */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                        <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
+                            <ShieldCheck className="w-3.5 h-3.5 text-rose-600" />
+                            <span>5. Emergency Contact</span>
+                          </div>
+                          <div className="space-y-2.5">
+                            <div>
+                              <label className="font-bold text-slate-700 block mb-1">Contact Name</label>
+                              <input
+                                type="text"
+                                value={profileEditForm.emergencyContactName}
+                                onChange={(e) => setProfileEditForm({ ...profileEditForm, emergencyContactName: e.target.value })}
+                                placeholder="Contact person name"
+                                className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="font-bold text-slate-700 block mb-1">Phone Number</label>
+                                <input
+                                  type="text"
+                                  value={profileEditForm.emergencyContactPhone}
+                                  onChange={(e) => setProfileEditForm({ ...profileEditForm, emergencyContactPhone: e.target.value })}
+                                  placeholder="+91 98000 00000"
+                                  className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                                />
+                              </div>
+                              <div>
+                                <label className="font-bold text-slate-700 block mb-1">Relationship</label>
+                                <input
+                                  type="text"
+                                  value={profileEditForm.emergencyContactRelation}
+                                  onChange={(e) => setProfileEditForm({ ...profileEditForm, emergencyContactRelation: e.target.value })}
+                                  placeholder="Spouse / Parent / Sibling"
+                                  className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
+                            <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>6. Qualifications &amp; Education</span>
+                          </div>
+                          <div className="space-y-2.5">
+                            <div>
+                              <label className="font-bold text-slate-700 block mb-1">Highest Qualification</label>
+                              <input
+                                type="text"
+                                value={profileEditForm.highestQualification}
+                                onChange={(e) => setProfileEditForm({ ...profileEditForm, highestQualification: e.target.value })}
+                                placeholder="B.Tech Computer Science / MBA / B.Com"
+                                className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                              />
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="col-span-2">
+                                <label className="font-bold text-slate-700 block mb-1">Institute / University</label>
+                                <input
+                                  type="text"
+                                  value={profileEditForm.institute}
+                                  onChange={(e) => setProfileEditForm({ ...profileEditForm, institute: e.target.value })}
+                                  placeholder="University of Mumbai"
+                                  className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                                />
+                              </div>
+                              <div>
+                                <label className="font-bold text-slate-700 block mb-1">Passing Year</label>
+                                <input
+                                  type="text"
+                                  value={profileEditForm.passingYear}
+                                  onChange={(e) => setProfileEditForm({ ...profileEditForm, passingYear: e.target.value })}
+                                  placeholder="2022"
+                                  className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 7. DOCUMENTS REPOSITORY */}
+                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                            <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>7. Uploaded Documents &amp; Identity Proofs ({profileEditForm.documents.length})</span>
+                          </div>
+                          <span className="text-[10px] text-slate-500 font-medium">
+                            Add verified personal and statutory documents
+                          </span>
+                        </div>
+
+                        {profileEditForm.documents.length === 0 ? (
+                          <div className="py-3 text-center text-slate-400 text-xs italic">
+                            No documents attached yet. Add identity proof, degree certificate, or address proof below.
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            {profileEditForm.documents.map((doc, idx) => (
+                              <div
+                                key={doc.id || idx}
+                                className="bg-white p-2.5 rounded-lg border border-slate-200 flex items-center justify-between gap-2 shadow-2xs text-xs"
+                              >
+                                <div className="min-w-0">
+                                  <div className="font-bold text-slate-900 truncate">{doc.name}</div>
+                                  <div className="text-[10px] text-slate-500 flex items-center gap-1.5">
+                                    <span className="px-1.5 py-0.2 bg-slate-100 rounded text-slate-700 font-semibold">{doc.type}</span>
+                                    {doc.documentNumber && <span>Ref: {doc.documentNumber}</span>}
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setProfileEditForm({
+                                      ...profileEditForm,
+                                      documents: profileEditForm.documents.filter((_, i) => i !== idx),
+                                    });
+                                  }}
+                                  className="text-rose-600 hover:text-rose-800 p-1 rounded hover:bg-rose-50 cursor-pointer shrink-0"
+                                  title="Remove document"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Inline Add Document Form */}
+                        <div className="p-2.5 rounded-lg bg-white border border-slate-200 grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+                          <div className="sm:col-span-5">
+                            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Document Title</label>
+                            <input
+                              type="text"
+                              value={newDocDraft.name}
+                              onChange={(e) => setNewDocDraft({ ...newDocDraft, name: e.target.value })}
+                              placeholder="e.g. Aadhaar Card Front & Back"
+                              className="w-full bg-slate-50 border border-slate-300 rounded px-2 py-1 text-xs text-slate-900"
+                            />
+                          </div>
+                          <div className="sm:col-span-4">
+                            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Category</label>
+                            <select
+                              value={newDocDraft.type}
+                              onChange={(e) => setNewDocDraft({ ...newDocDraft, type: e.target.value })}
+                              className="w-full bg-slate-50 border border-slate-300 rounded px-2 py-1 text-xs text-slate-900"
+                            >
+                              <option value="Identity Proof / Aadhaar">Identity Proof / Aadhaar</option>
+                              <option value="PAN Card Copy">PAN Card Copy</option>
+                              <option value="Degree Certificate">Degree Certificate</option>
+                              <option value="Address Proof / Passport">Address Proof / Passport</option>
+                              <option value="Experience Certificate">Experience Certificate</option>
+                              <option value="Other Document">Other Document</option>
+                            </select>
+                          </div>
+                          <div className="sm:col-span-3">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!newDocDraft.name.trim()) return;
+                                const docItem = {
+                                  id: `doc-${Date.now()}`,
+                                  name: newDocDraft.name.trim(),
+                                  type: newDocDraft.type,
+                                  documentNumber: newDocDraft.documentNumber.trim() || undefined,
+                                  uploadedAt: new Date().toISOString(),
+                                };
+                                setProfileEditForm({
+                                  ...profileEditForm,
+                                  documents: [...profileEditForm.documents, docItem],
+                                });
+                                setNewDocDraft({ name: '', type: 'Identity Proof / Aadhaar', documentNumber: '' });
+                              }}
+                              className="w-full py-1 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-xs flex items-center justify-center gap-1 shadow-2xs transition cursor-pointer"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>Add Document</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
 
@@ -5291,61 +5789,188 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                         </button>
                         <button
                           type="submit"
-                          className="px-4 py-2 rounded-xl bg-[#1f7e9e] hover:bg-[#18647e] text-white font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer transition"
+                          disabled={isSavingProfile}
+                          className="px-5 py-2.5 rounded-xl bg-[#1f7e9e] hover:bg-[#18647e] disabled:opacity-50 text-white font-bold text-xs flex items-center gap-2 shadow-sm cursor-pointer transition"
                         >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Save &amp; Sync to Admin</span>
+                          {isSavingProfile ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="w-4 h-4" />
+                          )}
+                          <span>Save &amp; Persist to Database</span>
                         </button>
                       </div>
                     </form>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                        <div className="text-[11px] font-semibold text-slate-500">Full Name</div>
-                        <div className="font-bold text-slate-900 mt-0.5">{activeEmployee.name}</div>
-                      </div>
-                      <div className="p-3 rounded-xl bg-indigo-50/60 border border-indigo-200">
-                        <div className="text-[11px] font-semibold text-indigo-900">
-                          Official Login Email ID (Employee Master)
+                    <div className="space-y-3.5 text-xs">
+                      {/* VIEW: Personal & Identity Card */}
+                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center justify-between border-b border-slate-200 pb-1.5">
+                          <span className="flex items-center gap-1.5">
+                            <Users className="w-3.5 h-3.5 text-[#1f7e9e]" />
+                            <span>1. Personal &amp; Identity Profile</span>
+                          </span>
+                          <span className="font-mono text-[#1f7e9e] font-bold text-xs">
+                            {statutory.empCode}
+                          </span>
                         </div>
-                        <div className="font-mono font-bold text-indigo-700 mt-0.5 break-all">
-                          {activeEmployee.email}
-                        </div>
-                      </div>
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                        <div className="text-[11px] font-semibold text-slate-500">Employee Code</div>
-                        <div className="font-mono font-bold text-[#1f7e9e] mt-0.5">
-                          {statutory.empCode}
-                        </div>
-                      </div>
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                        <div className="text-[11px] font-semibold text-slate-500">Role &amp; Department</div>
-                        <div className="font-bold text-slate-900 mt-0.5">
-                          {activeEmployee.designation || activeEmployee.role} · {activeEmployee.department}
-                        </div>
-                      </div>
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                        <div className="text-[11px] font-semibold text-slate-500">Mobile Phone</div>
-                        <div className="font-mono font-semibold text-slate-900 mt-0.5">
-                          {activeEmployee.phone || '—'}
-                        </div>
-                      </div>
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                        <div className="text-[11px] font-semibold text-slate-500">Work Location</div>
-                        <div className="font-semibold text-slate-900 mt-0.5">
-                          {activeEmployee.location || 'Corporate HQ'}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200/80">
+                            <span className="text-[10px] text-slate-500 font-semibold block">Full Name</span>
+                            <span className="font-bold text-slate-900 block truncate">{activeEmployee.name}</span>
+                          </div>
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200/80">
+                            <span className="text-[10px] text-slate-500 font-semibold block">Official Login Email</span>
+                            <span className="font-mono font-bold text-indigo-700 block truncate">{activeEmployee.email}</span>
+                          </div>
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200/80">
+                            <span className="text-[10px] text-slate-500 font-semibold block">Gender &amp; DOB</span>
+                            <span className="font-semibold text-slate-900 block">
+                              {(activeUserMaster as any)?.gender || '—'} · {(activeUserMaster as any)?.dateOfBirth || '—'}
+                            </span>
+                          </div>
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200/80">
+                            <span className="text-[10px] text-slate-500 font-semibold block">Blood Group &amp; Marital</span>
+                            <span className="font-semibold text-slate-900 block">
+                              {(activeUserMaster as any)?.bloodGroup || '—'} · {(activeUserMaster as any)?.maritalStatus || '—'}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                        <div className="text-[11px] font-semibold text-slate-500">Salary Bank Account</div>
-                        <div className="font-mono font-semibold text-slate-900 mt-0.5">
-                          {statutory.bankName || 'HDFC Bank Ltd'} ({statutory.bankAccountNo || '—'})
+
+                      {/* VIEW: Contact & Addresses Card */}
+                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-[#1f7e9e]" />
+                          <span>2. Contact &amp; Residential Addresses</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200/80">
+                            <span className="text-[10px] text-slate-500 font-semibold block">Primary Mobile</span>
+                            <span className="font-mono font-bold text-slate-900 block">{activeEmployee.phone || '—'}</span>
+                          </div>
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200/80">
+                            <span className="text-[10px] text-slate-500 font-semibold block">Alternate Phone</span>
+                            <span className="font-mono text-slate-800 block">{(activeUserMaster as any)?.alternatePhone || '—'}</span>
+                          </div>
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200/80">
+                            <span className="text-[10px] text-slate-500 font-semibold block">Personal Email</span>
+                            <span className="text-slate-800 block truncate">{(activeUserMaster as any)?.personalEmail || '—'}</span>
+                          </div>
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200/80">
+                            <span className="text-[10px] text-slate-500 font-semibold block">Work Location</span>
+                            <span className="font-semibold text-slate-900 block">{activeEmployee.location || 'Corporate HQ'}</span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200/80">
+                            <span className="text-[10px] text-slate-500 font-semibold block">Current Address</span>
+                            <span className="text-slate-800 block">
+                              {(activeUserMaster as any)?.currentAddress || '—'}
+                              {((activeUserMaster as any)?.city || (activeUserMaster as any)?.state) && (
+                                <span className="block text-[11px] text-slate-500 mt-0.5">
+                                  {[(activeUserMaster as any)?.city, (activeUserMaster as any)?.state, (activeUserMaster as any)?.pinCode].filter(Boolean).join(', ')}
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200/80">
+                            <span className="text-[10px] text-slate-500 font-semibold block">Permanent Address</span>
+                            <span className="text-slate-800 block">
+                              {(activeUserMaster as any)?.permanentAddress || (activeUserMaster as any)?.currentAddress || '—'}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                        <div className="text-[11px] font-semibold text-slate-500">PAN / UAN</div>
-                        <div className="font-mono font-semibold text-slate-900 mt-0.5">
-                          {statutory.panNumber || '—'} / {statutory.uanNumber || '—'}
+
+                      {/* VIEW: Bank & Statutory Identifiers Card */}
+                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
+                          <Wallet className="w-3.5 h-3.5 text-[#1f7e9e]" />
+                          <span>3. Bank Account &amp; Statutory Identifiers</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200/80">
+                            <span className="text-[10px] text-slate-500 font-semibold block">Salary Bank &amp; IFSC</span>
+                            <span className="font-semibold text-slate-900 block truncate">{statutory.bankName || 'HDFC Bank Ltd'}</span>
+                            <span className="font-mono text-[10px] text-slate-500 block">{statutory.ifscCode || '—'}</span>
+                          </div>
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200/80">
+                            <span className="text-[10px] text-slate-500 font-semibold block">Bank Account Number</span>
+                            <span className="font-mono font-bold text-slate-900 block truncate">{statutory.bankAccountNo || '—'}</span>
+                            {(activeUserMaster as any)?.accountHolderName && (
+                              <span className="text-[10px] text-slate-500 block truncate">Holder: {(activeUserMaster as any).accountHolderName}</span>
+                            )}
+                          </div>
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200/80">
+                            <span className="text-[10px] text-slate-500 font-semibold block">PAN / UAN</span>
+                            <span className="font-mono font-bold text-slate-900 block">{statutory.panNumber || '—'}</span>
+                            <span className="font-mono text-[10px] text-slate-500 block">UAN: {statutory.uanNumber || '—'}</span>
+                          </div>
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200/80">
+                            <span className="text-[10px] text-slate-500 font-semibold block">PF No &amp; Tax Regime</span>
+                            <span className="font-mono text-[11px] text-slate-800 block truncate">{statutory.pfAccountNo || '—'}</span>
+                            <span className="text-[10px] font-semibold text-emerald-700 block truncate">{statutory.taxRegime || 'New Tax Regime'}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* VIEW: Emergency Contact, Education & Documents */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1">
+                          <div className="text-[10px] font-bold uppercase text-slate-500 flex items-center gap-1">
+                            <ShieldCheck className="w-3 h-3 text-rose-600" />
+                            <span>Emergency Contact</span>
+                          </div>
+                          <div className="font-bold text-slate-900 truncate">
+                            {(activeUserMaster as any)?.emergencyContactName || '—'}
+                          </div>
+                          <div className="font-mono text-slate-600 text-[11px]">
+                            {(activeUserMaster as any)?.emergencyContactPhone || '—'}
+                          </div>
+                          <div className="text-[10px] text-slate-500">
+                            Rel: {(activeUserMaster as any)?.emergencyContactRelation || '—'}
+                          </div>
+                        </div>
+
+                        <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1">
+                          <div className="text-[10px] font-bold uppercase text-slate-500 flex items-center gap-1">
+                            <FileText className="w-3 h-3 text-indigo-600" />
+                            <span>Education &amp; Degree</span>
+                          </div>
+                          <div className="font-bold text-slate-900 truncate">
+                            {(activeUserMaster as any)?.highestQualification || '—'}
+                          </div>
+                          <div className="text-slate-600 text-[11px] truncate">
+                            {(activeUserMaster as any)?.institute || '—'}
+                          </div>
+                          <div className="text-[10px] font-mono text-slate-500">
+                            Year: {(activeUserMaster as any)?.passingYear || '—'}
+                          </div>
+                        </div>
+
+                        <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1">
+                          <div className="text-[10px] font-bold uppercase text-slate-500 flex items-center justify-between">
+                            <span className="flex items-center gap-1">
+                              <FileText className="w-3 h-3 text-emerald-600" />
+                              <span>Documents</span>
+                            </span>
+                            <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded font-mono font-bold text-[10px]">
+                              {((activeUserMaster as any)?.documents || []).length} Attached
+                            </span>
+                          </div>
+                          {((activeUserMaster as any)?.documents || []).length === 0 ? (
+                            <div className="text-slate-400 text-[11px] italic pt-1">No documents uploaded</div>
+                          ) : (
+                            <div className="space-y-1 max-h-16 overflow-y-auto pt-0.5">
+                              {((activeUserMaster as any)?.documents || []).map((doc: any, i: number) => (
+                                <div key={i} className="text-[11px] text-slate-700 truncate flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                  <span className="truncate">{doc.name}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

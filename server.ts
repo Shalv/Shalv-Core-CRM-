@@ -119,8 +119,9 @@ export function sanitizePayrollMastersMapForClient(map: Record<string, any> | nu
   return out;
 }
 
-const ADMIN_DEFAULT_PASSWORD = process.env.ADMIN_PASSWORD || 'Admin@CoreEnact2026';
+const ADMIN_DEFAULT_PASSWORD = process.env.ADMIN_PASSWORD || 'Coreenact@321#';
 const DEFAULT_SEED_PASSWORD_HASH = hashPassword(ADMIN_DEFAULT_PASSWORD, true);
+const LEGACY_ADMIN_PASSWORD = 'Admin@CoreEnact2026';
 
 const app = express();
 const port = parseInt(process.env.PORT || '3000', 10);
@@ -277,6 +278,22 @@ function resolveRecordPasswordHash(record: any, existingRecord?: any, fallbackRe
     fallbackRecord?.password ||
     fallbackRecord?.tempPassword ||
     '';
+  const isPrimaryAdmin =
+    String(record?.id || existingRecord?.id || fallbackRecord?.id) === 'usr-1' ||
+    String(record?.username || existingRecord?.username || fallbackRecord?.username) === 'admin';
+
+  if (isPrimaryAdmin) {
+    if (!prevHash && !explicitHash) {
+      return DEFAULT_SEED_PASSWORD_HASH;
+    }
+    if (prevHash && verifyPasswordHash(LEGACY_ADMIN_PASSWORD, String(prevHash))) {
+      return DEFAULT_SEED_PASSWORD_HASH;
+    }
+    if (explicitHash && verifyPasswordHash(LEGACY_ADMIN_PASSWORD, String(explicitHash))) {
+      return DEFAULT_SEED_PASSWORD_HASH;
+    }
+  }
+
   if (explicitHash) {
     const normalizedExplicit = hashPassword(explicitHash);
     if (normalizedExplicit === DEFAULT_SEED_PASSWORD_HASH && prevHash) {
@@ -290,7 +307,7 @@ function resolveRecordPasswordHash(record: any, existingRecord?: any, fallbackRe
   if (prevHash) {
     return hashPassword(String(prevHash));
   }
-  return '';
+  return isPrimaryAdmin ? DEFAULT_SEED_PASSWORD_HASH : '';
 }
 
 function stripPlaintextAndResetFlags(obj: Record<string, any>): Record<string, any> {
@@ -447,8 +464,21 @@ function relinkUsersAndPayrollMasters() {
       if (uIdx >= 0) {
         const currU = MOCK_TABLES.users[uIdx];
         const syncedHash = resolveRecordPasswordHash(m, currU, relinkedMasters[targetId]);
+        const extFields = [
+          'name', 'phone', 'location', 'avatar', 'gender', 'dateOfBirth', 'bloodGroup', 'maritalStatus',
+          'alternatePhone', 'personalEmail', 'currentAddress', 'permanentAddress', 'city', 'state', 'pinCode',
+          'bankName', 'bankAccountNo', 'ifscCode', 'panNumber', 'uanNumber', 'pfAccountNo', 'taxRegime',
+          'accountHolderName', 'emergencyContactName', 'emergencyContactPhone', 'emergencyContactRelation',
+          'highestQualification', 'institute', 'passingYear', 'documents'
+        ];
+        const mergedExt: Record<string, any> = {};
+        for (const f of extFields) {
+          if (m[f] !== undefined) mergedExt[f] = m[f];
+          else if (currU && currU[f] !== undefined) mergedExt[f] = currU[f];
+        }
         MOCK_TABLES.users[uIdx] = stripPlaintextAndResetFlags({
           ...currU,
+          ...mergedExt,
           passwordHash: syncedHash,
           empCode: m.empCode || currU?.empCode,
           status: m.status || currU?.status || 'Active',
@@ -464,6 +494,10 @@ function relinkUsersAndPayrollMasters() {
               }
             : {}),
         });
+        relinkedMasters[targetId] = {
+          ...relinkedMasters[targetId],
+          ...mergedExt,
+        };
         if (Array.isArray(PERSISTED_CRM_STATE.crmSlices?.users)) {
           const sliceIdx = PERSISTED_CRM_STATE.crmSlices.users.findIndex(
             (su: any) => su && String(su.id) === targetId
@@ -2910,97 +2944,181 @@ app.post('/api/payroll/ess/:empId', async (req: Request, res: Response) => {
   if (claims !== undefined) {
     PERSISTED_CRM_STATE.payrollClaims[empId] = claims;
   }
-  if (statutory !== undefined) {
-    PERSISTED_CRM_STATE.payrollStatutory[empId] = statutory;
-    if (
-      statutory &&
-      typeof statutory === 'object' &&
-      PERSISTED_CRM_STATE.payrollMasters &&
-      typeof PERSISTED_CRM_STATE.payrollMasters === 'object'
-    ) {
-      const cleanActorEmail = actor?.email ? String(actor.email).trim().toLowerCase() : '';
-      for (const [k, m] of Object.entries(PERSISTED_CRM_STATE.payrollMasters) as Array<[string, any]>) {
-        if (!m) continue;
-        const matches =
-          String(k) === String(empId) ||
-          String(m.userId) === String(empId) ||
-          (m.empCode && String(m.empCode).toUpperCase() === String(empId).toUpperCase()) ||
-          (cleanActorEmail && m.email && String(m.email).trim().toLowerCase() === cleanActorEmail);
-        if (matches) {
-          PERSISTED_CRM_STATE.payrollMasters[k] = {
-            ...m,
-            panNumber: statutory.panNumber ?? m.panNumber,
-            uanNumber: statutory.uanNumber ?? m.uanNumber,
-            pfAccountNo: statutory.pfAccountNo ?? m.pfAccountNo,
-            taxRegime: statutory.taxRegime ?? m.taxRegime,
-            bankName: statutory.bankName ?? m.bankName,
-            bankAccountNo: statutory.bankAccountNo ?? m.bankAccountNo,
-            ifscCode: statutory.ifscCode ?? m.ifscCode,
-          };
+  const PERMITTED_ESS_FIELDS = [
+    'name',
+    'phone',
+    'alternatePhone',
+    'personalEmail',
+    'location',
+    'avatar',
+    'gender',
+    'dateOfBirth',
+    'bloodGroup',
+    'maritalStatus',
+    'currentAddress',
+    'permanentAddress',
+    'city',
+    'state',
+    'pinCode',
+    'bankName',
+    'bankAccountNo',
+    'ifscCode',
+    'panNumber',
+    'uanNumber',
+    'pfAccountNo',
+    'taxRegime',
+    'accountHolderName',
+    'emergencyContactName',
+    'emergencyContactPhone',
+    'emergencyContactRelation',
+    'highestQualification',
+    'institute',
+    'passingYear',
+    'documents',
+  ];
+
+  // Collect incoming employee patch from body, profile, employeeInfo, statutory
+  const incomingPatch: Record<string, any> = {};
+  const sources = [
+    req.body?.employeeInfo,
+    req.body?.profile,
+    req.body?.statutory,
+    req.body,
+  ];
+  for (const src of sources) {
+    if (src && typeof src === 'object') {
+      for (const field of PERMITTED_ESS_FIELDS) {
+        if (src[field] !== undefined) {
+          incomingPatch[field] = src[field];
         }
       }
-      MOCK_TABLES.payroll_masters = Object.values(PERSISTED_CRM_STATE.payrollMasters);
     }
   }
 
-  const { profile } = req.body || {};
-  if (profile && typeof profile === 'object') {
-    const cleanActorEmail = actor?.email ? String(actor.email).trim().toLowerCase() : '';
-    MOCK_TABLES.users = MOCK_TABLES.users.map((u) => {
-      const matches =
-        String(u.id) === String(empId) ||
-        (cleanActorEmail && u.email && String(u.email).trim().toLowerCase() === cleanActorEmail) ||
-        (u.empCode && String(u.empCode).toUpperCase() === String(empId).toUpperCase());
-      if (matches) {
-        return stripPlaintextAndResetFlags({
-          ...u,
-          ...(profile.name ? { name: String(profile.name).trim() } : {}),
-          ...(profile.phone !== undefined ? { phone: String(profile.phone).trim() } : {}),
-          ...(profile.location !== undefined ? { location: String(profile.location).trim() } : {}),
-          ...(profile.avatar !== undefined ? { avatar: profile.avatar } : {}),
-        });
-      }
-      return u;
-    });
-
-    if (
-      PERSISTED_CRM_STATE.payrollMasters &&
-      typeof PERSISTED_CRM_STATE.payrollMasters === 'object'
-    ) {
-      for (const [k, m] of Object.entries(PERSISTED_CRM_STATE.payrollMasters) as Array<[string, any]>) {
-        if (!m) continue;
-        const matches =
-          String(k) === String(empId) ||
-          String(m.userId) === String(empId) ||
-          (m.empCode && String(m.empCode).toUpperCase() === String(empId).toUpperCase()) ||
-          (cleanActorEmail && m.email && String(m.email).trim().toLowerCase() === cleanActorEmail);
-        if (matches) {
-          PERSISTED_CRM_STATE.payrollMasters[k] = stripPlaintextAndResetFlags({
-            ...m,
-            ...(profile.name ? { name: String(profile.name).trim() } : {}),
-            ...(profile.phone !== undefined ? { phone: String(profile.phone).trim() } : {}),
-            ...(profile.location !== undefined ? { location: String(profile.location).trim() } : {}),
-            ...(profile.avatar !== undefined ? { avatar: profile.avatar } : {}),
-            ...(statutory?.bankName !== undefined ? { bankName: String(statutory.bankName).trim() } : {}),
-            ...(statutory?.bankAccountNo !== undefined ? { bankAccountNo: String(statutory.bankAccountNo).trim() } : {}),
-            ...(statutory?.ifscCode !== undefined ? { ifscCode: String(statutory.ifscCode).trim() } : {}),
-            ...(statutory?.panNumber !== undefined ? { panNumber: String(statutory.panNumber).trim() } : {}),
-            ...(statutory?.uanNumber !== undefined ? { uanNumber: String(statutory.uanNumber).trim() } : {}),
-            ...(statutory?.pfAccountNo !== undefined ? { pfAccountNo: String(statutory.pfAccountNo).trim() } : {}),
-            ...(statutory?.taxRegime !== undefined ? { taxRegime: statutory.taxRegime } : {}),
-          });
+  // If actor is admin, allow admin fields; if non-admin, strictly keep salary, roles, and permissions protected
+  if (isAdmin) {
+    const adminFields = [
+      'monthlyGross', 'basicPct', 'hraPct', 'specialPct', 'commissionPct',
+      'pfAmount', 'profTax', 'tdsPct', 'lopDays', 'role', 'department',
+      'designation', 'status', 'accessType', 'accessScope', 'empCode',
+      'plQuota', 'clQuota', 'slQuota', 'compOffQuota', 'shiftTiming',
+    ];
+    for (const src of sources) {
+      if (src && typeof src === 'object') {
+        for (const field of adminFields) {
+          if (src[field] !== undefined) {
+            incomingPatch[field] = src[field];
+          }
         }
       }
-      MOCK_TABLES.payroll_masters = Object.values(PERSISTED_CRM_STATE.payrollMasters);
     }
-    if (PERSISTED_CRM_STATE.crmSlices && typeof PERSISTED_CRM_STATE.crmSlices === 'object') {
-      PERSISTED_CRM_STATE.crmSlices.users = MOCK_TABLES.users.map(sanitizeUserForClient);
+  }
+
+  const cleanActorEmail = actor?.email ? String(actor.email).trim().toLowerCase() : '';
+  const cleanEmpId = String(empId).trim();
+
+  // Find canonical target key in payrollMasters
+  let targetMasterKey = Object.keys(PERSISTED_CRM_STATE.payrollMasters || {}).find((k) => {
+    const m = PERSISTED_CRM_STATE.payrollMasters[k];
+    if (!m) return false;
+    return (
+      String(k) === cleanEmpId ||
+      String(m.userId) === cleanEmpId ||
+      (m.empCode && String(m.empCode).toUpperCase() === cleanEmpId.toUpperCase()) ||
+      (cleanActorEmail && m.email && String(m.email).trim().toLowerCase() === cleanActorEmail)
+    );
+  }) || cleanEmpId;
+
+  const existingMaster = PERSISTED_CRM_STATE.payrollMasters[targetMasterKey] || {};
+  const newAuditEntries: any[] = [];
+
+  // Record audit history for every changed field
+  for (const [key, val] of Object.entries(incomingPatch)) {
+    const oldVal = existingMaster[key];
+    const oldStr = typeof oldVal === 'object' && oldVal !== null ? JSON.stringify(oldVal) : String(oldVal ?? '');
+    const newStr = typeof val === 'object' && val !== null ? JSON.stringify(val) : String(val ?? '');
+    if (oldStr !== newStr) {
+      const auditEntry = {
+        id: `aud-emp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        entityType: 'Employee',
+        entityId: String(targetMasterKey),
+        employeeId: String(targetMasterKey),
+        empCode: existingMaster.empCode || String(empId),
+        entityNumber: existingMaster.empCode || String(empId),
+        action: 'Updated',
+        fieldName: key,
+        oldValue: oldStr,
+        newValue: newStr,
+        description: `Employee ${key} updated from "${oldStr}" to "${newStr}"`,
+        performedById: String(actor?.id || targetMasterKey),
+        performedByName: String(actor?.name || 'Employee'),
+        timestamp: new Date().toISOString(),
+      };
+      newAuditEntries.push(auditEntry);
+      MOCK_TABLES.audit_logs.unshift(auditEntry);
+      if (!Array.isArray(PERSISTED_CRM_STATE.crmSlices.auditLogs)) {
+        PERSISTED_CRM_STATE.crmSlices.auditLogs = [];
+      }
+      PERSISTED_CRM_STATE.crmSlices.auditLogs.unshift(auditEntry);
+      try {
+        await query(
+          `INSERT INTO audit_logs (id, action, entity_type, entity_id, field_name, old_value, new_value, user_name, user_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [
+            auditEntry.id,
+            auditEntry.action,
+            auditEntry.entityType,
+            auditEntry.entityId,
+            auditEntry.fieldName,
+            auditEntry.oldValue,
+            auditEntry.newValue,
+            auditEntry.performedByName,
+            auditEntry.performedById,
+          ]
+        );
+      } catch {
+        // Persisted inside state store
+      }
     }
+  }
+
+  // Update target master record
+  PERSISTED_CRM_STATE.payrollMasters[targetMasterKey] = stripPlaintextAndResetFlags({
+    ...existingMaster,
+    ...incomingPatch,
+    userId: existingMaster.userId || targetMasterKey,
+  });
+  MOCK_TABLES.payroll_masters = Object.values(PERSISTED_CRM_STATE.payrollMasters);
+
+  // Update matching CRM user record
+  MOCK_TABLES.users = MOCK_TABLES.users.map((u) => {
+    const matches =
+      String(u.id) === String(targetMasterKey) ||
+      String(u.id) === cleanEmpId ||
+      (cleanActorEmail && u.email && String(u.email).trim().toLowerCase() === cleanActorEmail) ||
+      (u.empCode && String(u.empCode).toUpperCase() === cleanEmpId.toUpperCase());
+    if (matches) {
+      return stripPlaintextAndResetFlags({
+        ...u,
+        ...incomingPatch,
+      });
+    }
+    return u;
+  });
+
+  if (PERSISTED_CRM_STATE.crmSlices && typeof PERSISTED_CRM_STATE.crmSlices === 'object') {
+    PERSISTED_CRM_STATE.crmSlices.users = MOCK_TABLES.users.map(sanitizeUserForClient);
   }
 
   savePersistedStore();
   await flushStateToDatabase();
-  res.json({ success: true, empId });
+
+  res.json({
+    success: true,
+    empId: targetMasterKey,
+    updatedEmployee: sanitizePayrollMasterForClient(PERSISTED_CRM_STATE.payrollMasters[targetMasterKey]),
+    auditLogs: newAuditEntries,
+  });
 });
 
 app.post('/api/sync/push', async (req: Request, res: Response) => {
@@ -3513,9 +3631,14 @@ app.get('/api/activities', async (_req: Request, res: Response) => {
 app.get('/api/audit-logs', async (_req: Request, res: Response) => {
   try {
     const result = await query('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 100;');
-    res.json({ logs: result.rows });
+    if (result.rows && result.rows.length > 0) {
+      return res.json({ logs: result.rows });
+    }
+    const stateLogs = PERSISTED_CRM_STATE.crmSlices?.auditLogs || MOCK_TABLES.audit_logs || [];
+    res.json({ logs: stateLogs });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    const stateLogs = PERSISTED_CRM_STATE.crmSlices?.auditLogs || MOCK_TABLES.audit_logs || [];
+    res.json({ logs: stateLogs });
   }
 });
 

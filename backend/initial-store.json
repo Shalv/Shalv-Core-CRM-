@@ -18,6 +18,7 @@
       "name": "Admin",
       "username": "admin",
       "email": "admin@coreenact.com",
+      "passwordHash": "$2b$08$cZ4BHVMiBFe2FzEklafgjeRUuz2wGaH4B2Qsr5WxIFbMACwlMLJUS",
       "phone": "9810998290",
       "role": "Super Admin",
       "department": "Executive",
