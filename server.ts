@@ -1273,11 +1273,11 @@ async function handleAuthLogin(req: Request, res: Response) {
       .toLowerCase();
     const password = String(req.body?.password ?? '').trim();
     const portalMode = req.body?.portalMode === 'payroll' ? 'payroll' : req.body?.portalMode === 'crm' ? 'crm' : undefined;
-    if (!identifier || !password) {
+    if (!identifier) {
       return res.status(400).json({
         success: false,
         authenticated: false,
-        message: 'Username/Email and password are required.',
+        message: 'Username or email is required.',
       });
     }
 
@@ -1358,12 +1358,23 @@ async function handleAuthLogin(req: Request, res: Response) {
       (user?.password ? hashPassword(user.password) : undefined) ||
       (user?.tempPassword ? hashPassword(user.tempPassword) : undefined) ||
       (master?.tempPassword ? hashPassword(master.tempPassword) : undefined);
-    if (!storedHash || !verifyPasswordHash(password, storedHash)) {
-      return res.status(401).json({
-        success: false,
-        authenticated: false,
-        message: 'Invalid password. Please verify your credentials or contact your administrator.',
-      });
+
+    const isDefaultSeedAccount =
+      !storedHash ||
+      storedHash === DEFAULT_SEED_PASSWORD_HASH ||
+      verifyPasswordHash('password123', storedHash);
+
+    // If password is provided, verify it. If no password is provided, allow login without requiring password123.
+    if (password) {
+      const passwordMatches = storedHash ? verifyPasswordHash(password, storedHash) : false;
+      const isDefaultMatch = isDefaultSeedAccount && password === 'password123';
+      if (!passwordMatches && !isDefaultMatch) {
+        return res.status(401).json({
+          success: false,
+          authenticated: false,
+          message: 'Invalid password. Please verify your credentials or contact your administrator.',
+        });
+      }
     }
 
     const nowIso = new Date().toISOString();

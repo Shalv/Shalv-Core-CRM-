@@ -147,6 +147,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
     next: '',
     confirm: '',
     show: false,
+  });
   const [changePwdError, setChangePwdError] = useState<string | null>(null);
 
   // Self-service Employee Profile Information Editing (syncs with Admin Dashboard & CRM)
@@ -477,25 +478,32 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
       panNumber: cleanPan,
     };
     setStatutory(nextStatutory);
-    saveEmployeeStatutoryDetails(activeEmployee.id, nextStatutory, true);
+    try {
+      localStorage.setItem(`crm_ess_${activeEmployee.id}_statutory`, JSON.stringify(nextStatutory));
+    } catch {
+      // ignore
+    }
 
     // 3. Update employeeSalaryMasters
-    const updatedMaster: EmployeeSalaryMasterRecord = {
-      ...activeEmployee,
-      name: cleanName,
-      phone: cleanPhone,
-      location: cleanLocation,
-      bankName: cleanBank,
-      bankAccountNo: cleanAccount,
-      ifscCode: cleanIfsc,
-      panNumber: cleanPan,
-    };
-    const nextMasters = {
-      ...employeeSalaryMasters,
-      [activeEmployee.id]: updatedMaster,
-    };
-    setEmployeeSalaryMasters(nextMasters);
-    saveEmployeeSalaryMasters(nextMasters, true, false, [activeEmployee.id]);
+    const currentMaster = employeeSalaryMasters[activeEmployee.id] || activeUserMaster;
+    if (currentMaster) {
+      const updatedMaster: EmployeeSalaryMasterRecord = {
+        ...currentMaster,
+        name: cleanName,
+        phone: cleanPhone,
+        location: cleanLocation,
+        bankName: cleanBank,
+        bankAccountNo: cleanAccount,
+        ifscCode: cleanIfsc,
+        panNumber: cleanPan,
+      };
+      const nextMasters = {
+        ...employeeSalaryMasters,
+        [activeEmployee.id]: updatedMaster,
+      };
+      setEmployeeSalaryMasters(nextMasters);
+      saveEmployeeSalaryMasters(nextMasters, true, false, [activeEmployee.id]);
+    }
 
     // 4. Save to server ESS endpoint & profile endpoint
     try {

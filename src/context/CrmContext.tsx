@@ -2506,6 +2506,12 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             : u.avatar && (u.avatar.startsWith('data:image') || u.avatar.startsWith('http') || u.avatar.startsWith('/'))
             ? u.avatar
             : u.avatar || initials;
+        const updated: User = {
+          ...u,
+          ...normalizedPatch,
+          name: nextName,
+          avatar: nextAvatar,
+        };
         const isSelf =
           currentUser.id === id ||
           (currentUser.email && targetEmail && currentUser.email.trim().toLowerCase() === targetEmail.trim().toLowerCase()) ||

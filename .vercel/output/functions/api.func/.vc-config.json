@@ -1,6 +1,0 @@
-{
-  "runtime": "nodejs22.x",
-  "handler": "index.cjs",
-  "launcherType": "Nodejs",
-  "maxDuration": 60
-}
