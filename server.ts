@@ -310,25 +310,33 @@ export function hasActiveCustomOverrides(obj: any): boolean {
 }
 
 export function resolveEffectiveCustomPermissions(primary: any, secondary?: any): any {
-  if (primary && primary.customPermissions !== undefined) {
-    return hasActiveCustomOverrides(primary.customPermissions)
-      ? primary.customPermissions
-      : null;
+  if (primary && typeof primary === 'object') {
+    if (primary.customPermissions !== undefined) {
+      if (primary.customPermissions === null) return null;
+      return hasActiveCustomOverrides(primary.customPermissions)
+        ? primary.customPermissions
+        : null;
+    }
+    if (primary.custom_permissions !== undefined) {
+      if (primary.custom_permissions === null) return null;
+      return hasActiveCustomOverrides(primary.custom_permissions)
+        ? primary.custom_permissions
+        : null;
+    }
   }
-  if (primary && primary.custom_permissions !== undefined) {
-    return hasActiveCustomOverrides(primary.custom_permissions)
-      ? primary.custom_permissions
-      : null;
-  }
-  if (secondary && secondary.customPermissions !== undefined) {
-    return hasActiveCustomOverrides(secondary.customPermissions)
-      ? secondary.customPermissions
-      : null;
-  }
-  if (secondary && secondary.custom_permissions !== undefined) {
-    return hasActiveCustomOverrides(secondary.custom_permissions)
-      ? secondary.custom_permissions
-      : null;
+  if (secondary && typeof secondary === 'object') {
+    if (secondary.customPermissions !== undefined) {
+      if (secondary.customPermissions === null) return null;
+      return hasActiveCustomOverrides(secondary.customPermissions)
+        ? secondary.customPermissions
+        : null;
+    }
+    if (secondary.custom_permissions !== undefined) {
+      if (secondary.custom_permissions === null) return null;
+      return hasActiveCustomOverrides(secondary.custom_permissions)
+        ? secondary.custom_permissions
+        : null;
+    }
   }
   return null;
 }
@@ -363,7 +371,7 @@ function relinkUsersAndPayrollMasters() {
     if (cleanUser.username) idByUsername.set(String(cleanUser.username).trim().toLowerCase(), canonicalId);
   }
 
-  // 2. Next, include any users from sliceUsers that were missing from MOCK_TABLES.users
+  // 2. Next, merge any incoming edits from sliceUsers (user edits from frontend take precedence)
   for (const u of sliceUsers) {
     if (!u || !u.id || isRemovedPredefinedUser(u)) continue;
     const rawId = String(u.id);
@@ -376,11 +384,11 @@ function relinkUsersAndPayrollMasters() {
         rawId;
     const prev = usersById.get(canonicalId);
     if (prev) {
-      // prev (from MOCK_TABLES.users) is authoritative! Prev takes precedence over stale sliceUsers
-      const effectivePerms = resolveEffectiveCustomPermissions(prev, u);
+      // Incoming user edits from sliceUsers take precedence over previous base record!
+      const effectivePerms = resolveEffectiveCustomPermissions(u, prev);
       const merged = stripPlaintextAndResetFlags({
-        ...u,
         ...prev,
+        ...u,
         customPermissions: effectivePerms,
         custom_permissions: effectivePerms,
       });
@@ -1317,7 +1325,7 @@ async function handleAuthLogin(req: Request, res: Response) {
       return res.status(401).json({
         success: false,
         authenticated: false,
-        message: 'Invalid password. (Default initial password for enrolled employees is password123 unless customized by Admin).',
+        message: 'Invalid password. Please verify your credentials or contact your administrator.',
       });
     }
 
@@ -2311,7 +2319,7 @@ app.put('/api/users/:id', async (req: Request, res: Response) => {
          status = COALESCE($9, status),
          avatar = COALESCE($10, avatar),
          location = COALESCE($11, location),
-         custom_permissions = COALESCE($12, custom_permissions),
+         custom_permissions = $12,
          updated_at = CURRENT_TIMESTAMP
        WHERE id = $13`,
       [
