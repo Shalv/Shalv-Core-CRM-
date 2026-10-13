@@ -36,7 +36,7 @@ test('isolated deployed artifact starts with no source files or node_modules; mi
  const r=call();assert.equal(r.status,503);assert.match(r.contentType,/json/);assert.match(JSON.parse(r.body).message,/DATABASE_URL and AUTH_SECRET/);
 });
 test('unavailable PostgreSQL returns JSON 503 rather than a function crash',()=>{
- const r=call({DATABASE_URL:'postgresql://test:test@127.0.0.1:1/test',AUTH_SECRET:'deployment-test-secret',TEST_URL:'/api/auth/verify',TEST_METHOD:'POST',TEST_BODY:'{"identifier":"admin","password":"password123"}'});
+ const r=call({DATABASE_URL:'postgresql://test:test@127.0.0.1:1/test',AUTH_SECRET:'deployment-test-secret',TEST_URL:'/api/auth/verify',TEST_METHOD:'POST',TEST_BODY:'{"identifier":"admin","password":"Admin@CoreEnact2026"}'});
  assert.equal(r.status,503);assert.equal(JSON.parse(r.body).success,false);assert.match(r.contentType,/json/);
 });
 test('rewrite routing restores the API path instead of serving the frontend or unknown endpoint',()=>{

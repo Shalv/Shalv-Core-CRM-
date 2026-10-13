@@ -866,12 +866,16 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
   const { date, days } = nextPayRun();
   const when = days === 0 ? 'closes today' : days === 1 ? 'in 1 day' : `in ${days} days`;
 
-  const validate = ({ empId, password: _password }: { empId: string; password: string }) => {
+  const validate = ({ empId, password }: { empId: string; password: string }) => {
     const nextErrors = { empId: '', password: '' };
     if (!empId.trim()) {
       nextErrors.empId = 'Enter your employee code or work email.';
     }
-    // Default password password123 is removed - password is optional
+    if (!password) {
+      nextErrors.password = 'Enter your password.';
+    } else if (password === 'password123') {
+      nextErrors.password = 'The default password "password123" is disabled. Please enter your secure password.';
+    }
     return nextErrors;
   };
 
@@ -1184,7 +1188,7 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
                 </div>
 
                 <div className={`pca-field${errors.password ? ' bad' : ''}`}>
-                  <label htmlFor="pw">Password <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'normal' }}>(optional)</span></label>
+                  <label htmlFor="pw">Password</label>
                   <div className="pca-input-wrap pca-has-peek">
                     <input
                       key={`pw-${attempt}`}
@@ -1192,7 +1196,7 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
                       name="pw"
                       type={showPw ? 'text' : 'password'}
                       autoComplete="current-password"
-                      placeholder="Password (optional)"
+                      placeholder="Your password"
                       value={values.password}
                       onChange={(e) => {
                         setValues((v) => ({ ...v, password: e.target.value }));

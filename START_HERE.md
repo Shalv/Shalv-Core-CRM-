@@ -6,7 +6,7 @@ This package uses Vercel Build Output API v3. The build generates one Node 22 ba
 2. Keep `DATABASE_URL` and `AUTH_SECRET` set for Production in Vercel. Their exact values are in the private `.env` supplied in the ZIP. Import that file through Settings → Environment Variables if you have not already done so. Do not commit `.env` to Git.
 3. Redeploy the new commit. `vercel.json` selects the custom build, Node 22, and `.vercel/output`; do not set the output directory to `dist` for this revision. The build log should say: `Vercel deployment output built: one bundled Node 22 function and static frontend.`
 4. Visit `/api/health`. Connected storage should return JSON with `database: connected`. A JSON 503 points to missing environment variables or unavailable PostgreSQL. It does not mean data was saved in memory. Render must permit access from Vercel.
-5. Sign in with `admin` or `admin@coreenact.com` (password optional) if using the bundled initial data. An existing database password takes precedence. Password changes are made from the profile card and saved as bcrypt hashes.
+5. Sign in with `admin` or `admin@coreenact.com` and password `Admin@CoreEnact2026` (or set via `ADMIN_PASSWORD` in `.env`). The legacy hardcoded default `password123` is completely disabled for all accounts. Password changes can be made from the user profile card and are saved as secure bcrypt hashes.
 
 The function initializes inside a guarded request entry. Initialization exceptions return JSON with `BACKEND_INITIALIZATION_FAILED`, with the exception logged privately in Vercel Runtime Logs. Malformed JSON returns HTTP 400. Database failures return HTTP 503. These diagnostics make configuration failures visible; they do not simulate successful database access.
 

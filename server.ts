@@ -119,7 +119,8 @@ export function sanitizePayrollMastersMapForClient(map: Record<string, any> | nu
   return out;
 }
 
-const DEFAULT_SEED_PASSWORD_HASH = hashPassword('password123', true);
+const ADMIN_DEFAULT_PASSWORD = process.env.ADMIN_PASSWORD || 'Admin@CoreEnact2026';
+const DEFAULT_SEED_PASSWORD_HASH = hashPassword(ADMIN_DEFAULT_PASSWORD, true);
 
 const app = express();
 const port = parseInt(process.env.PORT || '3000', 10);
@@ -1273,11 +1274,21 @@ async function handleAuthLogin(req: Request, res: Response) {
       .toLowerCase();
     const password = String(req.body?.password ?? '').trim();
     const portalMode = req.body?.portalMode === 'payroll' ? 'payroll' : req.body?.portalMode === 'crm' ? 'crm' : undefined;
-    if (!identifier) {
+    // Password is strictly mandatory for login
+    if (!identifier || !password) {
       return res.status(400).json({
         success: false,
         authenticated: false,
-        message: 'Username or email is required.',
+        message: 'Username/Email and password are required.',
+      });
+    }
+
+    // The hardcoded default password "password123" is strictly disabled for all users (both employee and admin)
+    if (password === 'password123') {
+      return res.status(401).json({
+        success: false,
+        authenticated: false,
+        message: 'The default password "password123" is disabled and cannot be used to sign in.',
       });
     }
 
@@ -1357,24 +1368,15 @@ async function handleAuthLogin(req: Request, res: Response) {
       (master?.password ? hashPassword(master.password) : undefined) ||
       (user?.password ? hashPassword(user.password) : undefined) ||
       (user?.tempPassword ? hashPassword(user.tempPassword) : undefined) ||
-      (master?.tempPassword ? hashPassword(master.tempPassword) : undefined);
+      (master?.tempPassword ? hashPassword(master.tempPassword) : undefined) ||
+      (isAdminAccount ? DEFAULT_SEED_PASSWORD_HASH : undefined);
 
-    const isDefaultSeedAccount =
-      !storedHash ||
-      storedHash === DEFAULT_SEED_PASSWORD_HASH ||
-      verifyPasswordHash('password123', storedHash);
-
-    // If password is provided, verify it. If no password is provided, allow login without requiring password123.
-    if (password) {
-      const passwordMatches = storedHash ? verifyPasswordHash(password, storedHash) : false;
-      const isDefaultMatch = isDefaultSeedAccount && password === 'password123';
-      if (!passwordMatches && !isDefaultMatch) {
-        return res.status(401).json({
-          success: false,
-          authenticated: false,
-          message: 'Invalid password. Please verify your credentials or contact your administrator.',
-        });
-      }
+    if (!storedHash || !verifyPasswordHash(password, storedHash)) {
+      return res.status(401).json({
+        success: false,
+        authenticated: false,
+        message: 'Invalid password. Please verify your credentials or contact your administrator.',
+      });
     }
 
     const nowIso = new Date().toISOString();

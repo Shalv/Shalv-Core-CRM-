@@ -657,9 +657,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
     if (!email.trim()) {
       e.email = 'Enter your work email or username.';
     }
-    // Default password password123 is removed - password is optional
-    if (password && password.length < 4) {
-      e.password = 'Password must have at least 4 characters if provided.';
+    if (!password) {
+      e.password = 'Enter your password.';
+    } else if (password.length < 4) {
+      e.password = 'Password must have at least 4 characters.';
+    } else if (password === 'password123') {
+      e.password = 'The default password "password123" is disabled. Please enter your secure password.';
     }
     return e;
   };
@@ -988,15 +991,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
                   </div>
 
                   <div className="cl-field">
-                    <label htmlFor="password">
-                      Password <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'normal' }}>(optional)</span>
-                    </label>
+                    <label htmlFor="password">Password</label>
                     <div className="cl-input">
                       <input
                         id="password"
                         type={show ? 'text' : 'password'}
                         autoComplete="current-password"
-                        placeholder="Enter password (optional)"
+                        placeholder="Enter your password"
                         value={password}
                         aria-invalid={!!errors.password}
                         className="with-toggle"

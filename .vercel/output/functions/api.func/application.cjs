@@ -49585,7 +49585,8 @@ function sanitizePayrollMastersMapForClient(map2) {
   }
   return out;
 }
-var DEFAULT_SEED_PASSWORD_HASH = hashPassword("password123", true);
+var ADMIN_DEFAULT_PASSWORD = process.env.ADMIN_PASSWORD || "Admin@CoreEnact2026";
+var DEFAULT_SEED_PASSWORD_HASH = hashPassword(ADMIN_DEFAULT_PASSWORD, true);
 var app = (0, import_express.default)();
 var port = parseInt(process.env.PORT || "3000", 10);
 app.set("trust proxy", 1);
@@ -50555,11 +50556,18 @@ async function handleAuthLogin(req, res) {
     ).trim().toLowerCase();
     const password = String(req.body?.password ?? "").trim();
     const portalMode = req.body?.portalMode === "payroll" ? "payroll" : req.body?.portalMode === "crm" ? "crm" : void 0;
-    if (!identifier) {
+    if (!identifier || !password) {
       return res.status(400).json({
         success: false,
         authenticated: false,
-        message: "Username or email is required."
+        message: "Username/Email and password are required."
+      });
+    }
+    if (password === "password123") {
+      return res.status(401).json({
+        success: false,
+        authenticated: false,
+        message: 'The default password "password123" is disabled and cannot be used to sign in.'
       });
     }
     const { user, master } = findAccountByIdentifier(identifier);
@@ -50600,18 +50608,13 @@ async function handleAuthLogin(req, res) {
         message: "Your account is inactive. Please contact the Administrator."
       });
     }
-    const storedHash = user?.passwordHash || master?.passwordHash || (master?.password ? hashPassword(master.password) : void 0) || (user?.password ? hashPassword(user.password) : void 0) || (user?.tempPassword ? hashPassword(user.tempPassword) : void 0) || (master?.tempPassword ? hashPassword(master.tempPassword) : void 0);
-    const isDefaultSeedAccount = !storedHash || storedHash === DEFAULT_SEED_PASSWORD_HASH || verifyPasswordHash("password123", storedHash);
-    if (password) {
-      const passwordMatches = storedHash ? verifyPasswordHash(password, storedHash) : false;
-      const isDefaultMatch = isDefaultSeedAccount && password === "password123";
-      if (!passwordMatches && !isDefaultMatch) {
-        return res.status(401).json({
-          success: false,
-          authenticated: false,
-          message: "Invalid password. Please verify your credentials or contact your administrator."
-        });
-      }
+    const storedHash = user?.passwordHash || master?.passwordHash || (master?.password ? hashPassword(master.password) : void 0) || (user?.password ? hashPassword(user.password) : void 0) || (user?.tempPassword ? hashPassword(user.tempPassword) : void 0) || (master?.tempPassword ? hashPassword(master.tempPassword) : void 0) || (isAdminAccount ? DEFAULT_SEED_PASSWORD_HASH : void 0);
+    if (!storedHash || !verifyPasswordHash(password, storedHash)) {
+      return res.status(401).json({
+        success: false,
+        authenticated: false,
+        message: "Invalid password. Please verify your credentials or contact your administrator."
+      });
     }
     const nowIso = (/* @__PURE__ */ new Date()).toISOString();
     const resolvedAccessScope = !isAdminAccount && (portalMode === "payroll" || isPayrollOnlyAccount) ? "payroll_only" : "all";
