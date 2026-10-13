@@ -1216,11 +1216,6 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
                   <p className="pca-err" id="e-pw" role="alert">
                     {errors.password}
                   </p>
-                  <p className="text-[11px] text-slate-500 mt-1.5 flex items-center gap-1">
-                    <span>Initial password:</span>
-                    <code className="font-mono font-bold text-slate-700 bg-slate-100 px-1 py-0.5 rounded">password123</code>
-                    <span>(or password configured by HR Admin)</span>
-                  </p>
                 </div>
 
                 <div className="pca-row">
