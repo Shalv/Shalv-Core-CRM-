@@ -143,6 +143,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
   const isSystemAdmin =
     currentUser.role === 'Super Admin' ||
     currentUser.role === 'Administrator' ||
+    currentUser.role?.toLowerCase().includes('admin') ||
     currentUser.id === 'usr-1';
 
   const [adminSubTab, setAdminSubTab] = useState<
@@ -1828,8 +1829,8 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
             ) : (
               /* EDIT EXISTING EMPLOYEE ALLOCATIONS */
               <div className="space-y-3 text-xs">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex-1">
+                <div className="flex items-end justify-between gap-2">
+                  <div className="flex-1 min-w-0">
                     <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
                       Select Employee to Manage Allocations
                     </label>
@@ -1855,7 +1856,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                     <button
                       type="button"
                       onClick={() => handleSyncPayrollEmployeeToCrm(targetEntry)}
-                      className="mt-5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs whitespace-nowrap cursor-pointer transition shadow-2xs"
+                      className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs whitespace-nowrap cursor-pointer transition shadow-2xs shrink-0"
                     >
                       + Also Create in CRM
                     </button>
@@ -1865,10 +1866,10 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                     <button
                       type="button"
                       onClick={() => setUnlinkConfirmTarget(targetEntry)}
-                      className="mt-5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 font-bold rounded-lg text-xs whitespace-nowrap cursor-pointer flex items-center gap-1.5 transition shadow-2xs"
+                      className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-xs whitespace-nowrap cursor-pointer flex items-center gap-1.5 transition shadow-xs shrink-0"
                       title="Unlink this employee from CRM Workspace. Revokes CRM access and restricts account to Payroll ESS Portal only (Admin only)."
                     >
-                      <Unlink className="w-3.5 h-3.5 text-rose-600" />
+                      <Unlink className="w-3.5 h-3.5 text-white" />
                       <span>Unlink from CRM</span>
                     </button>
                   )}
@@ -1892,8 +1893,19 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                           : 'bg-amber-200/70 text-amber-900 border border-amber-300'
                       }`}
                     >
-                      {targetEntry?.inCrm ? 'CRM + Payroll (CRM Access Active)' : 'Payroll-Only (No CRM Access)'}
+                      {targetEntry?.inCrm ? 'CRM + Payroll' : 'Payroll-Only'}
                     </span>
+                    {isSystemAdmin && targetEntry && targetEntry.inCrm && (
+                      <button
+                        type="button"
+                        onClick={() => setUnlinkConfirmTarget(targetEntry)}
+                        className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300 transition cursor-pointer flex items-center gap-1 shadow-2xs shrink-0"
+                        title="Unlink from CRM Workspace (Revoke CRM access)"
+                      >
+                        <Unlink className="w-2.5 h-2.5 text-rose-600" />
+                        <span>Unlink CRM</span>
+                      </button>
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <input
