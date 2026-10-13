@@ -1693,11 +1693,32 @@ app.post('/api/auth/profile', async (req: Request, res: Response) => {
             ...(req.body?.ifscCode !== undefined ? { ifscCode: String(req.body.ifscCode).trim() } : {}),
             ...(req.body?.panNumber !== undefined ? { panNumber: String(req.body.panNumber).trim() } : {}),
             ...(req.body?.uanNumber !== undefined ? { uanNumber: String(req.body.uanNumber).trim() } : {}),
+            ...(req.body?.pfAccountNo !== undefined ? { pfAccountNo: String(req.body.pfAccountNo).trim() } : {}),
+            ...(req.body?.taxRegime !== undefined ? { taxRegime: req.body.taxRegime } : {}),
             passwordHash: nextPasswordHash,
           });
         }
       }
       MOCK_TABLES.payroll_masters = Object.values(PERSISTED_CRM_STATE.payrollMasters);
+    }
+
+    if (
+      req.body?.bankName !== undefined ||
+      req.body?.bankAccountNo !== undefined ||
+      req.body?.ifscCode !== undefined ||
+      req.body?.panNumber !== undefined ||
+      req.body?.uanNumber !== undefined ||
+      req.body?.pfAccountNo !== undefined
+    ) {
+      PERSISTED_CRM_STATE.payrollStatutory[targetId] = {
+        ...(PERSISTED_CRM_STATE.payrollStatutory[targetId] || {}),
+        ...(req.body?.bankName !== undefined ? { bankName: String(req.body.bankName).trim() } : {}),
+        ...(req.body?.bankAccountNo !== undefined ? { bankAccountNo: String(req.body.bankAccountNo).trim() } : {}),
+        ...(req.body?.ifscCode !== undefined ? { ifscCode: String(req.body.ifscCode).trim() } : {}),
+        ...(req.body?.panNumber !== undefined ? { panNumber: String(req.body.panNumber).trim() } : {}),
+        ...(req.body?.uanNumber !== undefined ? { uanNumber: String(req.body.uanNumber).trim() } : {}),
+        ...(req.body?.pfAccountNo !== undefined ? { pfAccountNo: String(req.body.pfAccountNo).trim() } : {}),
+      };
     }
 
     if (PERSISTED_CRM_STATE.crmSlices && typeof PERSISTED_CRM_STATE.crmSlices === 'object') {
@@ -2445,9 +2466,6 @@ app.get('/api/payroll/masters', (req: Request, res: Response) => {
 
 app.post('/api/payroll/masters', async (req: Request, res: Response) => {
   const actor = (req as any).account;
-  if (actor && !['Super Admin', 'Administrator'].includes(actor.role)) {
-    return res.status(403).json({ success: false, message: 'Administrator permission required.' });
-  }
   const rawMasters = req.body?.masters;
   const masters: Record<string, any> | undefined = Array.isArray(rawMasters)
     ? Object.fromEntries(
@@ -2456,6 +2474,51 @@ app.post('/api/payroll/masters', async (req: Request, res: Response) => {
           .map((m) => [String(m.userId), m])
       )
     : rawMasters;
+
+  if (actor && !['Super Admin', 'Administrator'].includes(actor.role)) {
+    const targetKeys = Object.keys(masters || {});
+    const cleanActorEmail = actor.email ? String(actor.email).trim().toLowerCase() : '';
+    const isSelfOnly =
+      targetKeys.length > 0 &&
+      targetKeys.every((k) => {
+        const m = masters?.[k];
+        return (
+          String(k) === String(actor.id) ||
+          (m && String(m.userId) === String(actor.id)) ||
+          (cleanActorEmail && m && m.email && String(m.email).trim().toLowerCase() === cleanActorEmail)
+        );
+      });
+    if (!isSelfOnly) {
+      return res.status(403).json({ success: false, message: 'Administrator permission required.' });
+    }
+    // For non-admin self-update, preserve admin-configured compensation, tax deductions, and leave quotas
+    const currentMasters = PERSISTED_CRM_STATE.payrollMasters || {};
+    for (const [k, m] of Object.entries(masters || {})) {
+      const existing =
+        currentMasters[k] ||
+        Object.values(currentMasters).find(
+          (ex: any) =>
+            ex &&
+            (String(ex.userId) === String(actor.id) ||
+              (cleanActorEmail && ex.email && String(ex.email).trim().toLowerCase() === cleanActorEmail))
+        );
+      if (existing) {
+        masters[k] = {
+          ...existing,
+          ...(m.name ? { name: String(m.name).trim() } : {}),
+          ...(m.phone !== undefined ? { phone: String(m.phone).trim() } : {}),
+          ...(m.location !== undefined ? { location: String(m.location).trim() } : {}),
+          ...(m.bankName !== undefined ? { bankName: String(m.bankName).trim() } : {}),
+          ...(m.bankAccountNo !== undefined ? { bankAccountNo: String(m.bankAccountNo).trim() } : {}),
+          ...(m.ifscCode !== undefined ? { ifscCode: String(m.ifscCode).trim() } : {}),
+          ...(m.panNumber !== undefined ? { panNumber: String(m.panNumber).trim() } : {}),
+          ...(m.uanNumber !== undefined ? { uanNumber: String(m.uanNumber).trim() } : {}),
+          ...(m.pfAccountNo !== undefined ? { pfAccountNo: String(m.pfAccountNo).trim() } : {}),
+          ...(m.taxRegime !== undefined ? { taxRegime: m.taxRegime } : {}),
+        };
+      }
+    }
+  }
   const deletedUserIds = Array.isArray(req.body?.deletedUserIds)
     ? (req.body.deletedUserIds as any[]).filter((id) => typeof id === 'string' && id)
     : [];
@@ -2764,14 +2827,18 @@ app.post('/api/payroll/org-masters', (req: Request, res: Response) => {
   res.json({ success: true, orgMasters: PERSISTED_CRM_STATE.payrollOrgMasters });
 });
 
-app.post('/api/payroll/ess/:empId', (req: Request, res: Response) => {
+app.post('/api/payroll/ess/:empId', async (req: Request, res: Response) => {
   const { empId } = req.params;
   if (!empId) {
     return res.status(400).json({ success: false, error: 'empId is required' });
   }
   const actor = (req as any).account;
   const isAdmin = !actor || ['Super Admin', 'Administrator'].includes(actor.role);
-  if (!isAdmin && String(empId) !== String(actor.id)) {
+  const isMatch =
+    actor &&
+    (String(empId) === String(actor.id) ||
+      (actor.empCode && String(empId).toUpperCase() === String(actor.empCode).toUpperCase()));
+  if (!isAdmin && !isMatch) {
     return res.status(403).json({
       success: false,
       message: 'Access Restricted: You can only view or update your own payroll ESS records.',
@@ -2849,42 +2916,81 @@ app.post('/api/payroll/ess/:empId', (req: Request, res: Response) => {
       statutory &&
       typeof statutory === 'object' &&
       PERSISTED_CRM_STATE.payrollMasters &&
-      PERSISTED_CRM_STATE.payrollMasters[empId]
+      typeof PERSISTED_CRM_STATE.payrollMasters === 'object'
     ) {
-      PERSISTED_CRM_STATE.payrollMasters[empId] = {
-        ...PERSISTED_CRM_STATE.payrollMasters[empId],
-        panNumber: statutory.panNumber ?? PERSISTED_CRM_STATE.payrollMasters[empId].panNumber,
-        uanNumber: statutory.uanNumber ?? PERSISTED_CRM_STATE.payrollMasters[empId].uanNumber,
-        pfAccountNo: statutory.pfAccountNo ?? PERSISTED_CRM_STATE.payrollMasters[empId].pfAccountNo,
-        taxRegime: statutory.taxRegime ?? PERSISTED_CRM_STATE.payrollMasters[empId].taxRegime,
-        bankName: statutory.bankName ?? PERSISTED_CRM_STATE.payrollMasters[empId].bankName,
-        bankAccountNo:
-          statutory.bankAccountNo ?? PERSISTED_CRM_STATE.payrollMasters[empId].bankAccountNo,
-        ifscCode: statutory.ifscCode ?? PERSISTED_CRM_STATE.payrollMasters[empId].ifscCode,
-      };
+      const cleanActorEmail = actor?.email ? String(actor.email).trim().toLowerCase() : '';
+      for (const [k, m] of Object.entries(PERSISTED_CRM_STATE.payrollMasters) as Array<[string, any]>) {
+        if (!m) continue;
+        const matches =
+          String(k) === String(empId) ||
+          String(m.userId) === String(empId) ||
+          (m.empCode && String(m.empCode).toUpperCase() === String(empId).toUpperCase()) ||
+          (cleanActorEmail && m.email && String(m.email).trim().toLowerCase() === cleanActorEmail);
+        if (matches) {
+          PERSISTED_CRM_STATE.payrollMasters[k] = {
+            ...m,
+            panNumber: statutory.panNumber ?? m.panNumber,
+            uanNumber: statutory.uanNumber ?? m.uanNumber,
+            pfAccountNo: statutory.pfAccountNo ?? m.pfAccountNo,
+            taxRegime: statutory.taxRegime ?? m.taxRegime,
+            bankName: statutory.bankName ?? m.bankName,
+            bankAccountNo: statutory.bankAccountNo ?? m.bankAccountNo,
+            ifscCode: statutory.ifscCode ?? m.ifscCode,
+          };
+        }
+      }
+      MOCK_TABLES.payroll_masters = Object.values(PERSISTED_CRM_STATE.payrollMasters);
     }
   }
 
   const { profile } = req.body || {};
   if (profile && typeof profile === 'object') {
-    const uIdx = MOCK_TABLES.users.findIndex((u) => String(u.id) === String(empId));
-    if (uIdx >= 0) {
-      MOCK_TABLES.users[uIdx] = stripPlaintextAndResetFlags({
-        ...MOCK_TABLES.users[uIdx],
-        ...(profile.name ? { name: String(profile.name).trim() } : {}),
-        ...(profile.phone !== undefined ? { phone: String(profile.phone).trim() } : {}),
-        ...(profile.location !== undefined ? { location: String(profile.location).trim() } : {}),
-        ...(profile.avatar !== undefined ? { avatar: profile.avatar } : {}),
-      });
-    }
-    if (PERSISTED_CRM_STATE.payrollMasters && PERSISTED_CRM_STATE.payrollMasters[empId]) {
-      PERSISTED_CRM_STATE.payrollMasters[empId] = stripPlaintextAndResetFlags({
-        ...PERSISTED_CRM_STATE.payrollMasters[empId],
-        ...(profile.name ? { name: String(profile.name).trim() } : {}),
-        ...(profile.phone !== undefined ? { phone: String(profile.phone).trim() } : {}),
-        ...(profile.location !== undefined ? { location: String(profile.location).trim() } : {}),
-        ...(profile.avatar !== undefined ? { avatar: profile.avatar } : {}),
-      });
+    const cleanActorEmail = actor?.email ? String(actor.email).trim().toLowerCase() : '';
+    MOCK_TABLES.users = MOCK_TABLES.users.map((u) => {
+      const matches =
+        String(u.id) === String(empId) ||
+        (cleanActorEmail && u.email && String(u.email).trim().toLowerCase() === cleanActorEmail) ||
+        (u.empCode && String(u.empCode).toUpperCase() === String(empId).toUpperCase());
+      if (matches) {
+        return stripPlaintextAndResetFlags({
+          ...u,
+          ...(profile.name ? { name: String(profile.name).trim() } : {}),
+          ...(profile.phone !== undefined ? { phone: String(profile.phone).trim() } : {}),
+          ...(profile.location !== undefined ? { location: String(profile.location).trim() } : {}),
+          ...(profile.avatar !== undefined ? { avatar: profile.avatar } : {}),
+        });
+      }
+      return u;
+    });
+
+    if (
+      PERSISTED_CRM_STATE.payrollMasters &&
+      typeof PERSISTED_CRM_STATE.payrollMasters === 'object'
+    ) {
+      for (const [k, m] of Object.entries(PERSISTED_CRM_STATE.payrollMasters) as Array<[string, any]>) {
+        if (!m) continue;
+        const matches =
+          String(k) === String(empId) ||
+          String(m.userId) === String(empId) ||
+          (m.empCode && String(m.empCode).toUpperCase() === String(empId).toUpperCase()) ||
+          (cleanActorEmail && m.email && String(m.email).trim().toLowerCase() === cleanActorEmail);
+        if (matches) {
+          PERSISTED_CRM_STATE.payrollMasters[k] = stripPlaintextAndResetFlags({
+            ...m,
+            ...(profile.name ? { name: String(profile.name).trim() } : {}),
+            ...(profile.phone !== undefined ? { phone: String(profile.phone).trim() } : {}),
+            ...(profile.location !== undefined ? { location: String(profile.location).trim() } : {}),
+            ...(profile.avatar !== undefined ? { avatar: profile.avatar } : {}),
+            ...(statutory?.bankName !== undefined ? { bankName: String(statutory.bankName).trim() } : {}),
+            ...(statutory?.bankAccountNo !== undefined ? { bankAccountNo: String(statutory.bankAccountNo).trim() } : {}),
+            ...(statutory?.ifscCode !== undefined ? { ifscCode: String(statutory.ifscCode).trim() } : {}),
+            ...(statutory?.panNumber !== undefined ? { panNumber: String(statutory.panNumber).trim() } : {}),
+            ...(statutory?.uanNumber !== undefined ? { uanNumber: String(statutory.uanNumber).trim() } : {}),
+            ...(statutory?.pfAccountNo !== undefined ? { pfAccountNo: String(statutory.pfAccountNo).trim() } : {}),
+            ...(statutory?.taxRegime !== undefined ? { taxRegime: statutory.taxRegime } : {}),
+          });
+        }
+      }
       MOCK_TABLES.payroll_masters = Object.values(PERSISTED_CRM_STATE.payrollMasters);
     }
     if (PERSISTED_CRM_STATE.crmSlices && typeof PERSISTED_CRM_STATE.crmSlices === 'object') {
@@ -2893,6 +2999,7 @@ app.post('/api/payroll/ess/:empId', (req: Request, res: Response) => {
   }
 
   savePersistedStore();
+  await flushStateToDatabase();
   res.json({ success: true, empId });
 });
 
