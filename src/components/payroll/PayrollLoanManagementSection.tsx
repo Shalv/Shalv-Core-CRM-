@@ -1256,7 +1256,7 @@ export const PayrollLoanManagementSection: React.FC<PayrollLoanManagementSection
       <div className="bg-slate-900 text-white rounded-xl p-4 border border-slate-800 space-y-3">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs text-slate-300 whitespace-nowrap overflow-x-auto">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
               <Landmark className="w-4 h-4 text-amber-400 shrink-0" />
               <span className="font-bold text-amber-400 uppercase tracking-wider">
                 Employee Loan &amp; Salary Advance Management
@@ -1409,7 +1409,7 @@ export const PayrollLoanManagementSection: React.FC<PayrollLoanManagementSection
 
       {/* MODULE SUB-NAVIGATION BAR */}
       <div className="bg-white rounded-xl border border-slate-200 p-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2.5 shadow-2xs">
-        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg overflow-x-auto">
+        <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-lg">
           {[
             {
               id: 'applications',

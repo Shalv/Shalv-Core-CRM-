@@ -120,7 +120,7 @@ export const PayrollIntegrationSection: React.FC<PayrollIntegrationSectionProps>
               Two-Way Payroll Data Bridge ({integrationConfig.providerLabel})
             </h4>
           </div>
-          <div className="text-slate-300 text-xs mt-0.5 flex items-center gap-2 whitespace-nowrap overflow-x-auto">
+          <div className="text-slate-300 text-xs mt-0.5 flex flex-wrap items-center gap-2">
             <span>
               Last Fetched:{' '}
               <strong className="text-sky-300">
@@ -137,7 +137,7 @@ export const PayrollIntegrationSection: React.FC<PayrollIntegrationSectionProps>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0 overflow-x-auto whitespace-nowrap">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={handleFetchFromPayroll}
@@ -496,7 +496,7 @@ export const PayrollIntegrationSection: React.FC<PayrollIntegrationSectionProps>
             {syncLogs.map((log) => (
               <div
                 key={log.id}
-                className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between gap-3 text-xs whitespace-nowrap overflow-x-auto"
+                className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs"
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <span

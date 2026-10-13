@@ -927,10 +927,10 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
 
   return (
     <div className="space-y-4">
-      {/* Admin Control Header Bar */}
-      <div className="bg-slate-900 text-white rounded-xl px-5 py-3.5 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+      {/* Admin Control Header Bar — Responsive Layout, Zero Horizontal Scrolling */}
+      <div className="bg-slate-900 text-white rounded-xl px-4 sm:px-5 py-3.5 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-xs text-slate-300 whitespace-nowrap overflow-x-auto">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
             <span className="font-bold text-amber-400 uppercase tracking-wider">
               Admin Control ({currentUser.role})
             </span>
@@ -961,7 +961,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
           </button>
 
           {/* Segmented Sub-Navigation */}
-          <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-lg border border-slate-700 overflow-x-auto shrink-0">
+          <div className="flex flex-wrap items-center gap-1 bg-slate-800 p-1 rounded-lg border border-slate-700 shrink-0">
             {[
               { id: 'salary_master', label: '1. Employees & Full Allocation (CRUD)' },
               {
@@ -2556,7 +2556,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
 
           {/* Category Switcher & Search Bar */}
           <div className="bg-white rounded-xl border border-slate-200 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-            <div className="flex items-center gap-1.5 overflow-x-auto">
+            <div className="flex flex-wrap items-center gap-1.5">
               {[
                 { id: 'roles', label: 'Roles', icon: ShieldCheck, count: orgMasters.roles.length },
                 {
