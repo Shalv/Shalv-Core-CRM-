@@ -8067,6 +8067,10 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const resetAllToSampleData = () => {
+    if (currentUser.role !== 'Super Admin' && currentUser.id !== 'usr-1') {
+      console.warn('Unauthorized: Reset to sample data is restricted from employee logins.');
+      return;
+    }
     localStorage.clear();
     setUsers(INITIAL_USERS);
     setStates(INITIAL_STATES);

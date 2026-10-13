@@ -632,18 +632,23 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-          {/* Reset Demo Data button */}
-          <button
-            onClick={() => {
-              if (confirm('Reset all CRM data to pristine initial demo state?')) {
-                resetAllToSampleData();
-              }
-            }}
-            className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-            title="Reset to Sample Data"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
+          {/* Reset Demo Data button — Hidden for employee logins; only available to root Super Admin */}
+          {currentUser.role === 'Super Admin' &&
+            currentUser.id === 'usr-1' &&
+            currentUser.accessScope !== 'payroll_only' &&
+            currentUser.accessType !== 'payroll_only' && (
+              <button
+                onClick={() => {
+                  if (confirm('Reset all CRM data to pristine initial demo state?')) {
+                    resetAllToSampleData();
+                  }
+                }}
+                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                title="Reset to Sample Data"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            )}
 
           {/* User Profile & Login/Logout Switcher */}
           <div className="relative border-l border-slate-200 pl-2 sm:pl-3 flex items-center gap-1.5">
