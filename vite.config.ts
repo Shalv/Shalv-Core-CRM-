@@ -1,11 +1,26 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
+
+function vercelBuildOutputPlugin(): Plugin {
+  return {
+    name: 'vercel-build-output-plugin',
+    apply: 'build',
+    closeBundle: async () => {
+      try {
+        const { buildApi } = await import('./scripts/build-api.mjs');
+        await buildApi();
+      } catch (err: any) {
+        console.warn('Note: vercel build output generator:', err?.message || err);
+      }
+    },
+  };
+}
 
 export default defineConfig(({ mode }) => {
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), vercelBuildOutputPlugin()],
     resolve: {
       alias: {
         '@': path.resolve(import.meta.dirname, '.'),

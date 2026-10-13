@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build && node scripts/build-api.mjs",
+    "postbuild": "node scripts/build-api.mjs",
     "start": "NODE_ENV=production node --import tsx server.ts --production",
     "preview": "NODE_ENV=production node --import tsx server.ts --production",
     "clean": "rm -rf dist server.js",
@@ -22,6 +23,7 @@
     "@vitejs/plugin-react": "^6.1.1",
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.2.3",
+    "esbuild": "^0.28.2",
     "express": "^4.21.2",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
@@ -31,7 +33,9 @@
     "pg": "^8.23.1",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
     "vite": "^8.3.0"
   },
   "devDependencies": {
@@ -43,10 +47,7 @@
     "@types/react-dom": "^19.3.0",
     "@types/react-test-renderer": "^19.3.0",
     "autoprefixer": "^10.4.21",
-    "react-test-renderer": "^19.3.0",
-    "tailwindcss": "^4.3.3",
-    "typescript": "^5.9.3",
-    "esbuild": "^0.28.2"
+    "react-test-renderer": "^19.3.0"
   },
   "engines": {
     "node": "22.x"
