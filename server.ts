@@ -2404,6 +2404,10 @@ app.get('/api/payroll/masters', (req: Request, res: Response) => {
 });
 
 app.post('/api/payroll/masters', async (req: Request, res: Response) => {
+  const actor = (req as any).account;
+  if (actor && !['Super Admin', 'Administrator'].includes(actor.role)) {
+    return res.status(403).json({ success: false, message: 'Administrator permission required.' });
+  }
   const rawMasters = req.body?.masters;
   const masters: Record<string, any> | undefined = Array.isArray(rawMasters)
     ? Object.fromEntries(
@@ -2589,6 +2593,10 @@ app.post('/api/payroll/masters', async (req: Request, res: Response) => {
 
 // Remove one employee's payroll master (with tombstone) so syncs never resurrect it
 app.delete('/api/payroll/masters/:id', async (req: Request, res: Response) => {
+  const actor = (req as any).account;
+  if (actor && !['Super Admin', 'Administrator'].includes(actor.role)) {
+    return res.status(403).json({ success: false, message: 'Administrator permission required.' });
+  }
   const { id } = req.params;
   if (id) {
     delete PERSISTED_CRM_STATE.payrollMasters[id];

@@ -140,6 +140,11 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
     formatCurrency,
   } = useCrm();
 
+  const isSystemAdmin =
+    currentUser.role === 'Super Admin' ||
+    currentUser.role === 'Administrator' ||
+    currentUser.id === 'usr-1';
+
   const [adminSubTab, setAdminSubTab] = useState<
     'salary_master' | 'org_masters' | 'policy_master' | 'approvals' | 'payroll_run' | 'external_integration'
   >('salary_master');
@@ -834,8 +839,13 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
     );
   };
 
-  // Unlink an employee from CRM Workspace, revoking CRM access and restricting them to Payroll ESS Portal only
+  // Unlink an employee from CRM Workspace, revoking CRM access and restricting them to Payroll ESS Portal only (Admin only)
   const handleUnlinkFromCrm = (entry: (typeof unifiedEmployeeList)[number]) => {
+    if (!isSystemAdmin) {
+      setStatusBanner('Access Denied: Only Super Admin and Administrators are permitted to unlink users from CRM.');
+      return;
+    }
+
     if (
       entry.id === 'usr-1' ||
       entry.role === 'Super Admin' ||
@@ -1851,12 +1861,12 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                     </button>
                   )}
 
-                  {targetEntry && targetEntry.inCrm && (
+                  {isSystemAdmin && targetEntry && targetEntry.inCrm && (
                     <button
                       type="button"
                       onClick={() => setUnlinkConfirmTarget(targetEntry)}
                       className="mt-5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 font-bold rounded-lg text-xs whitespace-nowrap cursor-pointer flex items-center gap-1.5 transition shadow-2xs"
-                      title="Unlink this employee from CRM Workspace. Revokes CRM access and restricts account to Payroll ESS Portal only."
+                      title="Unlink this employee from CRM Workspace. Revokes CRM access and restricts account to Payroll ESS Portal only (Admin only)."
                     >
                       <Unlink className="w-3.5 h-3.5 text-rose-600" />
                       <span>Unlink from CRM</span>
@@ -2273,12 +2283,12 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                     Save Employee Allocations
                   </button>
 
-                  {targetEntry && targetEntry.inCrm && (
+                  {isSystemAdmin && targetEntry && targetEntry.inCrm && (
                     <button
                       type="button"
                       onClick={() => setUnlinkConfirmTarget(targetEntry)}
                       className="py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-semibold rounded-lg flex items-center gap-1.5 whitespace-nowrap transition cursor-pointer"
-                      title="Unlink from CRM Workspace and restrict to Payroll ESS Portal only"
+                      title="Unlink from CRM Workspace and restrict to Payroll ESS Portal only (Admin only)"
                     >
                       <Unlink className="w-3.5 h-3.5 text-amber-700" />
                       <span>Unlink CRM</span>
@@ -2370,18 +2380,20 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                               <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
                                 CRM + Payroll Synced
                               </span>
-                              <button
-                                type="button"
-                                onClick={(ev) => {
-                                  ev.stopPropagation();
-                                  setUnlinkConfirmTarget(entry);
-                                }}
-                                className="text-[10px] font-bold text-rose-600 hover:text-rose-800 hover:underline cursor-pointer flex items-center gap-0.5"
-                                title="Unlink from CRM (Revoke CRM access)"
-                              >
-                                <Unlink className="w-2.5 h-2.5" />
-                                <span>Unlink CRM</span>
-                              </button>
+                              {isSystemAdmin && (
+                                <button
+                                  type="button"
+                                  onClick={(ev) => {
+                                    ev.stopPropagation();
+                                    setUnlinkConfirmTarget(entry);
+                                  }}
+                                  className="text-[10px] font-bold text-rose-600 hover:text-rose-800 hover:underline cursor-pointer flex items-center gap-0.5"
+                                  title="Unlink from CRM (Revoke CRM access - Admin only)"
+                                >
+                                  <Unlink className="w-2.5 h-2.5" />
+                                  <span>Unlink CRM</span>
+                                </button>
+                              )}
                             </div>
                           ) : !entry.inCrm ? (
                             <div className="flex items-center gap-1.5">
@@ -2441,12 +2453,12 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                               <Edit3 className="w-3 h-3" />
                               <span>Edit</span>
                             </button>
-                            {entry.inCrm && (
+                            {isSystemAdmin && entry.inCrm && (
                               <button
                                 type="button"
                                 onClick={() => setUnlinkConfirmTarget(entry)}
                                 className="p-1 rounded bg-white border border-slate-200 hover:bg-rose-50 hover:border-rose-200 text-slate-400 hover:text-rose-600 cursor-pointer"
-                                title="Unlink from CRM (Revoke CRM access)"
+                                title="Unlink from CRM (Revoke CRM access - Admin only)"
                               >
                                 <Unlink className="w-3.5 h-3.5" />
                               </button>
