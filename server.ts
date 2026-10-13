@@ -451,7 +451,33 @@ function relinkUsersAndPayrollMasters() {
           passwordHash: syncedHash,
           empCode: m.empCode || currU?.empCode,
           status: m.status || currU?.status || 'Active',
+          ...(m.accessType !== undefined
+            ? {
+                accessType: m.accessType,
+                accessScope:
+                  m.accessType === 'payroll_only'
+                    ? 'payroll_only'
+                    : currU?.accessScope === 'payroll_only'
+                    ? 'all'
+                    : currU?.accessScope || 'all',
+              }
+            : {}),
         });
+        if (Array.isArray(PERSISTED_CRM_STATE.crmSlices?.users)) {
+          const sliceIdx = PERSISTED_CRM_STATE.crmSlices.users.findIndex(
+            (su: any) => su && String(su.id) === targetId
+          );
+          if (sliceIdx >= 0 && m.accessType !== undefined) {
+            PERSISTED_CRM_STATE.crmSlices.users[sliceIdx] = {
+              ...PERSISTED_CRM_STATE.crmSlices.users[sliceIdx],
+              accessType: m.accessType,
+              accessScope:
+                m.accessType === 'payroll_only'
+                  ? 'payroll_only'
+                  : PERSISTED_CRM_STATE.crmSlices.users[sliceIdx].accessScope || 'all',
+            };
+          }
+        }
         relinkedMasters[targetId].passwordHash = syncedHash;
       }
     } else if (effectiveStatus !== 'Inactive') {
@@ -1273,6 +1299,7 @@ async function handleAuthLogin(req: Request, res: Response) {
       !isAdminAccount &&
       (user?.accessType === 'payroll_only' ||
         user?.accessScope === 'payroll_only' ||
+        user?.accessScope === 'PAYROLL_ONLY' ||
         master?.accessType === 'payroll_only' ||
         (!user && Boolean(master)));
 

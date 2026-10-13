@@ -66,6 +66,7 @@ import {
   Eye,
   EyeOff,
   Share2,
+  Unlink,
 } from 'lucide-react';
 
 interface PayrollAdminMasterSectionProps {
@@ -176,6 +177,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
   // Clear All Data modal state
   const [isClearAllConfirmOpen, setIsClearAllConfirmOpen] = useState(false);
   const [toastCopiedMessage, setToastCopiedMessage] = useState<string | null>(null);
+  const [unlinkConfirmTarget, setUnlinkConfirmTarget] = useState<any | null>(null);
 
   const [newUserDraft, setNewUserDraft] = useState(() => {
     // No auto-generated temporary password — the Admin sets the login password.
@@ -829,6 +831,52 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
     });
     setStatusBanner(
       `Enrolled CRM user "${entry.name}" (${entry.master.empCode}) into Payroll & ESS Master.`
+    );
+  };
+
+  // Unlink an employee from CRM Workspace, revoking CRM access and restricting them to Payroll ESS Portal only
+  const handleUnlinkFromCrm = (entry: (typeof unifiedEmployeeList)[number]) => {
+    if (
+      entry.id === 'usr-1' ||
+      entry.role === 'Super Admin' ||
+      (entry.id === currentUser.id && currentUser.role === 'Super Admin')
+    ) {
+      setStatusBanner('Super Admin cannot be unlinked from CRM Workspace.');
+      return;
+    }
+
+    const linkedCrmUser = users.find(
+      (u) =>
+        u.id === entry.id ||
+        (entry.email && u.email && u.email.trim().toLowerCase() === entry.email.trim().toLowerCase())
+    );
+
+    // 1. Update the Payroll Master record: mark accessType as payroll_only, syncedWithCrm as false
+    setEmployeeSalaryMasters((prev) => {
+      const next = { ...prev };
+      const currentMaster = next[entry.id] || entry.master;
+      next[entry.id] = {
+        ...currentMaster,
+        userId: entry.id,
+        accessType: 'payroll_only',
+        syncedWithCrm: false,
+        enrolledInPayroll: true,
+      };
+      saveEmployeeSalaryMasters(next, true, false, [entry.id]);
+      return next;
+    });
+
+    // 2. Revoke CRM Access on linked CRM User profile
+    if (linkedCrmUser) {
+      updateUser(linkedCrmUser.id, {
+        accessType: 'payroll_only',
+        accessScope: 'payroll_only',
+        customPermissions: {},
+      });
+    }
+
+    setStatusBanner(
+      `Unlinked "${entry.name}" (${entry.master.empCode}) from CRM. CRM access has been revoked; user is now restricted to Payroll ESS Portal only.`
     );
   };
 
@@ -1797,9 +1845,21 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                     <button
                       type="button"
                       onClick={() => handleSyncPayrollEmployeeToCrm(targetEntry)}
-                      className="mt-5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs whitespace-nowrap cursor-pointer"
+                      className="mt-5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs whitespace-nowrap cursor-pointer transition shadow-2xs"
                     >
                       + Also Create in CRM
+                    </button>
+                  )}
+
+                  {targetEntry && targetEntry.inCrm && (
+                    <button
+                      type="button"
+                      onClick={() => setUnlinkConfirmTarget(targetEntry)}
+                      className="mt-5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 font-bold rounded-lg text-xs whitespace-nowrap cursor-pointer flex items-center gap-1.5 transition shadow-2xs"
+                      title="Unlink this employee from CRM Workspace. Revokes CRM access and restricts account to Payroll ESS Portal only."
+                    >
+                      <Unlink className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Unlink from CRM</span>
                     </button>
                   )}
                 </div>
@@ -1815,8 +1875,14 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                     <span className="text-slate-500 font-mono text-[11px] shrink-0">
                       ({targetMaster.empCode})
                     </span>
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-200/70 text-amber-900 shrink-0">
-                      {targetMaster.accessType === 'payroll_only' ? 'Payroll-Only' : 'CRM + Payroll'}
+                    <span
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${
+                        targetEntry?.inCrm
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          : 'bg-amber-200/70 text-amber-900 border border-amber-300'
+                      }`}
+                    >
+                      {targetEntry?.inCrm ? 'CRM + Payroll (CRM Access Active)' : 'Payroll-Only (No CRM Access)'}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
@@ -2207,6 +2273,18 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                     Save Employee Allocations
                   </button>
 
+                  {targetEntry && targetEntry.inCrm && (
+                    <button
+                      type="button"
+                      onClick={() => setUnlinkConfirmTarget(targetEntry)}
+                      className="py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-semibold rounded-lg flex items-center gap-1.5 whitespace-nowrap transition cursor-pointer"
+                      title="Unlink from CRM Workspace and restrict to Payroll ESS Portal only"
+                    >
+                      <Unlink className="w-3.5 h-3.5 text-amber-700" />
+                      <span>Unlink CRM</span>
+                    </button>
+                  )}
+
                   {targetEntry && (
                     <button
                       type="button"
@@ -2288,9 +2366,23 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                         </td>
                         <td className="py-2.5 px-3">
                           {entry.inCrm && entry.inPayroll ? (
-                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
-                              CRM + Payroll Synced
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                                CRM + Payroll Synced
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(ev) => {
+                                  ev.stopPropagation();
+                                  setUnlinkConfirmTarget(entry);
+                                }}
+                                className="text-[10px] font-bold text-rose-600 hover:text-rose-800 hover:underline cursor-pointer flex items-center gap-0.5"
+                                title="Unlink from CRM (Revoke CRM access)"
+                              >
+                                <Unlink className="w-2.5 h-2.5" />
+                                <span>Unlink CRM</span>
+                              </button>
+                            </div>
                           ) : !entry.inCrm ? (
                             <div className="flex items-center gap-1.5">
                               <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
@@ -2349,6 +2441,16 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                               <Edit3 className="w-3 h-3" />
                               <span>Edit</span>
                             </button>
+                            {entry.inCrm && (
+                              <button
+                                type="button"
+                                onClick={() => setUnlinkConfirmTarget(entry)}
+                                className="p-1 rounded bg-white border border-slate-200 hover:bg-rose-50 hover:border-rose-200 text-slate-400 hover:text-rose-600 cursor-pointer"
+                                title="Unlink from CRM (Revoke CRM access)"
+                              >
+                                <Unlink className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => handleDeleteUnifiedEmployee(entry, false)}
@@ -4267,6 +4369,60 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Yes, Clear Everything</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: UNLINK FROM CRM CONFIRMATION */}
+      {unlinkConfirmTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-2xs p-3">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-md w-full p-5 space-y-4 text-xs">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <Unlink className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="font-bold text-sm text-slate-900">
+                  Unlink &ldquo;{unlinkConfirmTarget.name}&rdquo; from CRM Workspace?
+                </h4>
+                <p className="text-slate-600 text-xs mt-1">
+                  Employee Code: <span className="font-mono font-bold text-[#1f7e9e]">{unlinkConfirmTarget.master?.empCode}</span> · Login: <span className="font-mono text-slate-700">{unlinkConfirmTarget.email}</span>
+                </p>
+                <div className="text-rose-900 bg-rose-50 border border-rose-200 rounded-md p-2.5 text-[11px] mt-2.5 space-y-1">
+                  <div className="font-bold flex items-center gap-1 text-rose-800">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
+                    <span>User will no longer be allowed to access CRM</span>
+                  </div>
+                  <p className="text-slate-700">
+                    This action revokes all CRM Workspace access (Leads, Deals, Orders, Invoices, Customers, Reports).
+                  </p>
+                  <p className="text-slate-700 font-medium">
+                    The employee will remain strictly in <strong>Payroll &amp; ESS Portal</strong> to view their salary slips, leave balances, and tax deductions.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setUnlinkConfirmTarget(null)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleUnlinkFromCrm(unlinkConfirmTarget);
+                  setUnlinkConfirmTarget(null);
+                }}
+                className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold cursor-pointer shadow-xs flex items-center gap-1.5"
+              >
+                <Unlink className="w-3.5 h-3.5" />
+                <span>Yes, Unlink &amp; Revoke CRM Access</span>
               </button>
             </div>
           </div>

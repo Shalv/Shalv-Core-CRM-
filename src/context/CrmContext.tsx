@@ -1631,6 +1631,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         Boolean(
           matchedUser.accessType === 'payroll_only' ||
             matchedUser.accessScope === 'payroll_only' ||
+            matchedUser.accessScope === 'PAYROLL_ONLY' ||
             matchedPayrollMaster?.accessType === 'payroll_only'
         );
 
@@ -2607,6 +2608,15 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Permission checks & RBAC helpers (User-Wise Permissions Primary Engine)
   const hasPermission = (module: CrmModuleKey, action: PermissionAction): boolean => {
+    // 0. Payroll-only users have NO access to any CRM workspace modules
+    if (
+      currentUser.accessScope === 'payroll_only' ||
+      currentUser.accessScope === 'PAYROLL_ONLY' ||
+      currentUser.accessType === 'payroll_only'
+    ) {
+      return false;
+    }
+
     // 1. User-wise permission is the primary authority
     if (currentUser.customPermissions?.[module]?.[action] !== undefined) {
       return !!currentUser.customPermissions[module]![action];

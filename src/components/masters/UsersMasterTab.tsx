@@ -632,7 +632,8 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
         (u) =>
           (u.id === m.userId || (m.email && u.email?.toLowerCase() === m.email.toLowerCase())) &&
           u.accessType !== 'payroll_only' &&
-          u.accessScope !== 'PAYROLL_ONLY'
+          u.accessScope !== 'PAYROLL_ONLY' &&
+          u.accessScope !== 'payroll_only'
       )
   );
 
@@ -1093,10 +1094,18 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
                       <td className="py-3.5 px-4">
                         {isPayrollEnrolled && pMaster ? (
                           <div className="space-y-1">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
-                                CRM + Payroll ({pMaster.empCode})
-                              </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {u.accessType === 'payroll_only' ||
+                              u.accessScope === 'payroll_only' ||
+                              pMaster.accessType === 'payroll_only' ? (
+                                <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                                  Payroll Only (CRM Unlinked)
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                                  CRM + Payroll ({pMaster.empCode})
+                                </span>
+                              )}
                             </div>
                             <div className="text-[11px] font-mono text-slate-700 font-semibold">
                               {formatCurrency(pMaster.monthlyGross)}/mo · PL:{pMaster.plQuota ?? 12} CL:{pMaster.clQuota ?? 6}

@@ -74,5 +74,9 @@ test('employee created in Payroll Master logs into ESS portal with email and adm
  assert.equal((await call('/api/auth/verify',{identifier:'neha.kulkarni@enact360.com',password:'AdminInit@2026'})).status,401);
  assert.equal((await call('/api/auth/verify',{identifier:'neha.kulkarni@enact360.com',password:'NehaPersonal@999'})).status,200);
  assert.equal((await call('/api/auth/verify',{identifier:'EMP-901',password:'NehaPersonal@999'})).status,200);
+ const crmLoginAttempt = await call('/api/auth/verify', { identifier: 'neha.kulkarni@enact360.com', password: 'NehaPersonal@999', portalMode: 'crm' });
+ assert.equal(crmLoginAttempt.status, 403);
+ const crmLoginJson = await crmLoginAttempt.json();
+ assert.match(crmLoginJson.message, /Access Restricted/);
 });
 after(async()=>{Pool.prototype.connect=originalConnect;await new Promise<void>((r,e)=>server.close(err=>err?e(err):r()));});
