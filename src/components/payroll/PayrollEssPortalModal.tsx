@@ -147,8 +147,19 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
     next: '',
     confirm: '',
     show: false,
-  });
   const [changePwdError, setChangePwdError] = useState<string | null>(null);
+
+  // Self-service Employee Profile Information Editing (syncs with Admin Dashboard & CRM)
+  const [isEditingProfileInfo, setIsEditingProfileInfo] = useState<boolean>(false);
+  const [profileEditForm, setProfileEditForm] = useState({
+    name: '',
+    phone: '',
+    location: '',
+    bankName: '',
+    bankAccountNo: '',
+    ifscCode: '',
+    panNumber: '',
+  });
 
   // 0A. Admin Global Leave, Shift & Payroll Formula Policy Master (Policy CS-HR-POL-001 · Version 1.0)
   const [adminPolicyMaster, setAdminPolicyMaster] = useState<AdminPolicyMaster>(() =>
@@ -422,6 +433,107 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
     );
   };
 
+  const handleStartEditProfile = () => {
+    if (!activeEmployee) return;
+    setProfileEditForm({
+      name: activeEmployee.name || currentUser.name || '',
+      phone: activeEmployee.phone || currentUser.phone || '',
+      location: activeEmployee.location || currentUser.location || '',
+      bankName: statutory.bankName || '',
+      bankAccountNo: statutory.bankAccountNo || '',
+      ifscCode: statutory.ifscCode || '',
+      panNumber: statutory.panNumber || '',
+    });
+    setIsEditingProfileInfo(true);
+  };
+
+  const handleSaveProfileInfo = async () => {
+    if (!activeEmployee) return;
+    if (!profileEditForm.name.trim()) {
+      setStatusBanner('Name cannot be empty.');
+      return;
+    }
+    const cleanName = profileEditForm.name.trim();
+    const cleanPhone = profileEditForm.phone.trim();
+    const cleanLocation = profileEditForm.location.trim();
+    const cleanBank = profileEditForm.bankName.trim();
+    const cleanAccount = profileEditForm.bankAccountNo.trim();
+    const cleanIfsc = profileEditForm.ifscCode.trim().toUpperCase();
+    const cleanPan = profileEditForm.panNumber.trim().toUpperCase();
+
+    // 1. Update CRM current user profile
+    updateCurrentUserProfile({
+      name: cleanName,
+      phone: cleanPhone,
+      location: cleanLocation,
+    });
+
+    // 2. Update local statutory state
+    const nextStatutory: StatutoryDetails = {
+      ...statutory,
+      bankName: cleanBank,
+      bankAccountNo: cleanAccount,
+      ifscCode: cleanIfsc,
+      panNumber: cleanPan,
+    };
+    setStatutory(nextStatutory);
+    saveEmployeeStatutoryDetails(activeEmployee.id, nextStatutory, true);
+
+    // 3. Update employeeSalaryMasters
+    const updatedMaster: EmployeeSalaryMasterRecord = {
+      ...activeEmployee,
+      name: cleanName,
+      phone: cleanPhone,
+      location: cleanLocation,
+      bankName: cleanBank,
+      bankAccountNo: cleanAccount,
+      ifscCode: cleanIfsc,
+      panNumber: cleanPan,
+    };
+    const nextMasters = {
+      ...employeeSalaryMasters,
+      [activeEmployee.id]: updatedMaster,
+    };
+    setEmployeeSalaryMasters(nextMasters);
+    saveEmployeeSalaryMasters(nextMasters, true, false, [activeEmployee.id]);
+
+    // 4. Save to server ESS endpoint & profile endpoint
+    try {
+      await fetch(`/api/payroll/ess/${activeEmployee.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profile: {
+            name: cleanName,
+            phone: cleanPhone,
+            location: cleanLocation,
+          },
+          statutory: nextStatutory,
+        }),
+      });
+      await fetch('/api/auth/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: activeEmployee.id,
+          name: cleanName,
+          phone: cleanPhone,
+          location: cleanLocation,
+          bankName: cleanBank,
+          bankAccountNo: cleanAccount,
+          ifscCode: cleanIfsc,
+          panNumber: cleanPan,
+        }),
+      });
+    } catch {
+      // ignore
+    }
+
+    window.dispatchEvent(new CustomEvent(PAYROLL_MASTERS_SYNC_EVENT));
+    setIsEditingProfileInfo(false);
+    setStatusBanner('✓ Your profile changes have been saved and synced to the Admin Dashboard & CRM.');
+  };
+
   // Persist employeeSalaryMasters when modal is active
   useEffect(() => {
     if (isOpen) {
@@ -453,7 +565,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
       window.removeEventListener(PAYROLL_MASTERS_SYNC_EVENT, syncFromStorage);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, supplierCompany?.bankName, supplierCompany?.ifscCode]);
+  }, [isOpen, supplierCompany?.bankName, supplierCompany?.ifscCode, users, currentUser]);
 
   useEffect(() => {
     if (isOpen && initialTab) {
@@ -5037,7 +5149,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
                 {/* Left Column: Employee Master Profile Details */}
                 <div className="lg:col-span-7 bg-white rounded-xl border border-slate-200 p-5 space-y-4 shadow-2xs">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
                     <div className="flex items-center gap-3">
                       <UserAvatar
                         name={activeEmployee.name}
@@ -5053,61 +5165,183 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                         </p>
                       </div>
                     </div>
-                    <span className="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 font-mono font-bold text-xs">
-                      {statutory.empCode}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 font-mono font-bold text-xs">
+                        {statutory.empCode}
+                      </span>
+                      {!isEditingProfileInfo && (
+                        <button
+                          type="button"
+                          onClick={handleStartEditProfile}
+                          className="px-3 py-1 bg-[#1f7e9e] hover:bg-[#18647e] text-white font-bold rounded-lg text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>Edit Details</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                      <div className="text-[11px] font-semibold text-slate-500">Full Name</div>
-                      <div className="font-bold text-slate-900 mt-0.5">{activeEmployee.name}</div>
-                    </div>
-                    <div className="p-3 rounded-xl bg-indigo-50/60 border border-indigo-200">
-                      <div className="text-[11px] font-semibold text-indigo-900">
-                        Official Login Email ID (Employee Master)
+                  {isEditingProfileInfo ? (
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        handleSaveProfileInfo();
+                      }}
+                      className="space-y-3.5"
+                    >
+                      <div className="p-3 rounded-xl bg-sky-50/80 border border-sky-200 text-xs text-sky-900">
+                        Edit your personal information below. Changes save immediately and sync with the Admin Dashboard &amp; CRM.
                       </div>
-                      <div className="font-mono font-bold text-indigo-700 mt-0.5 break-all">
-                        {activeEmployee.email}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div>
+                          <label className="font-bold text-slate-700 block mb-1">Full Name *</label>
+                          <input
+                            type="text"
+                            required
+                            value={profileEditForm.name}
+                            onChange={(e) => setProfileEditForm({ ...profileEditForm, name: e.target.value })}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-bold text-slate-700 block mb-1">Mobile Phone</label>
+                          <input
+                            type="text"
+                            value={profileEditForm.phone}
+                            onChange={(e) => setProfileEditForm({ ...profileEditForm, phone: e.target.value })}
+                            placeholder="+91 98000 00000"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div>
+                          <label className="font-bold text-slate-700 block mb-1">Work Location</label>
+                          <input
+                            type="text"
+                            value={profileEditForm.location}
+                            onChange={(e) => setProfileEditForm({ ...profileEditForm, location: e.target.value })}
+                            placeholder="e.g. New Delhi HQ / Remote"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-bold text-slate-700 block mb-1">Salary Bank Name</label>
+                          <input
+                            type="text"
+                            value={profileEditForm.bankName}
+                            onChange={(e) => setProfileEditForm({ ...profileEditForm, bankName: e.target.value })}
+                            placeholder="e.g. HDFC Bank Ltd"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                        <div>
+                          <label className="font-bold text-slate-700 block mb-1">Bank Account Number</label>
+                          <input
+                            type="text"
+                            value={profileEditForm.bankAccountNo}
+                            onChange={(e) => setProfileEditForm({ ...profileEditForm, bankAccountNo: e.target.value })}
+                            placeholder="50100482910482"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-bold text-slate-700 block mb-1">Bank IFSC Code</label>
+                          <input
+                            type="text"
+                            value={profileEditForm.ifscCode}
+                            onChange={(e) => setProfileEditForm({ ...profileEditForm, ifscCode: e.target.value.toUpperCase() })}
+                            placeholder="HDFC0001245"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-bold text-slate-700 block mb-1">PAN Number</label>
+                          <input
+                            type="text"
+                            value={profileEditForm.panNumber}
+                            onChange={(e) => setProfileEditForm({ ...profileEditForm, panNumber: e.target.value.toUpperCase() })}
+                            placeholder="ABCDE1234F"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1f7e9e]"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2.5 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingProfileInfo(false)}
+                          className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-4 py-2 rounded-xl bg-[#1f7e9e] hover:bg-[#18647e] text-white font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer transition"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Save &amp; Sync to Admin</span>
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                        <div className="text-[11px] font-semibold text-slate-500">Full Name</div>
+                        <div className="font-bold text-slate-900 mt-0.5">{activeEmployee.name}</div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-indigo-50/60 border border-indigo-200">
+                        <div className="text-[11px] font-semibold text-indigo-900">
+                          Official Login Email ID (Employee Master)
+                        </div>
+                        <div className="font-mono font-bold text-indigo-700 mt-0.5 break-all">
+                          {activeEmployee.email}
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                        <div className="text-[11px] font-semibold text-slate-500">Employee Code</div>
+                        <div className="font-mono font-bold text-[#1f7e9e] mt-0.5">
+                          {statutory.empCode}
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                        <div className="text-[11px] font-semibold text-slate-500">Role &amp; Department</div>
+                        <div className="font-bold text-slate-900 mt-0.5">
+                          {activeEmployee.designation || activeEmployee.role} · {activeEmployee.department}
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                        <div className="text-[11px] font-semibold text-slate-500">Mobile Phone</div>
+                        <div className="font-mono font-semibold text-slate-900 mt-0.5">
+                          {activeEmployee.phone || '—'}
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                        <div className="text-[11px] font-semibold text-slate-500">Work Location</div>
+                        <div className="font-semibold text-slate-900 mt-0.5">
+                          {activeEmployee.location || 'Corporate HQ'}
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                        <div className="text-[11px] font-semibold text-slate-500">Salary Bank Account</div>
+                        <div className="font-mono font-semibold text-slate-900 mt-0.5">
+                          {statutory.bankName || 'HDFC Bank Ltd'} ({statutory.bankAccountNo || '—'})
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                        <div className="text-[11px] font-semibold text-slate-500">PAN / UAN</div>
+                        <div className="font-mono font-semibold text-slate-900 mt-0.5">
+                          {statutory.panNumber || '—'} / {statutory.uanNumber || '—'}
+                        </div>
                       </div>
                     </div>
-                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                      <div className="text-[11px] font-semibold text-slate-500">Employee Code</div>
-                      <div className="font-mono font-bold text-[#1f7e9e] mt-0.5">
-                        {statutory.empCode}
-                      </div>
-                    </div>
-                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                      <div className="text-[11px] font-semibold text-slate-500">Role &amp; Department</div>
-                      <div className="font-bold text-slate-900 mt-0.5">
-                        {activeEmployee.designation || activeEmployee.role} · {activeEmployee.department}
-                      </div>
-                    </div>
-                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                      <div className="text-[11px] font-semibold text-slate-500">Mobile Phone</div>
-                      <div className="font-mono font-semibold text-slate-900 mt-0.5">
-                        {activeEmployee.phone || '—'}
-                      </div>
-                    </div>
-                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                      <div className="text-[11px] font-semibold text-slate-500">Work Location</div>
-                      <div className="font-semibold text-slate-900 mt-0.5">
-                        {activeEmployee.location || 'Corporate HQ'}
-                      </div>
-                    </div>
-                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                      <div className="text-[11px] font-semibold text-slate-500">Salary Bank Account</div>
-                      <div className="font-mono font-semibold text-slate-900 mt-0.5">
-                        {statutory.bankName} ({statutory.bankAccountNo})
-                      </div>
-                    </div>
-                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                      <div className="text-[11px] font-semibold text-slate-500">PAN / UAN</div>
-                      <div className="font-mono font-semibold text-slate-900 mt-0.5">
-                        {statutory.panNumber} / {statutory.uanNumber}
-                      </div>
-                    </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Right Column: Change Password from Profile for Further Logins */}

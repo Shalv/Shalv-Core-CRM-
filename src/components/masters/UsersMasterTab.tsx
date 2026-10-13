@@ -253,7 +253,7 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
       name: '',
       username: '',
       email: '',
-      password: 'password123',
+      password: '',
       phone: '+91 ',
       designation: 'Account Executive',
       location: 'New Delhi HQ',
@@ -464,7 +464,7 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
     } else {
       const created = addUser({
         ...form,
-        password: explicitPassword || 'password123',
+        password: explicitPassword,
         customPermissions: permPreset === 'role_default' ? undefined : permsDraft,
       });
       targetUserId = created.id;
@@ -484,7 +484,7 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
         const prevMaster = updatedMasters[targetUserId] || existingEmailMaster;
         const finalPass = editingUserId
           ? explicitPassword || prevMaster?.password || undefined
-          : explicitPassword || prevMaster?.password || 'password123';
+          : explicitPassword || prevMaster?.password || undefined;
         updatedMasters[targetUserId] = {
           ...prevMaster,
           userId: targetUserId,
@@ -597,8 +597,8 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
         userId: u.id,
         name: u.name,
         email: u.email,
-        password: u.password || existing.password || 'password123',
-        tempPassword: u.tempPassword || u.password || existing.tempPassword || 'password123',
+        password: u.password || existing.password || '',
+        tempPassword: u.tempPassword || u.password || existing.tempPassword || '',
         enrolledInPayroll: true,
         syncedWithCrm: true,
       },
@@ -641,7 +641,7 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
     const existingUser = users.find(
       (u) => u.id === m.userId || (m.email && u.email?.toLowerCase() === m.email.toLowerCase())
     );
-    const preservedPass = m.password || m.tempPassword || existingUser?.password || 'password123';
+    const preservedPass = m.password || m.tempPassword || existingUser?.password || '';
     let targetId = m.userId;
 
     if (existingUser) {
@@ -1043,7 +1043,7 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
                           <span>@{u.username || u.email.split('@')[0]}</span>
                           <span>·</span>
                           <span className="text-slate-400">
-                            pwd: {u.password ? '••••••••' : 'password123'}
+                            pwd: ••••••••
                           </span>
                         </div>
                       </td>
@@ -1493,13 +1493,6 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
                         <label className="font-bold text-slate-700 block">
                           {editingUserId ? 'New Login Password' : 'Login Password *'}
                         </label>
-                        <button
-                          type="button"
-                          onClick={() => setForm({ ...form, password: 'password123' })}
-                          className="text-[11px] font-semibold text-indigo-600 hover:underline cursor-pointer"
-                        >
-                          Use password123
-                        </button>
                       </div>
                       <div className="relative">
                         <input
@@ -1510,7 +1503,7 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
                           placeholder={
                             editingUserId
                               ? 'Leave blank to keep current password'
-                              : 'Set login password (e.g. password123)'
+                              : 'Enter login password for user'
                           }
                           className="w-full bg-indigo-50/50 border border-indigo-200 rounded-xl pl-3 pr-9 py-2 text-xs font-mono font-bold text-indigo-950"
                         />

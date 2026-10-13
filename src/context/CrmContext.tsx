@@ -1084,6 +1084,69 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         return next;
       });
+      // Synchronize currentUser if the updated users list contains an updated profile for the currently logged-in user
+      setCurrentUser((prevUser) => {
+        if (!prevUser || !prevUser.id) return prevUser;
+        const matchingUpdatedUser = s.users.find(
+          (u: any) =>
+            String(u.id) === String(prevUser.id) ||
+            (u.email && prevUser.email && String(u.email).trim().toLowerCase() === String(prevUser.email).trim().toLowerCase())
+        );
+        if (matchingUpdatedUser) {
+          const mergedCurrent = sanitizeClientUser({
+            ...prevUser,
+            ...matchingUpdatedUser,
+            avatar: matchingUpdatedUser.avatar || prevUser.avatar,
+          });
+          try {
+            localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(mergedCurrent));
+          } catch {
+            // ignore
+          }
+          return mergedCurrent;
+        }
+        return prevUser;
+      });
+      try {
+        const rawMasters = localStorage.getItem('crm_ess_admin_employee_masters');
+        if (rawMasters) {
+          const parsed = JSON.parse(rawMasters);
+          if (parsed && typeof parsed === 'object') {
+            let mChanged = false;
+            for (const u of s.users) {
+              if (!u || !u.id) continue;
+              const uEmail = (u.email || '').trim().toLowerCase();
+              for (const [k, m] of Object.entries(parsed) as Array<[string, any]>) {
+                if (
+                  m &&
+                  (k === u.id ||
+                    m.userId === u.id ||
+                    (uEmail && m.email && String(m.email).trim().toLowerCase() === uEmail))
+                ) {
+                  parsed[k] = sanitizeClientPayrollObj({
+                    ...m,
+                    ...(u.name ? { name: u.name } : {}),
+                    ...(u.username ? { username: u.username } : {}),
+                    ...(u.email ? { email: u.email } : {}),
+                    ...(u.phone ? { phone: u.phone } : {}),
+                    ...(u.designation ? { designation: u.designation } : {}),
+                    ...(u.location ? { location: u.location } : {}),
+                    ...(u.role ? { role: u.role } : {}),
+                    ...(u.department ? { department: u.department } : {}),
+                  });
+                  mChanged = true;
+                }
+              }
+            }
+            if (mChanged) {
+              localStorage.setItem('crm_ess_admin_employee_masters', JSON.stringify(parsed));
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
+      window.dispatchEvent(new CustomEvent('crm-payroll-masters-updated'));
     }
     if (s.states) setStates(s.states);
     if (s.products) setProducts(s.products);
@@ -1238,37 +1301,59 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(STORAGE_KEYS.AUDIT, JSON.stringify(auditLogs));
   }, [auditLogs]);
 
-  // Refresh payroll caches from the same authoritative database after sign-in.
+  // Refresh payroll caches from the same authoritative database after sign-in and periodically
   useEffect(() => {
     if (!isAuthenticated) return;
     let cancelled = false;
-    const token = localStorage.getItem('crm_auth_token');
-    void fetch('/api/sync/pull', token ? { headers: { Authorization: `Bearer ${token}` } } : undefined).then(async res => {
-      if (!res.ok) throw new Error('Payroll data could not load');
-      return res.json();
-    }).then(({data}) => {
-      if (cancelled || !data) return;
-      const entries: Array<[string, any]> = [
-        ['crm_ess_admin_employee_masters', data.payrollMasters || {}],
-        ['crm_ess_employee_loans', data.payrollLoans || []],
-        ['crm_ess_admin_policy_master', data.payrollPolicy],
-        ['crm_payroll_org_masters', data.payrollOrgMasters],
-        ['crm_payroll_integration_config', data.payrollIntegrationConfig],
-        ['crm_payroll_deleted_master_ids', data.deletedPayrollMasterIds || []],
-      ];
-      for (const [key,value] of entries) {
-        if (value == null) localStorage.removeItem(key);
-        else localStorage.setItem(key,JSON.stringify(value));
-      }
-      for (const [slice,suffix] of [['payrollAttendance','attendance'],['payrollLeaves','leaves'],['payrollClaims','claims'],['payrollStatutory','statutory']]) {
-        const existing=Object.keys(localStorage).filter(k=>k.startsWith('crm_ess_') && k.endsWith('_'+suffix));
-        for(const key of existing) localStorage.removeItem(key);
-        for(const [id,value] of Object.entries(data[slice] || {})) localStorage.setItem(`crm_ess_${id}_${suffix}`,JSON.stringify(value));
-      }
-      window.dispatchEvent(new CustomEvent('crm-payroll-masters-updated'));
-      window.dispatchEvent(new CustomEvent('crm-payroll-loans-updated'));
-    }).catch(() => {});
-    return () => {cancelled=true;};
+    const pullPayroll = () => {
+      const token = localStorage.getItem('crm_auth_token');
+      void fetch('/api/sync/pull', token ? { headers: { Authorization: `Bearer ${token}` } } : undefined)
+        .then(async (res) => {
+          if (!res.ok) throw new Error('Payroll data could not load');
+          return res.json();
+        })
+        .then(({ data }) => {
+          if (cancelled || !data) return;
+          const entries: Array<[string, any]> = [
+            ['crm_ess_admin_employee_masters', data.payrollMasters || {}],
+            ['crm_ess_employee_loans', data.payrollLoans || []],
+            ['crm_ess_admin_policy_master', data.payrollPolicy],
+            ['crm_payroll_org_masters', data.payrollOrgMasters],
+            ['crm_payroll_integration_config', data.payrollIntegrationConfig],
+            ['crm_payroll_deleted_master_ids', data.deletedPayrollMasterIds || []],
+          ];
+          for (const [key, value] of entries) {
+            if (value == null) localStorage.removeItem(key);
+            else localStorage.setItem(key, JSON.stringify(value));
+          }
+          for (const [slice, suffix] of [
+            ['payrollAttendance', 'attendance'],
+            ['payrollLeaves', 'leaves'],
+            ['payrollClaims', 'claims'],
+            ['payrollStatutory', 'statutory'],
+          ]) {
+            const existing = Object.keys(localStorage).filter(
+              (k) => k.startsWith('crm_ess_') && k.endsWith('_' + suffix)
+            );
+            for (const key of existing) localStorage.removeItem(key);
+            for (const [id, value] of Object.entries(data[slice] || {})) {
+              localStorage.setItem(`crm_ess_${id}_${suffix}`, JSON.stringify(value));
+            }
+          }
+          window.dispatchEvent(new CustomEvent('crm-payroll-masters-updated'));
+          window.dispatchEvent(new CustomEvent('crm-payroll-loans-updated'));
+        })
+        .catch(() => {});
+    };
+
+    pullPayroll();
+    const interval = setInterval(pullPayroll, 8000);
+    window.addEventListener('focus', pullPayroll);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      window.removeEventListener('focus', pullPayroll);
+    };
   }, [isAuthenticated]);
 
   useEffect(() => {
@@ -1377,8 +1462,8 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             empCode: (u as any).empCode || `EMP-${String(idx + 1).padStart(3, '0')}`,
             name: u.name,
             email: u.email,
-            password: u.password || u.tempPassword || 'password123',
-            tempPassword: u.tempPassword || u.password || 'password123',
+            password: u.password || u.tempPassword || '',
+            tempPassword: u.tempPassword || u.password || '',
             role: u.role,
             department: u.department,
             designation: u.designation || u.role,
@@ -1972,8 +2057,6 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             localUser?.password,
             localUser?.tempPassword,
             pendingPass,
-            'password123',
-            'Welcome@123',
           ].filter((p): p is string => typeof p === 'string' && p.trim().length > 0);
 
           const inputPassTrim = String(password || '').trim();
@@ -2035,7 +2118,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               verifyOk = true;
             }
           } else {
-            throw new Error('Invalid password. If you did not change the password during creation, the default password is password123.');
+            throw new Error('Invalid password. Please check your credentials or contact your administrator.');
           }
         } else {
           throw new Error(data?.message || `No account found with identifier "${identifier}". Check your Employee Code (e.g. EMP-101) or work email.`);
@@ -2220,6 +2303,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (parsedMasters && typeof parsedMasters === 'object') {
             let changed = false;
             const prevEmailLower = (prev.email || '').trim().toLowerCase();
+            const statutoryData = data as any;
             for (const [k, m] of Object.entries(parsedMasters) as Array<[string, any]>) {
               if (
                 m &&
@@ -2237,6 +2321,11 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   ...(updated.phone ? { phone: updated.phone } : {}),
                   ...(updated.designation ? { designation: updated.designation } : {}),
                   ...(updated.location ? { location: updated.location } : {}),
+                  ...(statutoryData.bankName !== undefined ? { bankName: statutoryData.bankName } : {}),
+                  ...(statutoryData.bankAccountNo !== undefined ? { bankAccountNo: statutoryData.bankAccountNo } : {}),
+                  ...(statutoryData.ifscCode !== undefined ? { ifscCode: statutoryData.ifscCode } : {}),
+                  ...(statutoryData.panNumber !== undefined ? { panNumber: statutoryData.panNumber } : {}),
+                  ...(statutoryData.uanNumber !== undefined ? { uanNumber: statutoryData.uanNumber } : {}),
                 });
                 changed = true;
               }
@@ -2255,15 +2344,22 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         recordPendingUserPassword(prev.id, nextPass);
       }
 
+      const statutoryData = data as any;
       fetch('/api/auth/profile', {
         method: 'POST',
         headers: crmAuthHeaders(),
         body: JSON.stringify({
           ...updated,
+          ...(statutoryData.bankName !== undefined ? { bankName: statutoryData.bankName } : {}),
+          ...(statutoryData.bankAccountNo !== undefined ? { bankAccountNo: statutoryData.bankAccountNo } : {}),
+          ...(statutoryData.ifscCode !== undefined ? { ifscCode: statutoryData.ifscCode } : {}),
+          ...(statutoryData.panNumber !== undefined ? { panNumber: statutoryData.panNumber } : {}),
+          ...(statutoryData.uanNumber !== undefined ? { uanNumber: statutoryData.uanNumber } : {}),
           ...(nextPass ? { password: nextPass } : {}),
         }),
       }).catch(() => {});
 
+      window.dispatchEvent(new CustomEvent('crm-payroll-masters-updated'));
       return updated;
     });
   };
@@ -2410,8 +2506,11 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             : u.avatar && (u.avatar.startsWith('data:image') || u.avatar.startsWith('http') || u.avatar.startsWith('/'))
             ? u.avatar
             : u.avatar || initials;
-        const updated = sanitizeClientUser({ ...u, ...normalizedPatch, avatar: nextAvatar });
-        if (currentUser.id === id) {
+        const isSelf =
+          currentUser.id === id ||
+          (currentUser.email && targetEmail && currentUser.email.trim().toLowerCase() === targetEmail.trim().toLowerCase()) ||
+          (currentUser.id && u.id && String(currentUser.id) === String(u.id));
+        if (isSelf) {
           setCurrentUser(updated);
           try {
             localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updated));

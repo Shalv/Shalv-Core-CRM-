@@ -111,6 +111,22 @@ export const Navbar: React.FC<NavbarProps> = ({
     avatar: currentUser.avatar || '',
   });
 
+  // Keep profile form state in sync whenever currentUser changes (e.g. updated by Admin)
+  useEffect(() => {
+    setProfileForm({
+      name: currentUser.name || '',
+      username: currentUser.username || currentUser.email?.split('@')[0] || '',
+      email: currentUser.email || '',
+      phone: currentUser.phone || '',
+      designation: currentUser.designation || currentUser.role || '',
+      location: currentUser.location || '',
+      password: '',
+      department: currentUser.department,
+      role: currentUser.role,
+      avatar: currentUser.avatar || '',
+    });
+  }, [currentUser]);
+
   const openProfileModal = () => {
     setProfileForm({
       name: currentUser.name,
@@ -154,6 +170,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     if (trimmedPassword) {
       changeEmployeePassword(currentUser.id || currentUser.email, trimmedPassword);
     }
+    window.dispatchEvent(new CustomEvent('crm-payroll-masters-updated'));
     setIsProfileModalOpen(false);
   };
   const [showNotifications, setShowNotifications] = useState(false);

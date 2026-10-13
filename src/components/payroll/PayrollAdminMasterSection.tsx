@@ -529,7 +529,11 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
       nextPatch.tempPassword !== undefined ||
       nextPatch.email !== undefined ||
       nextPatch.name !== undefined ||
+      nextPatch.phone !== undefined ||
       nextPatch.role !== undefined ||
+      nextPatch.department !== undefined ||
+      nextPatch.designation !== undefined ||
+      nextPatch.location !== undefined ||
       nextPatch.status !== undefined ||
       nextPatch.accessType !== undefined ||
       nextPatch.syncedWithCrm !== undefined
@@ -551,6 +555,10 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
         updateUser(linkedCrmUser.id, {
           ...(nextPatch.name !== undefined ? { name: nextPatch.name } : {}),
           ...(nextPatch.email !== undefined ? { email: nextPatch.email } : {}),
+          ...(nextPatch.phone !== undefined ? { phone: nextPatch.phone } : {}),
+          ...(nextPatch.department !== undefined ? { department: nextPatch.department as any } : {}),
+          ...(nextPatch.designation !== undefined ? { designation: nextPatch.designation } : {}),
+          ...(nextPatch.location !== undefined ? { location: nextPatch.location } : {}),
           ...(nextPatch.password !== undefined
             ? {
                 password: nextPatch.password,
@@ -650,7 +658,11 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
       return;
     }
 
-    const finalPass = newUserDraft.password?.trim() || 'password123';
+    const finalPass = newUserDraft.password?.trim();
+    if (!finalPass) {
+      setStatusBanner('Please enter a login password for the new employee. Passwords must be explicitly configured.');
+      return;
+    }
     const resolvedUsername =
       newUserDraft.username.trim() || newUserDraft.email.trim().split('@')[0];
     const mustChange = false;

@@ -289,7 +289,7 @@ function resolveRecordPasswordHash(record: any, existingRecord?: any, fallbackRe
   if (prevHash) {
     return hashPassword(String(prevHash));
   }
-  return DEFAULT_SEED_PASSWORD_HASH;
+  return '';
 }
 
 function stripPlaintextAndResetFlags(obj: Record<string, any>): Record<string, any> {
@@ -1357,9 +1357,8 @@ async function handleAuthLogin(req: Request, res: Response) {
       (master?.password ? hashPassword(master.password) : undefined) ||
       (user?.password ? hashPassword(user.password) : undefined) ||
       (user?.tempPassword ? hashPassword(user.tempPassword) : undefined) ||
-      (master?.tempPassword ? hashPassword(master.tempPassword) : undefined) ||
-      DEFAULT_SEED_PASSWORD_HASH;
-    if (!verifyPasswordHash(password, storedHash)) {
+      (master?.tempPassword ? hashPassword(master.tempPassword) : undefined);
+    if (!storedHash || !verifyPasswordHash(password, storedHash)) {
       return res.status(401).json({
         success: false,
         authenticated: false,
@@ -1626,7 +1625,7 @@ app.post('/api/auth/profile', async (req: Request, res: Response) => {
     const rawPassword = String(req.body?.password ?? req.body?.newPassword ?? '').trim();
     const nextPasswordHash = rawPassword
       ? hashPassword(rawPassword)
-      : curr.passwordHash || DEFAULT_SEED_PASSWORD_HASH;
+      : curr.passwordHash;
 
     const lockedToPayroll =
       !isAdminActor &&
@@ -1676,10 +1675,20 @@ app.post('/api/auth/profile', async (req: Request, res: Response) => {
             phone: updatedRecord.phone,
             designation: updatedRecord.designation,
             location: updatedRecord.location,
+            ...(req.body?.bankName !== undefined ? { bankName: String(req.body.bankName).trim() } : {}),
+            ...(req.body?.bankAccountNo !== undefined ? { bankAccountNo: String(req.body.bankAccountNo).trim() } : {}),
+            ...(req.body?.ifscCode !== undefined ? { ifscCode: String(req.body.ifscCode).trim() } : {}),
+            ...(req.body?.panNumber !== undefined ? { panNumber: String(req.body.panNumber).trim() } : {}),
+            ...(req.body?.uanNumber !== undefined ? { uanNumber: String(req.body.uanNumber).trim() } : {}),
             passwordHash: nextPasswordHash,
           });
         }
       }
+      MOCK_TABLES.payroll_masters = Object.values(PERSISTED_CRM_STATE.payrollMasters);
+    }
+
+    if (PERSISTED_CRM_STATE.crmSlices && typeof PERSISTED_CRM_STATE.crmSlices === 'object') {
+      PERSISTED_CRM_STATE.crmSlices.users = MOCK_TABLES.users.map(sanitizeUserForClient);
     }
 
     savePersistedStore();
@@ -1786,7 +1795,12 @@ app.post('/api/state', async (req: Request, res: Response) => {
     if (actor && !['Super Admin','Administrator'].includes(actor.role)) {
       const protectedUsers = (rows:any[]) => rows.map(u => {
         const copy={...u};
-        if(String(u.id)===String(actor.id)) for(const key of ['name','username','avatar','phone','location','designation','accessScope','lastLoginAt','empCode']) delete copy[key];
+        const isSelf = String(u.id) === String(actor.id) || (actor.email && u.email && String(u.email).toLowerCase() === String(actor.email).toLowerCase());
+        if (isSelf) {
+          for (const key of ['name','username','email','avatar','phone','location','designation','accessScope','lastLoginAt','empCode','bankName','bankAccountNo','ifscCode','panNumber','uanNumber']) {
+            delete copy[key];
+          }
+        }
         return copy;
       });
       const hasOtherUserPassword = Array.from(explicitIncomingPasswordByUserId.keys()).some(
@@ -2837,6 +2851,34 @@ app.post('/api/payroll/ess/:empId', (req: Request, res: Response) => {
       };
     }
   }
+
+  const { profile } = req.body || {};
+  if (profile && typeof profile === 'object') {
+    const uIdx = MOCK_TABLES.users.findIndex((u) => String(u.id) === String(empId));
+    if (uIdx >= 0) {
+      MOCK_TABLES.users[uIdx] = stripPlaintextAndResetFlags({
+        ...MOCK_TABLES.users[uIdx],
+        ...(profile.name ? { name: String(profile.name).trim() } : {}),
+        ...(profile.phone !== undefined ? { phone: String(profile.phone).trim() } : {}),
+        ...(profile.location !== undefined ? { location: String(profile.location).trim() } : {}),
+        ...(profile.avatar !== undefined ? { avatar: profile.avatar } : {}),
+      });
+    }
+    if (PERSISTED_CRM_STATE.payrollMasters && PERSISTED_CRM_STATE.payrollMasters[empId]) {
+      PERSISTED_CRM_STATE.payrollMasters[empId] = stripPlaintextAndResetFlags({
+        ...PERSISTED_CRM_STATE.payrollMasters[empId],
+        ...(profile.name ? { name: String(profile.name).trim() } : {}),
+        ...(profile.phone !== undefined ? { phone: String(profile.phone).trim() } : {}),
+        ...(profile.location !== undefined ? { location: String(profile.location).trim() } : {}),
+        ...(profile.avatar !== undefined ? { avatar: profile.avatar } : {}),
+      });
+      MOCK_TABLES.payroll_masters = Object.values(PERSISTED_CRM_STATE.payrollMasters);
+    }
+    if (PERSISTED_CRM_STATE.crmSlices && typeof PERSISTED_CRM_STATE.crmSlices === 'object') {
+      PERSISTED_CRM_STATE.crmSlices.users = MOCK_TABLES.users.map(sanitizeUserForClient);
+    }
+  }
+
   savePersistedStore();
   res.json({ success: true, empId });
 });
