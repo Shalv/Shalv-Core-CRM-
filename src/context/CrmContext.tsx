@@ -1613,7 +1613,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isPayrollPortalLogin
           ? (matchedPayrollMaster
               ? matchedPayrollMaster.status === 'Inactive' || matchedPayrollMaster.employmentStatus === 'Inactive'
-              : matchedUser.status === 'Inactive')
+              : (matchedUser.status === 'Inactive' && matchedUser.accessType !== 'payroll_only' && matchedUser.accessScope !== 'payroll_only'))
           : matchedUser.status === 'Inactive';
 
       if (isAccountInactive) {
@@ -2323,7 +2323,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         (userData.email ? userData.email.trim().split('@')[0] : 'user'),
       email: userData.email?.trim() || existingUser?.email || '',
       avatar: userData.avatar || existingUser?.avatar || initials,
-      status: userData.status || existingUser?.status || 'Active',
+      status: userData.status || 'Active',
       accessScope: normalizedScope,
       empCode: userData.empCode || existingUser?.empCode || undefined,
     };

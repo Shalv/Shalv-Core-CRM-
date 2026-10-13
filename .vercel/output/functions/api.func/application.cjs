@@ -50588,9 +50588,12 @@ async function handleAuthLogin(req, res) {
         message: "Access Restricted: Your account is not enrolled in the Payroll ESS Portal. Please use the CRM Workspace login."
       });
     }
-    const userInactive = user && String(user.status || "").toLowerCase() === "inactive";
-    const masterInactive = master && (String(master.status || "").toLowerCase() === "inactive" || String(master.employmentStatus || "").toLowerCase() === "inactive");
-    if (userInactive || masterInactive && !user) {
+    const userInactive = Boolean(user && String(user.status || "").toLowerCase() === "inactive");
+    const masterInactive = Boolean(
+      master && (String(master.status || "").toLowerCase() === "inactive" || String(master.employmentStatus || "").toLowerCase() === "inactive")
+    );
+    const isInactiveForPortal = portalMode === "payroll" ? master ? masterInactive : userInactive : portalMode === "crm" ? userInactive : userInactive || masterInactive && !user;
+    if (isInactiveForPortal) {
       return res.status(403).json({
         success: false,
         authenticated: false,

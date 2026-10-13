@@ -433,7 +433,7 @@ function relinkUsersAndPayrollMasters() {
         : undefined);
     const targetId = matchedUser ? String(matchedUser.id) : mId;
     const resolvedHash = resolveRecordPasswordHash(m, relinkedMasters[targetId], matchedUser);
-    const effectiveStatus = m.status || m.employmentStatus || matchedUser?.status || 'Active';
+    const effectiveStatus = m.status || m.employmentStatus || (matchedUser && matchedUser.status !== 'Inactive' ? matchedUser.status : undefined) || 'Active';
     relinkedMasters[targetId] = stripPlaintextAndResetFlags({
       ...relinkedMasters[targetId],
       ...m,
@@ -1338,7 +1338,7 @@ async function handleAuthLogin(req: Request, res: Response) {
     // In CRM Portal mode, check the CRM user status.
     const isInactiveForPortal =
       portalMode === 'payroll'
-        ? (master ? masterInactive : userInactive)
+        ? (master ? masterInactive : (userInactive && user?.accessType !== 'payroll_only' && user?.accessScope !== 'payroll_only'))
         : portalMode === 'crm'
         ? userInactive
         : (userInactive || (masterInactive && !user));
@@ -1486,9 +1486,11 @@ app.post('/api/auth/change-password', async (req: Request, res: Response) => {
       });
     }
 
+    const isMasterActive = master && String(master.status || '').toLowerCase() !== 'inactive';
     if (
-      (user && String(user.status || '').toLowerCase() === 'inactive') ||
-      (!user && master && String(master.status || '').toLowerCase() === 'inactive')
+      !isMasterActive &&
+      ((user && String(user.status || '').toLowerCase() === 'inactive') ||
+        (!user && master && String(master.status || '').toLowerCase() === 'inactive'))
     ) {
       return res.status(403).json({
         success: false,
@@ -2540,7 +2542,7 @@ app.post('/api/payroll/masters', async (req: Request, res: Response) => {
       const existingUser = existingIdx >= 0 ? MOCK_TABLES.users[existingIdx] : undefined;
       const existingMaster = currentMasters[canonicalUserId] || currentMasters[String(m.userId)];
       const passwordHash = resolveRecordPasswordHash(m, existingMaster, existingUser);
-      const effectiveStatus = m.status || m.employmentStatus || existingUser?.status || 'Active';
+      const effectiveStatus = m.status || m.employmentStatus || (existingUser && existingUser.status !== 'Inactive' ? existingUser.status : undefined) || 'Active';
 
       const normalizedMaster = stripPlaintextAndResetFlags({
         ...existingMaster,
@@ -2947,7 +2949,7 @@ app.post('/api/sync/push', async (req: Request, res: Response) => {
       const prevMaster = existingMap.get(canonicalId);
       const prevUser = uIdx >= 0 ? MOCK_TABLES.users[uIdx] : undefined;
       const passwordHash = resolveRecordPasswordHash(m, prevMaster, prevUser);
-      const effectiveStatus = m.status || m.employmentStatus || prevUser?.status || 'Active';
+      const effectiveStatus = m.status || m.employmentStatus || (prevUser && prevUser.status !== 'Inactive' ? prevUser.status : undefined) || 'Active';
       existingMap.set(
         canonicalId,
         stripPlaintextAndResetFlags({
