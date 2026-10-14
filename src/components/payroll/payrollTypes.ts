@@ -732,6 +732,27 @@ export const normalizeEmpCode = (code?: string | null): string => {
   return trimmed;
 };
 
+export const collectExistingEmpCodes = (
+  ...sources: Array<any[] | Record<string, any> | null | undefined>
+): string[] => {
+  const codes: string[] = [];
+  for (const source of sources) {
+    if (!source) continue;
+    const items = Array.isArray(source) ? source : Object.values(source);
+    for (const item of items) {
+      if (!item || typeof item !== 'object') continue;
+      const raw = (item as any).empCode || (item as any).emp_code || (item as any).employeeCode;
+      if (typeof raw === 'string' && raw.trim()) {
+        const normalized = normalizeEmpCode(raw);
+        if (normalized) {
+          codes.push(normalized);
+        }
+      }
+    }
+  }
+  return codes;
+};
+
 export const getNextAvailableEmpCode = (
   mastersInput?: Record<string, EmployeeSalaryMasterRecord> | EmployeeSalaryMasterRecord[] | null,
   extraCodes: string[] = []
