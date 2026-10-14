@@ -93,7 +93,8 @@
       "username": "rohan.mehta",
       "designation": "",
       "location": "",
-      "phone": ""
+      "phone": "",
+      "avatar": ""
     },
     {
       "userId": "usr-shivam-test-1",
@@ -103,7 +104,9 @@
       "status": "Active",
       "accessType": "payroll_only",
       "enrolledInPayroll": true,
-      "passwordHash": "$2b$08$Yp1UnCpnDENp1ujaz06rf.BCQam5/VqdCr7LHC1QZ7l3nNy/b/LdK"
+      "passwordHash": "$2b$08$Yp1UnCpnDENp1ujaz06rf.BCQam5/VqdCr7LHC1QZ7l3nNy/b/LdK",
+      "phone": "",
+      "location": "Mumbai HQ"
     }
   ],
   "payrollMasters": {
@@ -121,7 +124,8 @@
       "username": "rohan.mehta",
       "designation": "",
       "location": "",
-      "phone": ""
+      "phone": "",
+      "avatar": ""
     },
     "usr-shivam-test-1": {
       "userId": "usr-shivam-test-1",
@@ -131,7 +135,9 @@
       "status": "Active",
       "accessType": "payroll_only",
       "enrolledInPayroll": true,
-      "passwordHash": "$2b$08$Yp1UnCpnDENp1ujaz06rf.BCQam5/VqdCr7LHC1QZ7l3nNy/b/LdK"
+      "passwordHash": "$2b$08$Yp1UnCpnDENp1ujaz06rf.BCQam5/VqdCr7LHC1QZ7l3nNy/b/LdK",
+      "phone": "",
+      "location": "Mumbai HQ"
     }
   },
   "deletedPayrollMasterIds": [],
@@ -6605,5 +6611,5 @@
       "updated_at": "2026-10-10T07:21:10.792Z"
     }
   ],
-  "updatedAt": "2026-10-13T12:14:03.457Z"
+  "updatedAt": "2026-10-14T03:28:04.711Z"
 }
