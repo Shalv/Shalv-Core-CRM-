@@ -1004,22 +1004,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
                   </div>
                 )}
 
-                {/* Sign-in guidance only. Never render the admin email, username or password
-                    here: this screen is public, the repository is public, and the seed password
-                    is already hardcoded in server.ts, so echoing it would hand anyone a
-                    working Super Admin login. */}
-                <div className="mb-4 p-3.5 bg-blue-50/90 border border-blue-200/90 rounded-xl text-xs text-blue-900 shadow-2xs">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                    <span className="font-semibold text-blue-950">Super Admin sign-in</span>
-                  </div>
-                  <p className="text-blue-900/90">
-                    Sign in with the Super Admin credentials issued for this workspace. For your
-                    security, credentials are not shown on this screen. If you cannot sign in,
-                    contact your system administrator to restore the seeded admin password.
-                  </p>
-                </div>
-
                 <form onSubmit={submit} noValidate>
                   <div className="cl-field">
                     <label htmlFor="email">Work email, username, or Employee Code</label>
