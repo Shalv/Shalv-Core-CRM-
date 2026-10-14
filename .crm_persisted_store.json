@@ -18,7 +18,7 @@
       "name": "Shalv Sharma",
       "username": "admin",
       "email": "admin@coreenact.com",
-      "passwordHash": "$2b$08$cZ4BHVMiBFe2FzEklafgjeRUuz2wGaH4B2Qsr5WxIFbMACwlMLJUS",
+      "passwordHash": "$2b$08$exR27ZXLjdn6XGT./1F78.iPURjM0JPz87LBw.Ttn3J5IYaTvW2DW",
       "role": "Super Admin",
       "status": "Active",
       "department": "Executive",
@@ -6611,5 +6611,5 @@
       "updated_at": "2026-10-10T07:21:10.792Z"
     }
   ],
-  "updatedAt": "2026-10-14T03:43:00.574Z"
+  "updatedAt": "2026-10-14T03:53:08.216Z"
 }
