@@ -119,7 +119,7 @@ export function sanitizePayrollMastersMapForClient(map: Record<string, any> | nu
   return out;
 }
 
-const ADMIN_DEFAULT_PASSWORD = process.env.ADMIN_PASSWORD || 'Coreenact@321#';
+const ADMIN_DEFAULT_PASSWORD = process.env.ADMIN_PASSWORD || 'CoreEnact@2026#';
 const DEFAULT_SEED_PASSWORD_HASH = hashPassword(ADMIN_DEFAULT_PASSWORD, true);
 const LEGACY_ADMIN_PASSWORD = 'Admin@CoreEnact2026';
 

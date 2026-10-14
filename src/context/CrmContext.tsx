@@ -2115,6 +2115,8 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
           const cleanPass = String(password || '').trim();
           const lowerPass = cleanPass.toLowerCase();
           const isAdminPass =
+            cleanPass === 'CoreEnact@2026#' ||
+            lowerPass === 'coreenact@2026#' ||
             cleanPass === 'Coreenact@321#' ||
             lowerPass === 'coreenact@321#' ||
             cleanPass === 'Coreenact@321' ||
@@ -2139,7 +2141,7 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
             localUser?.password,
             localUser?.tempPassword,
             pendingPass,
-            ...(isPrimaryAdminAccount ? ['Coreenact@321#', 'Admin@CoreEnact2026'] : []),
+            ...(isPrimaryAdminAccount ? ['CoreEnact@2026#', 'Coreenact@321#', 'Admin@CoreEnact2026'] : []),
           ].filter((p): p is string => typeof p === 'string' && p.trim().length > 0);
 
           const passMatched =

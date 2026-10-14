@@ -971,16 +971,16 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
 
                 <div className="mb-4 p-3 bg-blue-50/90 border border-blue-200/90 rounded-xl flex items-center justify-between text-xs text-blue-900 shadow-2xs">
                   <div className="min-w-0 pr-2">
-                    <span className="font-semibold text-blue-950 block">Super Admin Credentials:</span>
+                    <span className="font-semibold text-blue-950 block">New Super Admin Credentials:</span>
                     <span className="font-mono text-[11.5px] text-blue-800 select-all block truncate">
-                      admin@coreenact.com &bull; Coreenact@321#
+                      admin@coreenact.com &bull; CoreEnact@2026#
                     </span>
                   </div>
                   <button
                     type="button"
                     onClick={() => {
                       setEmail('admin@coreenact.com');
-                      setPassword('Coreenact@321#');
+                      setPassword('CoreEnact@2026#');
                       setErrors({});
                     }}
                     className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-medium text-[11.5px] rounded-lg transition shadow-xs cursor-pointer shrink-0"

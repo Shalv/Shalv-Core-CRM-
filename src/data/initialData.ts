@@ -95,8 +95,8 @@ export const INITIAL_USERS: User[] = [
     designation: 'Managing Director / Super Admin',
     status: 'Active',
     accessScope: 'all',
-    password: 'Coreenact@321#',
-    tempPassword: 'Coreenact@321#',
+    password: 'CoreEnact@2026#',
+    tempPassword: 'CoreEnact@2026#',
   },
 ];
 
