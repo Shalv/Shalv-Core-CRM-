@@ -740,8 +740,25 @@ function syncMockTablesFromState() {
     MOCK_TABLES.customer_ledger = slices.ledgerEntries;
   }
   if (Array.isArray(slices.auditLogs)) {
-    MOCK_TABLES.audit_logs = slices.auditLogs;
+    // A copy, never the same array object. While both names referred to one array, a writer that
+    // updated "both" collections inserted every audit entry twice under a single id, and the
+    // integrity auditor reported that to admins as an unfixable "Duplicate record ID" notice.
+    // Mirroring is handled explicitly by appendAuditLogEntry.
+    MOCK_TABLES.audit_logs = [...slices.auditLogs];
   }
+}
+
+// Audit entries live in exactly one array: PERSISTED_CRM_STATE.crmSlices.auditLogs. MOCK_TABLES only
+// mirrors it for the SQL explorer and /api/database/status. Appending is idempotent by id, so a
+// double call - or an older duplicated store - cannot re-introduce a repeated record id.
+function appendAuditLogEntry(entry: any): void {
+  if (!Array.isArray(PERSISTED_CRM_STATE.crmSlices.auditLogs)) {
+    PERSISTED_CRM_STATE.crmSlices.auditLogs = [];
+  }
+  const logs = PERSISTED_CRM_STATE.crmSlices.auditLogs;
+  if (logs.some((l: any) => l && String(l.id) === String(entry.id))) return;
+  logs.unshift(entry);
+  MOCK_TABLES.audit_logs = [...logs];
 }
 
 function applyParsedStore(parsed: any) {
@@ -3343,11 +3360,7 @@ app.post('/api/payroll/ess/:empId', async (req: Request, res: Response) => {
         timestamp: new Date().toISOString(),
       };
       newAuditEntries.push(auditEntry);
-      MOCK_TABLES.audit_logs.unshift(auditEntry);
-      if (!Array.isArray(PERSISTED_CRM_STATE.crmSlices.auditLogs)) {
-        PERSISTED_CRM_STATE.crmSlices.auditLogs = [];
-      }
-      PERSISTED_CRM_STATE.crmSlices.auditLogs.unshift(auditEntry);
+      appendAuditLogEntry(auditEntry);
       try {
         await query(
           `INSERT INTO audit_logs (id, action, entity_type, entity_id, field_name, old_value, new_value, user_name, user_id)
@@ -3933,7 +3946,9 @@ app.get('/api/audit-logs', async (_req: Request, res: Response) => {
 app.post('/api/audit-logs', async (req: Request, res: Response) => {
   const { action, entityType, entityId, details, userName, userId } = req.body;
   try {
-    const id = `aud-${Date.now()}`;
+    // The random suffix matters: an id taken from the clock alone collides whenever two entries land
+    // in the same millisecond, and a colliding id is refused as a duplicate by the sync merge.
+    const id = `aud-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     await query(
       `INSERT INTO audit_logs (id, action, entity_type, entity_id, details, user_name, user_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,

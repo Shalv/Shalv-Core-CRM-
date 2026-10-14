@@ -237,6 +237,26 @@ export function isRemovedPredefinedUser(u: any): boolean {
 /** Update display caches by immutable ID. Never guess a connection using a person's name. */
 export function reconcileSnapshot(input: Snapshot, today = new Date().toISOString().slice(0,10)): Snapshot {
   const s:Snapshot = JSON.parse(JSON.stringify(input));
+  // A record stored twice under one id is unreadable to every consumer: the auditor flags it as
+  // "Duplicate record ID", the three-way merge silently keeps only the last copy, and the admin is
+  // told to open and correct entries that look identical on screen. Collapse exact repeats here so
+  // already-corrupted saved data heals itself on the next pull. Two rows sharing an id but differing
+  // in content are deliberately kept - that is a genuine conflict the auditor must keep reporting
+  // rather than discard somebody's edit.
+  for (const [key, value] of Object.entries(s)) {
+    if (!Array.isArray(value)) continue;
+    const fingerprints = new Map<string, string>();
+    const unique: any[] = [];
+    for (const row of value) {
+      const id = row && row.id !== undefined && row.id !== '' ? String(row.id) : '';
+      if (!id) { unique.push(row); continue; }
+      const fingerprint = JSON.stringify(row);
+      if (fingerprints.get(id) === fingerprint) continue;
+      fingerprints.set(id, fingerprint);
+      unique.push(row);
+    }
+    s[key] = unique;
+  }
   if (Array.isArray(s.users)) {
     const filteredUsers = s.users
       .filter((user: any) => user && !isRemovedPredefinedUser(user))
