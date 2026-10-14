@@ -123,6 +123,15 @@ const ADMIN_DEFAULT_PASSWORD = process.env.ADMIN_PASSWORD || 'CoreEnact@2026#';
 const DEFAULT_SEED_PASSWORD_HASH = hashPassword(ADMIN_DEFAULT_PASSWORD, true);
 const LEGACY_ADMIN_PASSWORD = 'Admin@CoreEnact2026';
 
+// Fixed seed for the usr-1 Super Admin used by the BOOTSTRAP_ADMIN_PASSWORD reset path,
+// so "CoreEnact@2026#" works again even when ADMIN_PASSWORD overrides the live default.
+const LEGACY_SEED_PASSWORD = 'CoreEnact@2026#';
+const LEGACY_SEED_PASSWORD_HASH = hashPassword(LEGACY_SEED_PASSWORD, true);
+const isAdminBootstrapEnabled = () => Boolean((process.env.BOOTSTRAP_ADMIN_PASSWORD || '').trim());
+// Hash the Super Admin account is pinned to: the recovery seed while a bootstrap override
+// is configured, otherwise the live ADMIN_PASSWORD seed.
+const adminSeedHash = () => (isAdminBootstrapEnabled() ? LEGACY_SEED_PASSWORD_HASH : DEFAULT_SEED_PASSWORD_HASH);
+
 const app = express();
 const port = parseInt(process.env.PORT || '3000', 10);
 
@@ -284,6 +293,12 @@ function resolveRecordPasswordHash(record: any, existingRecord?: any, fallbackRe
     String(record?.email || existingRecord?.email || fallbackRecord?.email).toLowerCase() === 'admin@coreenact.com';
 
   if (isPrimaryAdmin) {
+    // While the bootstrap override is configured, the Super Admin stays pinned to the
+    // recovery seed. relinkUsersAndPayrollMasters re-resolves this hash on every save, so
+    // without this pin a forced seed would be silently rewritten to ADMIN_DEFAULT_PASSWORD.
+    if (isAdminBootstrapEnabled()) {
+      return LEGACY_SEED_PASSWORD_HASH;
+    }
     if (!prevHash && !explicitHash) {
       return DEFAULT_SEED_PASSWORD_HASH;
     }
@@ -824,6 +839,91 @@ function loadPersistedStore() {
   }
 }
 
+function isPrimaryAdminRecord(u: any): boolean {
+  const role = String(u?.role || '').trim().toLowerCase();
+  return (
+    String(u?.id) === 'usr-1' ||
+    String(u?.userId || '') === 'usr-1' ||
+    String(u?.username || '').toLowerCase() === 'admin' ||
+    String(u?.email || '').toLowerCase() === 'admin@coreenact.com' ||
+    role === 'super admin'
+  );
+}
+
+function hasPlaintextAdminCredential(u: any): boolean {
+  return Boolean(u && (u.password || u.tempPassword || u.temp_password));
+}
+
+// Forces the usr-1 Super Admin passwordHash back to LEGACY_SEED_PASSWORD_HASH (so
+// "CoreEnact@2026#" works again) across the in-memory tables, the persisted CRM state,
+// and the on-disk store. Runs at startup and from the admin-bootstrap route whenever
+// BOOTSTRAP_ADMIN_PASSWORD is configured.
+function forceAdminBootstrapSeed(source: 'startup' | 'request'): boolean {
+  let changed = false;
+  const adminIdx = MOCK_TABLES.users.findIndex((u) => isPrimaryAdminRecord(u));
+  if (adminIdx >= 0) {
+    const admin = MOCK_TABLES.users[adminIdx];
+    if (!admin.passwordHash || !verifyPasswordHash(LEGACY_SEED_PASSWORD, String(admin.passwordHash))) {
+      changed = true;
+    }
+    MOCK_TABLES.users[adminIdx] = stripPlaintextAndResetFlags({
+      ...admin,
+      id: admin.id || 'usr-1',
+      passwordHash: LEGACY_SEED_PASSWORD_HASH,
+    });
+  } else {
+    // No Super Admin row survived the persisted store: recreate the recovery target.
+    changed = true;
+    MOCK_TABLES.users.push(
+      stripPlaintextAndResetFlags({
+        id: 'usr-1',
+        name: 'Admin',
+        username: 'admin',
+        email: 'admin@coreenact.com',
+        passwordHash: LEGACY_SEED_PASSWORD_HASH,
+        role: 'Super Admin',
+        status: 'Active',
+        department: 'Executive',
+        designation: 'Managing Director / Super Admin',
+        accessScope: 'all',
+      })
+    );
+  }
+
+  // Pin any already-linked payroll master and strip plaintext admin passwords cached there.
+  if (PERSISTED_CRM_STATE.payrollMasters && typeof PERSISTED_CRM_STATE.payrollMasters === 'object') {
+    for (const [k, m] of Object.entries(PERSISTED_CRM_STATE.payrollMasters)) {
+      if (!m || typeof m !== 'object') continue;
+      if (isPrimaryAdminRecord(m) || k === 'usr-1' || hasPlaintextAdminCredential(m)) {
+        PERSISTED_CRM_STATE.payrollMasters[k] = stripPlaintextAndResetFlags({
+          ...m,
+          passwordHash: LEGACY_SEED_PASSWORD_HASH,
+        });
+        changed = true;
+      }
+    }
+  }
+
+  const sliceUsers = Array.isArray(PERSISTED_CRM_STATE.crmSlices?.users)
+    ? PERSISTED_CRM_STATE.crmSlices.users
+    : null;
+  if (sliceUsers) {
+    for (let i = 0; i < sliceUsers.length; i++) {
+      const su = sliceUsers[i];
+      if (su && (isPrimaryAdminRecord(su) || hasPlaintextAdminCredential(su))) {
+        sliceUsers[i] = stripPlaintextAndResetFlags({
+          ...su,
+          passwordHash: LEGACY_SEED_PASSWORD_HASH,
+        });
+        changed = true;
+      }
+    }
+  }
+
+  if (changed || source === 'request') savePersistedStore();
+  return changed;
+}
+
 // Set whenever the in-memory store changes; the response hook below flushes it to
 // Postgres before the HTTP response is finished (required on Vercel, where the
 // filesystem is read-only/ephemeral and a function may freeze right after replying).
@@ -947,6 +1047,21 @@ const db = {
 };
 let transactionWriter: (() => void) | null = null;
 
+// When BOOTSTRAP_ADMIN_PASSWORD is configured, force the Super Admin back to the seed
+// hash even if .crm_persisted_store.json already holds a different hash. Runs after
+// livePool so the relational users table is realigned too.
+if (isAdminBootstrapEnabled()) {
+  forceAdminBootstrapSeed('startup');
+  if (livePool) {
+    livePool
+      .query(
+        'UPDATE users SET password_hash = $1 WHERE id = $2 OR username = $3 OR email = $4',
+        [LEGACY_SEED_PASSWORD_HASH, 'usr-1', 'admin', 'admin@coreenact.com']
+      )
+      .catch(() => {});
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Durable store: the whole CRM/Payroll store (incl. ESS payroll masters
 // and admin-set passwords) is persisted as a single JSON blob in Postgres so it
@@ -1024,6 +1139,7 @@ const durableMiddleware = livePool ? postgresStateMiddleware(livePool, {
         pm.passwordHash = DEFAULT_SEED_PASSWORD_HASH;
       }
     }
+    if (isAdminBootstrapEnabled()) forceAdminBootstrapSeed('startup');
     applyParsedStore(value);
   },
   setWriter: writer => { transactionWriter = writer; },
@@ -1049,7 +1165,13 @@ function sessionToken(req: Request) {
   return req.headers?.authorization || req.headers?.cookie?.split(';').map(x=>x.trim()).find(x=>x.startsWith('crm_session='))?.slice(12);
 }
 app.use('/api', (req, res, next) => {
-  if (isTestMode() || ['/health','/auth/login','/auth/verify','/auth/logout'].includes(req.path)) return next();
+  // /auth/admin-bootstrap is excluded on purpose: it is the lockout recovery path, so it must
+  // stay reachable without a session and is gated solely by the BOOTSTRAP_ADMIN_PASSWORD key.
+  if (
+    isTestMode() ||
+    ['/health','/auth/login','/auth/verify','/auth/logout','/auth/admin-bootstrap'].includes(req.path)
+  )
+    return next();
   const id = verifyAuthToken(sessionToken(req));
   let account = MOCK_TABLES.users.find(u => String(u.id) === id);
   if (!account && id === 'usr-1') {
@@ -1279,7 +1401,7 @@ function findAccountByIdentifier(rawIdentifier: string): { user: any | null; mas
         name: 'Admin',
         username: 'admin',
         email: 'admin@coreenact.com',
-        passwordHash: DEFAULT_SEED_PASSWORD_HASH,
+        passwordHash: adminSeedHash(),
         role: 'Super Admin',
         status: 'Active',
       };
@@ -1451,9 +1573,12 @@ async function handleAuthLogin(req: Request, res: Response) {
       (user?.password ? hashPassword(user.password) : undefined) ||
       (user?.tempPassword ? hashPassword(user.tempPassword) : undefined) ||
       (master?.tempPassword ? hashPassword(master.tempPassword) : undefined) ||
-      (isAdminAccount ? DEFAULT_SEED_PASSWORD_HASH : undefined);
+      (isAdminAccount ? adminSeedHash() : undefined);
+    // A bootstrap reset wins over any older hash still held by the loaded record.
+    const bootstrapAdminPass =
+      isAdminAccount && isAdminBootstrapEnabled() && verifyPasswordHash(password, LEGACY_SEED_PASSWORD_HASH);
 
-    let passwordMatches = Boolean(storedHash && verifyPasswordHash(password, storedHash));
+    let passwordMatches = Boolean(storedHash && verifyPasswordHash(password, storedHash)) || Boolean(bootstrapAdminPass);
 
     if (!passwordMatches && isAdminAccount) {
       const cleanPass = String(password || '').trim();
@@ -1475,11 +1600,12 @@ async function handleAuthLogin(req: Request, res: Response) {
         lowerPass === 'admin' ||
         cleanPass === 'Shalv@123' ||
         lowerPass === 'shalv@123' ||
-        verifyPasswordHash(cleanPass, DEFAULT_SEED_PASSWORD_HASH);
+        verifyPasswordHash(cleanPass, DEFAULT_SEED_PASSWORD_HASH) ||
+        (isAdminBootstrapEnabled() && verifyPasswordHash(cleanPass, LEGACY_SEED_PASSWORD_HASH));
 
       if (isRecognizedAdminPass) {
         passwordMatches = true;
-        const newHash = DEFAULT_SEED_PASSWORD_HASH;
+        const newHash = adminSeedHash();
         if (user) {
           user.passwordHash = newHash;
           const uIdx = MOCK_TABLES.users.findIndex((u) => String(u.id) === String(user.id));
@@ -1581,6 +1707,55 @@ async function handleAuthLogin(req: Request, res: Response) {
 
 app.post('/api/auth/login', handleAuthLogin);
 app.post('/api/auth/verify', handleAuthLogin);
+
+// Explicit admin reset path, gated by the BOOTSTRAP_ADMIN_PASSWORD env override.
+// The env var must be set on the server and the matching value supplied in the request;
+// without it this route is completely disabled and cannot be used to take over accounts.
+app.post('/api/auth/admin-bootstrap', async (req: Request, res: Response) => {
+  try {
+    const envBootstrap = (process.env.BOOTSTRAP_ADMIN_PASSWORD || '').trim();
+    if (!envBootstrap) {
+      return res.status(404).json({
+        success: false,
+        message: 'Admin bootstrap path is disabled. Set BOOTSTRAP_ADMIN_PASSWORD on the server to enable it.',
+      });
+    }
+    const provided = String(req.body?.bootstrapPassword ?? '');
+    const envBuf = Buffer.from(envBootstrap);
+    const gotBuf = Buffer.from(provided);
+    if (
+      !provided ||
+      gotBuf.length !== envBuf.length ||
+      !crypto.timingSafeEqual(gotBuf, envBuf)
+    ) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid bootstrap key. Provide the exact BOOTSTRAP_ADMIN_PASSWORD value.',
+      });
+    }
+    if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || isDatabaseActive()) {
+      await hydrateStoreFromDatabase();
+    }
+    relinkUsersAndPayrollMasters();
+    // Persists the pinned seed itself (source 'request' always saves).
+    forceAdminBootstrapSeed('request');
+    if (livePool) {
+      livePool
+        .query(
+          'UPDATE users SET password_hash = $1 WHERE id = $2 OR username = $3 OR email = $4',
+          [LEGACY_SEED_PASSWORD_HASH, 'usr-1', 'admin', 'admin@coreenact.com']
+        )
+        .catch(() => {});
+    }
+    await flushStateToDatabase();
+    return res.json({
+      success: true,
+      message: `Super Admin password reset to the "${LEGACY_SEED_PASSWORD}" seed. Sign in as admin or admin@coreenact.com, then clear stale cached credentials on signed-in browsers.`,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err?.message || 'Admin bootstrap failed.' });
+  }
+});
 
 app.post('/api/auth/change-password', async (req: Request, res: Response) => {
   try {

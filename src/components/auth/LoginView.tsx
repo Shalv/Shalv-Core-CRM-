@@ -486,7 +486,7 @@ export interface LoginViewProps {
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) => {
-  const { users, addUser, login, syncCredentialsFromServer, changeEmployeePassword, supplierCompany } = useCrm();
+  const { users, addUser, login, syncCredentialsFromServer, clearStaleAdminCredentialCache, changeEmployeePassword, supplierCompany } = useCrm();
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const sim = useRef({ link: 140, linkT: 140, speed: 1, speedT: 1, gather: false });
@@ -704,6 +704,32 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
     const cleanEmail = email.trim();
     const cleanPassword = password.trim();
 
+    // After a server-side BOOTSTRAP_ADMIN_PASSWORD reset, stale browser-cached admin
+    // credentials can keep rejecting the freshly seeded password. Drop them once so the
+    // next attempt authenticates purely against the server.
+    const ADMIN_SIGNIN_IDENTIFIERS = new Set([
+      'admin',
+      'admin@coreenact.com',
+      'superadmin',
+      'administrator',
+      'shalv',
+      'shalv sharma',
+      'shalv@coreenact.com',
+      'shalv.sharma@coreenact.com',
+      'info@coreenact.com',
+    ]);
+    const isAdminSigninAttempt = ADMIN_SIGNIN_IDENTIFIERS.has(cleanEmail.toLowerCase());
+    const healStaleAdminCache = (): boolean => {
+      if (!isAdminSigninAttempt) return false;
+      const { cleared } = clearStaleAdminCredentialCache('login-retry');
+      if (cleared) {
+        setInfoNotice(
+          'Stale cached admin credentials were cleared after the server-side password reset. Please sign in again with the seeded admin password.'
+        );
+      }
+      return cleared;
+    };
+
     let res: {success:boolean; message?:string};
     try {
       const verified = await syncCredentialsFromServer(cleanEmail, cleanPassword, 'crm');
@@ -711,6 +737,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
         ? login(cleanEmail, cleanPassword, { portalMode: 'crm' })
         : {success:false, message:'Sign-in could not be verified.'};
     } catch (error) {
+      if (healStaleAdminCache()) {
+        setStatus('idle');
+        setErrors({});
+        return;
+      }
       setStatus('idle');
       setErrors({password:error instanceof Error ? error.message : 'Sign-in failed.'});
       return;
@@ -718,6 +749,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
 
     if (!res.success) {
       setStatus('idle');
+      if (healStaleAdminCache()) {
+        setErrors({});
+        return;
+      }
       if (res.message?.includes('user') || res.message?.includes('account') || res.message?.includes('email')) {
         setErrors({ email: res.message });
       } else {

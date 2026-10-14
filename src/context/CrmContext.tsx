@@ -110,6 +110,11 @@ interface CrmContextType {
     password: string,
     portalMode?: 'payroll' | 'crm'
   ) => Promise<boolean>;
+  /** Drops stale cached admin credentials (passwords, pending resets, auth session)
+   *  from the browser after a server-side BOOTSTRAP_ADMIN_PASSWORD reset. */
+  clearStaleAdminCredentialCache: (
+    scope?: 'session-start' | 'login-retry'
+  ) => { cleared: boolean; forceRelogin: boolean };
   changeEmployeePassword: (emailOrUserId: string, newPassword: string) => boolean;
   loginAsUser: (userId: string) => void;
   logout: () => void;
@@ -542,6 +547,118 @@ const sanitizeClientPayrollObj = (m: any): any => {
     mustChangePasswordOnFirstLogin: false,
   };
 };
+
+const ADMIN_CACHE_IDENTIFIERS = new Set([
+  'usr-1',
+  'admin',
+  'admin@coreenact.com',
+  'superadmin',
+  'shalv',
+  'shalv sharma',
+  'shalv@coreenact.com',
+  'shalv.sharma@coreenact.com',
+]);
+
+const isAdminCacheRecord = (record: any): boolean => {
+  if (!record || typeof record !== 'object') return false;
+  const email = String(record.email || '').trim().toLowerCase();
+  const username = String(record.username || '').trim().toLowerCase();
+  const role = String(record.role || '').trim().toLowerCase();
+  return (
+    String(record.id || '') === 'usr-1' ||
+    String(record.userId || '') === 'usr-1' ||
+    username === 'admin' ||
+    email === 'admin@coreenact.com' ||
+    role === 'super admin' ||
+    role === 'administrator' ||
+    ADMIN_CACHE_IDENTIFIERS.has(email) ||
+    ADMIN_CACHE_IDENTIFIERS.has(username) ||
+    ADMIN_CACHE_IDENTIFIERS.has(String(record.name || '').trim().toLowerCase())
+  );
+};
+
+type AdminCacheClearScope = 'session-start' | 'login-retry';
+
+// Drops browser-cached admin credential fragments after a server-side
+// BOOTSTRAP_ADMIN_PASSWORD reset so a stale local copy can never reject the freshly
+// seeded admin password.
+//  'session-start': only strips cached admin plaintext/hashes. It never touches the live
+//    session or the pending-password map, because a legitimately signed-in admin who just
+//    changed their own password has a valid pending entry and must not be logged out.
+//  'login-retry': used from the login screen - also forgets the pending admin password and
+//    the stale session so the next attempt authenticates purely against the server.
+export const clearStaleAdminCredentialCache = (
+  scope: AdminCacheClearScope = 'login-retry'
+): { cleared: boolean; forceRelogin: boolean } => {
+  let cleared = false;
+  try {
+    if (scope === 'login-retry') {
+      const pendingRaw = localStorage.getItem('crm_pending_user_passwords_v1');
+      if (pendingRaw) {
+        const parsed = JSON.parse(pendingRaw);
+        if (parsed && typeof parsed === 'object') {
+          const next: Record<string, any> = {};
+          for (const [k, v] of Object.entries(parsed)) {
+            if (k === 'usr-1' || ADMIN_CACHE_IDENTIFIERS.has(k.toLowerCase())) {
+              cleared = true;
+              continue;
+            }
+            next[k] = v;
+          }
+          localStorage.setItem('crm_pending_user_passwords_v1', JSON.stringify(next));
+        }
+      }
+    }
+
+    const usersRaw = localStorage.getItem(STORAGE_KEYS.USERS);
+    if (usersRaw) {
+      const parsed = JSON.parse(usersRaw);
+      if (Array.isArray(parsed)) {
+        const next = parsed.map((u: any) => {
+          if (!isAdminCacheRecord(u)) return u;
+          if (u.password || u.tempPassword || u.temp_password || u.passwordHash || u.password_hash) {
+            cleared = true;
+            return sanitizeClientUser(u);
+          }
+          return u;
+        });
+        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(next));
+      }
+    }
+
+    const mastersRaw = localStorage.getItem('crm_ess_admin_employee_masters');
+    if (mastersRaw) {
+      const parsed = JSON.parse(mastersRaw);
+      if (parsed && typeof parsed === 'object') {
+        const next: Record<string, any> = {};
+        for (const [k, m] of Object.entries(parsed)) {
+          if (isAdminCacheRecord(m) || k === 'usr-1') {
+            if (hasPlaintextAdminCredentialCache(m)) cleared = true;
+            next[k] = sanitizeClientPayrollObj(m);
+          } else {
+            next[k] = m;
+          }
+        }
+        localStorage.setItem('crm_ess_admin_employee_masters', JSON.stringify(next));
+      }
+    }
+
+    // Only a login-screen retry may drop the session; the admin is authenticated there,
+    // so removing a stale token cannot interrupt real work.
+    if (scope === 'login-retry' && cleared) {
+      localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+      localStorage.removeItem(STORAGE_KEYS.IS_AUTHENTICATED);
+      localStorage.removeItem('crm_auth_token');
+      return { cleared: true, forceRelogin: true };
+    }
+  } catch {
+    // ignore malformed caches
+  }
+  return { cleared, forceRelogin: false };
+};
+
+const hasPlaintextAdminCredentialCache = (m: any): boolean =>
+  Boolean(m && (m.password || m.tempPassword || m.temp_password));
 
 export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [users, setUsers] = useState<User[]>(() => {
@@ -1379,6 +1496,10 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [isAuthenticated]);
 
   useEffect(() => {
+    // After a server-side admin bootstrap reset, strip stale local admin credential
+    // fragments before the session refresh so an outdated copy is never reused. A live
+    // session is deliberately preserved here: a signed-in admin must not be logged out.
+    clearStaleAdminCredentialCache('session-start');
     const token = localStorage.getItem('crm_auth_token');
     const loggedOut = localStorage.getItem(STORAGE_KEYS.IS_AUTHENTICATED) === 'false';
     const headers: Record<string, string> = {};
@@ -8327,6 +8448,7 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
         login,
         changeEmployeePassword,
         syncCredentialsFromServer,
+        clearStaleAdminCredentialCache,
         loginAsUser,
         logout,
         updateCurrentUserProfile,
