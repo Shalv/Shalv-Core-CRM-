@@ -2903,7 +2903,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                 onClick={() => {
                   setNewUserDraft((prev) => ({
                     ...prev,
-                    empCode: `EMP-${String(101 + unifiedEmployeeList.length).padStart(3, '0')}`,
+                    empCode: getNextAvailableEmpCode(employeeSalaryMasters),
                   }));
                   setUserFormMode('create');
                 }}

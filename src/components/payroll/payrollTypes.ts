@@ -732,43 +732,33 @@ export const normalizeEmpCode = (code?: string | null): string => {
   return trimmed;
 };
 
-// Employee codes live in TWO collections: the payroll master record AND the CRM user record. A person
-// can carry an empCode on their CRM user with no payroll master yet (CRM-only), or the reverse. The next
-// auto code must respect numbers already used in BOTH, otherwise the sequence reissues a number that is
-// already assigned and the whole save is rejected server-side as a duplicate. This reads whichever shape
-// each source uses (array or record keyed by id) and returns the non-empty codes it finds.
-export const collectExistingEmpCodes = (
-  ...sources: Array<Record<string, any> | any[] | null | undefined>
-): string[] => {
-  const codes: string[] = [];
-  for (const source of sources) {
-    if (!source) continue;
-    const rows = Array.isArray(source) ? source : Object.values(source);
-    for (const row of rows) {
-      const code = row && (row.empCode ?? row.employeeCode);
-      const text = String(code ?? '').trim();
-      if (text) codes.push(text);
-    }
-  }
-  return codes;
-};
-
 export const getNextAvailableEmpCode = (
-  mastersInput?: Record<string, EmployeeSalaryMasterRecord> | EmployeeSalaryMasterRecord[],
-  extraCodes: (string | number | null | undefined)[] = []
+  mastersInput?: Record<string, EmployeeSalaryMasterRecord> | EmployeeSalaryMasterRecord[] | null,
+  extraCodes: string[] = []
 ): string => {
-  const list: EmployeeSalaryMasterRecord[] = mastersInput
+  const list: EmployeeSalaryMasterRecord[] = mastersInput != null
     ? Array.isArray(mastersInput)
       ? mastersInput
       : Object.values(mastersInput)
-    : Object.values(loadEmployeeSalaryMasters());
-  let maxNum = 100;
-  // Scan the master codes plus any codes handed in from other collections (CRM users). Only values that
-  // end in a number move the sequence; the trailing-digit match ignores a prefix so both EMP-101 and a
-  // raw 101 are read the same way.
-  const allCodes = [...list.map((m) => m?.empCode ?? ''), ...extraCodes];
+    : (() => {
+        try {
+          return Object.values(loadEmployeeSalaryMasters() || {});
+        } catch {
+          return [];
+        }
+      })();
+
+  let maxNum = 100; // Hard floor of EMP-100 (so the first auto code is always EMP-101)
+
+  const allCodes = [
+    ...list.map((m) => (m && typeof m === 'object' ? m.empCode || (m as any).employeeCode || (m as any).code || '' : '')),
+    ...extraCodes,
+  ];
+
   for (const raw of allCodes) {
-    const match = String(raw ?? '').trim().match(/(\d+)$/);
+    if (!raw) continue;
+    const trimmed = String(raw).trim();
+    const match = trimmed.match(/(\d+)\D*$/);
     if (match) {
       const num = parseInt(match[1], 10);
       if (Number.isFinite(num) && num > maxNum) {
@@ -776,6 +766,7 @@ export const getNextAvailableEmpCode = (
       }
     }
   }
+
   return `EMP-${String(maxNum + 1).padStart(3, '0')}`;
 };
 

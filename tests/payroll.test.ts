@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { buildDefaultSalaryMasterRecord, calculateEmployeePolicyPayroll, loadAdminPolicyMaster, saveEmployeeAttendance, loadEmployeeAttendance, saveEmployeeSalaryMasters } from '../src/components/payroll/payrollTypes';
+import { buildDefaultSalaryMasterRecord, calculateEmployeePolicyPayroll, loadAdminPolicyMaster, saveEmployeeAttendance, loadEmployeeAttendance, saveEmployeeSalaryMasters, getNextAvailableEmpCode } from '../src/components/payroll/payrollTypes';
 const cache = new Map<string,string>();
 (globalThis as any).localStorage = { getItem:(k:string)=>cache.get(k) ?? null, setItem:(k:string,v:string)=>cache.set(k,v), removeItem:(k:string)=>cache.delete(k) };
 (globalThis as any).fetch = async () => ({ok:true,json:async()=>({success:true})});
@@ -36,4 +36,14 @@ const unlinkedMaster = { ...master, accessType: 'payroll_only' as const, syncedW
 saveEmployeeSalaryMasters({ u1: unlinkedMaster });
 assert.equal(unlinkedMaster.accessType, 'payroll_only');
 assert.equal(unlinkedMaster.syncedWithCrm, false);
+
+// getNextAvailableEmpCode tests: hard floor of EMP-100, max + 1
+assert.equal(getNextAvailableEmpCode({}), 'EMP-101');
+assert.equal(getNextAvailableEmpCode([ { empCode: 'EMP-001' }, { empCode: 'EMP-005' } ] as any), 'EMP-101');
+assert.equal(getNextAvailableEmpCode([ { empCode: 'EMP-100' } ] as any), 'EMP-101');
+assert.equal(getNextAvailableEmpCode([ { empCode: 'EMP-101' } ] as any), 'EMP-102');
+assert.equal(getNextAvailableEmpCode([ { empCode: 'EMP-101' }, { empCode: 'EMP-105' } ] as any), 'EMP-106');
+assert.equal(getNextAvailableEmpCode([ { empCode: 'EMP-199' } ] as any), 'EMP-200');
+
 console.log('Payroll regression checks passed: salary, zero pay, LOP, date scope, component totals, identity, attendance history, and CRM unlinking.');
+
