@@ -2888,7 +2888,16 @@ app.post('/api/payroll/masters', async (req: Request, res: Response) => {
     }
     PERSISTED_CRM_STATE.deletedPayrollMasterIds = Array.from(tombstones);
 
-    // Validate employee codes and emails are unique across combined masters
+    // Validate employee codes and emails are unique across combined masters. Only a record this
+    // request actually changes may block the save: a duplicate that already sits between two
+    // records nobody is editing must not wedge every future payroll write, because any 4xx here
+    // rolls the whole transaction back - the caller would keep believing the employee was created
+    // while the server never stored it, and the next sync pull silently drops it again.
+    const incomingOwners = new Set<string>([
+      ...Object.keys(masters),
+      ...Object.values(masters).map((m: any) => String(m?.userId || '')),
+    ]);
+    const collisionIsOurs = (a: string, b: string) => incomingOwners.has(a) || incomingOwners.has(b);
     const seenCodes = new Map<string, string>();
     const seenEmails = new Map<string, string>();
     for (const m of Object.values(combined) as any[]) {
@@ -2900,23 +2909,29 @@ app.post('/api/payroll/masters', async (req: Request, res: Response) => {
       if (normCode) {
         const existingOwner = seenCodes.get(normCode);
         if (existingOwner && existingOwner !== uid) {
-          return res.status(400).json({
-            success: false,
-            message: `Duplicate Employee Code ${normCode}`,
-          });
+          if (collisionIsOurs(existingOwner, uid)) {
+            return res.status(400).json({
+              success: false,
+              message: `Duplicate Employee Code ${normCode}`,
+            });
+          }
+        } else {
+          seenCodes.set(normCode, uid);
         }
-        seenCodes.set(normCode, uid);
       }
       const normEmail = String(m.email || '').trim().toLowerCase();
       if (normEmail) {
         const existingEmailOwner = seenEmails.get(normEmail);
         if (existingEmailOwner && existingEmailOwner !== uid) {
-          return res.status(400).json({
-            success: false,
-            message: `Duplicate Employee Email ${normEmail}`,
-          });
+          if (collisionIsOurs(existingEmailOwner, uid)) {
+            return res.status(400).json({
+              success: false,
+              message: `Duplicate Employee Email ${normEmail}`,
+            });
+          }
+        } else {
+          seenEmails.set(normEmail, uid);
         }
-        seenEmails.set(normEmail, uid);
       }
     }
 

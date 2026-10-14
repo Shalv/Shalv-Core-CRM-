@@ -24,6 +24,8 @@ import {
   clearAllPayrollData,
   loadEmployeeSalaryMasters,
   saveEmployeeSalaryMasters,
+  fetchServerEmployeeSalaryMasters,
+  restoreLocalEmployeeSalaryMasters,
   getNextAvailableEmpCode,
   normalizeEmpCode,
   isDuplicateEmpCode,
@@ -666,7 +668,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
     });
   };
 
-  const handleCreateEmployeeWithAllocations = (e: React.FormEvent) => {
+  const handleCreateEmployeeWithAllocations = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUserDraft.name.trim() || !newUserDraft.email.trim()) {
       setStatusBanner('Please enter Employee Full Name and Official Email.');
@@ -682,9 +684,21 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
     );
     const excludeId = existingEmailUser?.id || existingEmailMaster?.userId;
 
+    // The server enforces unique employee codes across EVERY master and rejects the whole batch
+    // when one collides, so allocate against its authoritative set merged with the local cache -
+    // the cache alone cannot prove a code is free. This field is auto-generated and read-only, so
+    // moving to the next free code is safer than failing the save after the CRM login has already
+    // been created (which used to leave an employee in the Users master but not in payroll).
+    const serverMasters = await fetchServerEmployeeSalaryMasters();
+    const mastersForCodes: Record<string, EmployeeSalaryMasterRecord> = serverMasters
+      ? { ...serverMasters, ...employeeSalaryMasters }
+      : employeeSalaryMasters;
+    const draftedEmpCode = normalizeEmpCode(newUserDraft.empCode);
     const resolvedEmpCode =
-      normalizeEmpCode(newUserDraft.empCode) || getNextAvailableEmpCode(employeeSalaryMasters);
-    if (isDuplicateEmpCode(resolvedEmpCode, employeeSalaryMasters, excludeId)) {
+      draftedEmpCode && !isDuplicateEmpCode(draftedEmpCode, mastersForCodes, excludeId)
+        ? draftedEmpCode
+        : getNextAvailableEmpCode(mastersForCodes);
+    if (isDuplicateEmpCode(resolvedEmpCode, mastersForCodes, excludeId)) {
       setStatusBanner(
         `Employee Code "${resolvedEmpCode}" is already assigned to another employee. Please choose a unique Employee Code.`
       );
@@ -775,11 +789,29 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
       ...employeeSalaryMasters,
     };
     if (existingEmailMaster && existingEmailMaster.userId !== finalUserId) {
+      // A patch merge cannot express "replace the record that held this email", so tombstone the
+      // superseded id - the server treats tombstones as the only sanctioned way to remove one.
+      recordDeletedPayrollMasterIds([existingEmailMaster.userId]);
       delete nextMasters[existingEmailMaster.userId];
     }
     nextMasters[finalUserId] = newMasterRecord;
     forgetDeletedPayrollMasterIds([finalUserId]);
-    saveEmployeeSalaryMasters(nextMasters, true, false, [finalUserId]);
+    const saveResult = await saveEmployeeSalaryMasters(nextMasters, true, false, [finalUserId]);
+
+    if (!saveResult.ok) {
+      // The CRM login now exists while the payroll master does not - precisely the state that read
+      // as "it shows in CRM users but not in payroll". Name the server's reason instead of
+      // claiming success, and drop the optimistic record so no phantom employee is listed.
+      if (serverMasters) {
+        restoreLocalEmployeeSalaryMasters(serverMasters);
+        setEmployeeSalaryMasters(serverMasters);
+      }
+      setStatusBanner(
+        `✕ Created the CRM login for "${newMasterRecord.name}", but the PAYROLL record was NOT saved: ${saveResult.message || 'the server rejected the save.'} Resolve that clash, then save this employee again from Payroll.`
+      );
+      return;
+    }
+
     setEmployeeSalaryMasters(nextMasters);
 
     setSelectedAdminUserId(finalUserId);
@@ -793,7 +825,10 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
       tempPassword: '',
       mustChangePasswordOnFirstLogin: false,
       phone: '+91 ',
-      empCode: getNextAvailableEmpCode(nextMasters),
+      empCode: getNextAvailableEmpCode({
+        ...(serverMasters || {}),
+        ...nextMasters,
+      }),
     });
 
     setStatusBanner(

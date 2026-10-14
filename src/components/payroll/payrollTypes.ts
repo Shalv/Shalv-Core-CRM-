@@ -879,12 +879,38 @@ export const loadEmployeeSalaryMasters = (
   return {};
 };
 
-export const saveEmployeeSalaryMasters = (
+export type PayrollMastersSaveResult = {
+  ok: boolean;
+  status: number;
+  skipped?: boolean;
+  message?: string;
+};
+
+// The server is authoritative for payroll masters: /api/sync/pull rewrites the local cache from
+// it, so a rejected save means the employee vanishes on the next pull. Read the current server
+// set before allocating employee codes - they are enforced unique across EVERY master, and the
+// local cache alone cannot prove a code is free.
+export const fetchServerEmployeeSalaryMasters = async (): Promise<
+  Record<string, EmployeeSalaryMasterRecord> | null
+> => {
+  try {
+    const response = await fetch('/api/payroll/masters', { headers: payrollAuthHeaders() });
+    if (!response.ok) return null;
+    const body: any = await response.json();
+    const map = body?.masters ?? body?.data?.masters;
+    if (!map || typeof map !== 'object') return null;
+    return map as Record<string, EmployeeSalaryMasterRecord>;
+  } catch {
+    return null;
+  }
+};
+
+export const saveEmployeeSalaryMasters = async (
   masters: Record<string, EmployeeSalaryMasterRecord>,
   dispatchSyncEvent = false,
   allowEmptyOverwrite = false,
   clearedUserIds: string[] = []
-): void => {
+): Promise<PayrollMastersSaveResult> => {
   try {
     const nextKeys = Object.keys(masters || {});
     const prevJson = localStorage.getItem(PAYROLL_MASTERS_STORAGE_KEY);
@@ -892,7 +918,7 @@ export const saveEmployeeSalaryMasters = (
       try {
         const prevParsed = JSON.parse(prevJson);
         if (prevParsed && typeof prevParsed === 'object' && Object.keys(prevParsed).length > 0) {
-          return;
+          return { ok: true, status: 204, skipped: true };
         }
       } catch {
         // ignore
@@ -910,11 +936,19 @@ export const saveEmployeeSalaryMasters = (
       }
     }
     const nextJson = JSON.stringify(sanitizedForStorage);
-    if (prevJson === nextJson && !hasExplicitPasswordUpdate) return;
+    if (prevJson === nextJson && !hasExplicitPasswordUpdate) {
+      return { ok: true, status: 204, skipped: true };
+    }
     localStorage.setItem(PAYROLL_MASTERS_STORAGE_KEY, nextJson);
+    // Other tabs read payroll from this cache, so announce the optimistic write immediately -
+    // before waiting on the network - exactly as this function did when it was synchronous.
+    if (dispatchSyncEvent) {
+      window.dispatchEvent(new CustomEvent(PAYROLL_MASTERS_SYNC_EVENT));
+      window.dispatchEvent(new CustomEvent('crm-payroll-masters-updated'));
+    }
     // Upsert-safe save: server merges per userId, hashes any newly provided password,
     // and applies delete tombstones.
-    fetch('/api/payroll/masters', {
+    const response = await fetch('/api/payroll/masters', {
       method: 'POST',
       headers: payrollAuthHeaders(),
       body: JSON.stringify({
@@ -923,14 +957,45 @@ export const saveEmployeeSalaryMasters = (
         deletedUserIds: getDeletedPayrollMasterIds(),
         clearedUserIds,
       }),
-    }).catch(() => {});
-    if (dispatchSyncEvent) {
-      window.dispatchEvent(new CustomEvent(PAYROLL_MASTERS_SYNC_EVENT));
-      window.dispatchEvent(new CustomEvent('crm-payroll-masters-updated'));
+    });
+    const body: any = await response.json().catch(() => null);
+    if (!response.ok) {
+      // A 4xx rolls the entire server transaction back, so nothing was stored. Callers must stop
+      // reporting success - this silent rejection is why a new employee appeared in the CRM Users
+      // master but never in payroll.
+      return {
+        ok: false,
+        status: response.status,
+        message: String(body?.message || `Payroll server rejected the save (HTTP ${response.status}).`),
+      };
     }
+    return { ok: true, status: response.status };
+  } catch {
+    return {
+      ok: false,
+      status: 0,
+      message: 'Payroll could not reach the server, so the employee was not saved.',
+    };
+  }
+};
+
+// Rolls the local cache back to the server's authoritative set after a rejected save, without
+// issuing another request. Without this, other payroll tabs that read the cache directly would
+// keep showing an employee the server never stored.
+export const restoreLocalEmployeeSalaryMasters = (
+  masters: Record<string, EmployeeSalaryMasterRecord>
+): void => {
+  try {
+    const sanitized: Record<string, EmployeeSalaryMasterRecord> = {};
+    for (const [k, v] of Object.entries(masters || {})) {
+      if (v && typeof v === 'object') sanitized[k] = sanitizeClientPayrollMaster(v);
+    }
+    localStorage.setItem(PAYROLL_MASTERS_STORAGE_KEY, JSON.stringify(sanitized));
   } catch {
     // ignore
   }
+  window.dispatchEvent(new CustomEvent(PAYROLL_MASTERS_SYNC_EVENT));
+  window.dispatchEvent(new CustomEvent('crm-payroll-masters-updated'));
 };
 
 export const PAYROLL_DATA_SYNC_EVENT = 'crm-payroll-data-updated';
