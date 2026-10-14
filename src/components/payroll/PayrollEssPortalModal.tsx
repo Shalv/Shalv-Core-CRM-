@@ -657,12 +657,6 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
     }
   };
 
-  // Persist employeeSalaryMasters when modal is active
-  useEffect(() => {
-    if (isOpen) {
-      saveEmployeeSalaryMasters(employeeSalaryMasters, true);
-    }
-  }, [employeeSalaryMasters, isOpen]);
 
   // Reload from shared storage when modal opens or when CRM UsersMasterTab updates Payroll allocations
   useEffect(() => {

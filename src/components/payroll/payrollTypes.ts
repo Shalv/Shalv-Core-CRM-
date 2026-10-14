@@ -729,8 +729,20 @@ export const normalizeEmpCode = (code?: string | null): string => {
   if (numMatch) {
     return `EMP-${numMatch[1].padStart(3, '0')}`;
   }
+  const digitsOnlyMatch = trimmed.match(/^(\d+)$/);
+  if (digitsOnlyMatch) {
+    return `EMP-${digitsOnlyMatch[1].padStart(3, '0')}`;
+  }
   return trimmed;
 };
+
+export const parseEmpCodeNumber = (code?: string | null): number => {
+  if (!code) return 999999;
+  const match = String(code).trim().match(/(\d+)\D*$/);
+  return match ? parseInt(match[1], 10) : 999999;
+};
+
+export const formatEmpCode = (num: number): string => `EMP-${String(num).padStart(3, '0')}`;
 
 export const collectExistingEmpCodes = (
   ...sources: Array<any[] | Record<string, any> | null | undefined>
@@ -776,19 +788,28 @@ export const getNextAvailableEmpCode = (
     ...extraCodes,
   ];
 
+  const seenNumbers = new Set<number>();
   for (const raw of allCodes) {
     if (!raw) continue;
     const trimmed = String(raw).trim();
     const match = trimmed.match(/(\d+)\D*$/);
     if (match) {
       const num = parseInt(match[1], 10);
-      if (Number.isFinite(num) && num > maxNum) {
-        maxNum = num;
+      if (Number.isFinite(num)) {
+        seenNumbers.add(num);
+        if (num > maxNum && num < 900000) {
+          maxNum = num;
+        }
       }
     }
   }
 
-  return `EMP-${String(maxNum + 1).padStart(3, '0')}`;
+  let nextCandidate = maxNum + 1;
+  while (seenNumbers.has(nextCandidate)) {
+    nextCandidate++;
+  }
+
+  return `EMP-${String(nextCandidate).padStart(3, '0')}`;
 };
 
 export const isDuplicateEmpCode = (
@@ -802,6 +823,117 @@ export const isDuplicateEmpCode = (
   return list.some(
     (m) => m && m.userId !== excludeUserId && normalizeEmpCode(m.empCode) === target
   );
+};
+
+export const resequenceEmployeeRecords = (
+  mastersInput: Record<string, EmployeeSalaryMasterRecord> | null | undefined,
+  usersInput: User[] = []
+): {
+  resequencedMasters: Record<string, EmployeeSalaryMasterRecord>;
+  resequencedUsers: Array<{ id: string; empCode: string }>;
+  changedCount: number;
+} => {
+  const masters = { ...(mastersInput || {}) };
+  const users = [...(usersInput || [])];
+
+  type EmployeeEntry = {
+    userId: string;
+    isSuperAdmin: boolean;
+    existingCode: string;
+    existingNum: number;
+    name: string;
+    createdAt?: string;
+    master?: EmployeeSalaryMasterRecord;
+    user?: User;
+  };
+
+  const entriesMap = new Map<string, EmployeeEntry>();
+
+  // Add from masters
+  for (const [k, m] of Object.entries(masters)) {
+    if (!m || !m.userId) continue;
+    const uid = String(m.userId);
+    const code = normalizeEmpCode(m.empCode);
+    const num = parseEmpCodeNumber(code);
+    const isSuperAdmin = uid === 'usr-1' || m.role === 'Super Admin' || String(m.email || '').toLowerCase() === 'admin@coreenact.com';
+    entriesMap.set(uid, {
+      userId: uid,
+      isSuperAdmin,
+      existingCode: code,
+      existingNum: num,
+      name: m.name || '',
+      master: m,
+    });
+  }
+
+  // Add/enrich from users
+  for (const u of users) {
+    if (!u || !u.id) continue;
+    const uid = String(u.id);
+    const code = normalizeEmpCode(u.empCode);
+    const num = parseEmpCodeNumber(code);
+    const isSuperAdmin = uid === 'usr-1' || u.role === 'Super Admin' || String(u.email || '').toLowerCase() === 'admin@coreenact.com';
+    const prev = entriesMap.get(uid);
+    if (prev) {
+      prev.user = u;
+      if (!prev.existingCode && code) {
+        prev.existingCode = code;
+        prev.existingNum = num;
+      }
+      if (!prev.name && u.name) prev.name = u.name;
+    } else {
+      entriesMap.set(uid, {
+        userId: uid,
+        isSuperAdmin,
+        existingCode: code,
+        existingNum: num,
+        name: u.name || '',
+        createdAt: (u as any).created_at || (u as any).createdAt,
+        user: u,
+      });
+    }
+  }
+
+  const allEntries = Array.from(entriesMap.values());
+  // Sort: Super Admin first (EMP-101), then by existing numeric code ascending (e.g. 102, 103, 104, 105), then by name
+  allEntries.sort((a, b) => {
+    if (a.isSuperAdmin && !b.isSuperAdmin) return -1;
+    if (!a.isSuperAdmin && b.isSuperAdmin) return 1;
+    if (a.existingNum !== b.existingNum) return a.existingNum - b.existingNum;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
+  let currentSequence = 101;
+  let changedCount = 0;
+  const resequencedMasters: Record<string, EmployeeSalaryMasterRecord> = { ...masters };
+  const resequencedUsers: Array<{ id: string; empCode: string }> = [];
+
+  for (const entry of allEntries) {
+    const assignedCode = formatEmpCode(currentSequence);
+    if (entry.existingCode !== assignedCode) {
+      changedCount++;
+    }
+
+    if (entry.master) {
+      resequencedMasters[entry.userId] = {
+        ...entry.master,
+        empCode: assignedCode,
+      };
+    } else if (entry.user) {
+      const builtMaster = buildDefaultSalaryMasterRecord(entry.user, currentSequence - 101);
+      builtMaster.empCode = assignedCode;
+      resequencedMasters[entry.userId] = builtMaster;
+      changedCount++;
+    }
+    resequencedUsers.push({ id: entry.userId, empCode: assignedCode });
+    currentSequence++;
+  }
+
+  return {
+    resequencedMasters,
+    resequencedUsers,
+    changedCount,
+  };
 };
 
 export const sanitizeClientPayrollMaster = (
@@ -831,9 +963,12 @@ export const buildDefaultSalaryMasterRecord = (
 ): EmployeeSalaryMasterRecord => {
   const existingMasters = loadEmployeeSalaryMasters();
   const requestedCode = user.empCode ? normalizeEmpCode(user.empCode) : '';
+  const isSuperAdmin = user.id === 'usr-1' || user.role === 'Super Admin' || String(user.email || '').toLowerCase() === 'admin@coreenact.com';
   const resolvedEmpCode =
     requestedCode && !isDuplicateEmpCode(requestedCode, existingMasters, user.id)
       ? requestedCode
+      : isSuperAdmin && !isDuplicateEmpCode('EMP-101', existingMasters, user.id)
+      ? 'EMP-101'
       : getNextAvailableEmpCode(
           existingMasters,
           idx > 0 ? [`EMP-${String(100 + idx).padStart(3, '0')}`] : []
@@ -905,6 +1040,21 @@ export const loadEmployeeSalaryMasters = (
             sanitized[k] = sanitizeClientPayrollMaster(v);
           }
         }
+        const seenCodes = new Map<string, string>();
+        let maxNum = 100;
+        for (const m of Object.values(sanitized)) {
+          const num = parseEmpCodeNumber(m.empCode);
+          if (num > maxNum && num < 900000) maxNum = num;
+        }
+        for (const [k, m] of Object.entries(sanitized)) {
+          const norm = normalizeEmpCode(m.empCode);
+          const uid = String(m.userId || k);
+          if (!norm || (seenCodes.has(norm) && seenCodes.get(norm) !== uid)) {
+            maxNum++;
+            m.empCode = `EMP-${String(maxNum).padStart(3, '0')}`;
+          }
+          seenCodes.set(normalizeEmpCode(m.empCode), uid);
+        }
         return sanitized;
       }
     }
@@ -971,7 +1121,26 @@ export const saveEmployeeSalaryMasters = async (
         sanitizedForStorage[k] = sanitizeClientPayrollMaster(v);
       }
     }
-    const nextJson = JSON.stringify(sanitizedForStorage);
+    let mergedForStorage: Record<string, EmployeeSalaryMasterRecord> = {};
+    if (!allowEmptyOverwrite && prevJson) {
+      try {
+        const prevParsed = JSON.parse(prevJson);
+        if (prevParsed && typeof prevParsed === 'object') {
+          mergedForStorage = { ...prevParsed };
+        }
+      } catch {
+        // ignore
+      }
+    }
+    const delIds = new Set(getDeletedPayrollMasterIds());
+    for (const id of delIds) {
+      delete mergedForStorage[id];
+    }
+    for (const [k, v] of Object.entries(sanitizedForStorage)) {
+      mergedForStorage[k] = v;
+    }
+    const finalStorageMap = allowEmptyOverwrite ? sanitizedForStorage : mergedForStorage;
+    const nextJson = JSON.stringify(finalStorageMap);
     if (prevJson === nextJson && !hasExplicitPasswordUpdate) {
       return { ok: true, status: 204, skipped: true };
     }

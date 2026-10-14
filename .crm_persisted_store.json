@@ -32,7 +32,8 @@
       "avatar": "",
       "last_login_at": null,
       "updated_at": "2026-10-06T17:06:56.585Z",
-      "lastLoginAt": "2026-10-13T08:43:07.750Z"
+      "lastLoginAt": "2026-10-13T08:43:07.750Z",
+      "empCode": "EMP-101"
     },
     {
       "id": "usr-1791811952136",
@@ -54,7 +55,7 @@
       "customPermissions": null,
       "created_at": "2026-10-12T13:32:32.171Z",
       "lastLoginAt": "2026-10-12T13:32:37.287Z",
-      "empCode": "EMP-101",
+      "empCode": "EMP-102",
       "passwordHash": "$2b$08$S9Qye2gVNiouPZZklLbMceP3du2MyCEYhT8Rtgx0tKXWLMnTrdkya"
     },
     {
@@ -65,7 +66,7 @@
       "passwordHash": "$2b$08$Yp1UnCpnDENp1ujaz06rf.BCQam5/VqdCr7LHC1QZ7l3nNy/b/LdK",
       "accessScope": "payroll_only",
       "accessType": "payroll_only",
-      "empCode": "EMP-102",
+      "empCode": "EMP-103",
       "phone": "",
       "role": "Sales Executive",
       "department": "Operations",
@@ -80,8 +81,35 @@
   ],
   "payroll_masters": [
     {
-      "userId": "usr-1791811952136",
+      "userId": "usr-1",
       "empCode": "EMP-101",
+      "name": "Shalv Sharma",
+      "email": "admin@coreenact.com",
+      "role": "Super Admin",
+      "department": "Executive",
+      "designation": "Managing Director / Super Admin",
+      "accessType": "crm_and_payroll",
+      "enrolledInPayroll": true,
+      "status": "Active",
+      "username": "admin",
+      "phone": "9810998290",
+      "location": "New Delhi",
+      "monthlyGross": 150000,
+      "basicPct": 50,
+      "hraPct": 25,
+      "specialPct": 18,
+      "commissionPct": 1.5,
+      "pfAmount": 1800,
+      "profTax": 200,
+      "tdsPct": 8.5,
+      "plQuota": 12,
+      "clQuota": 0,
+      "slQuota": 0,
+      "compOffQuota": 4
+    },
+    {
+      "userId": "usr-1791811952136",
+      "empCode": "EMP-102",
       "name": "Rohan Mehta",
       "email": "rohan@company.com",
       "role": "Sales Executive",
@@ -94,11 +122,19 @@
       "designation": "",
       "location": "",
       "phone": "",
-      "avatar": ""
+      "avatar": "",
+      "monthlyGross": 65000,
+      "basicPct": 50,
+      "hraPct": 25,
+      "specialPct": 18,
+      "commissionPct": 1.5,
+      "pfAmount": 1800,
+      "profTax": 200,
+      "tdsPct": 8.5
     },
     {
       "userId": "usr-shivam-test-1",
-      "empCode": "EMP-102",
+      "empCode": "EMP-103",
       "name": "Shivam Yadav",
       "email": "shivam.yadav@coreenact.com",
       "status": "Active",
@@ -106,13 +142,48 @@
       "enrolledInPayroll": true,
       "passwordHash": "$2b$08$Yp1UnCpnDENp1ujaz06rf.BCQam5/VqdCr7LHC1QZ7l3nNy/b/LdK",
       "phone": "",
-      "location": "Mumbai HQ"
+      "location": "Mumbai HQ",
+      "monthlyGross": 60000,
+      "basicPct": 50,
+      "hraPct": 25,
+      "specialPct": 18,
+      "commissionPct": 1.5,
+      "pfAmount": 1800,
+      "profTax": 200,
+      "tdsPct": 8.5
     }
   ],
   "payrollMasters": {
+    "usr-1": {
+      "userId": "usr-1",
+      "empCode": "EMP-101",
+      "name": "Shalv Sharma",
+      "email": "admin@coreenact.com",
+      "role": "Super Admin",
+      "department": "Executive",
+      "designation": "Managing Director / Super Admin",
+      "accessType": "crm_and_payroll",
+      "enrolledInPayroll": true,
+      "status": "Active",
+      "username": "admin",
+      "phone": "9810998290",
+      "location": "New Delhi",
+      "monthlyGross": 150000,
+      "basicPct": 50,
+      "hraPct": 25,
+      "specialPct": 18,
+      "commissionPct": 1.5,
+      "pfAmount": 1800,
+      "profTax": 200,
+      "tdsPct": 8.5,
+      "plQuota": 12,
+      "clQuota": 0,
+      "slQuota": 0,
+      "compOffQuota": 4
+    },
     "usr-1791811952136": {
       "userId": "usr-1791811952136",
-      "empCode": "EMP-101",
+      "empCode": "EMP-102",
       "name": "Rohan Mehta",
       "email": "rohan@company.com",
       "role": "Sales Executive",
@@ -125,11 +196,19 @@
       "designation": "",
       "location": "",
       "phone": "",
-      "avatar": ""
+      "avatar": "",
+      "monthlyGross": 65000,
+      "basicPct": 50,
+      "hraPct": 25,
+      "specialPct": 18,
+      "commissionPct": 1.5,
+      "pfAmount": 1800,
+      "profTax": 200,
+      "tdsPct": 8.5
     },
     "usr-shivam-test-1": {
       "userId": "usr-shivam-test-1",
-      "empCode": "EMP-102",
+      "empCode": "EMP-103",
       "name": "Shivam Yadav",
       "email": "shivam.yadav@coreenact.com",
       "status": "Active",
@@ -137,7 +216,15 @@
       "enrolledInPayroll": true,
       "passwordHash": "$2b$08$Yp1UnCpnDENp1ujaz06rf.BCQam5/VqdCr7LHC1QZ7l3nNy/b/LdK",
       "phone": "",
-      "location": "Mumbai HQ"
+      "location": "Mumbai HQ",
+      "monthlyGross": 60000,
+      "basicPct": 50,
+      "hraPct": 25,
+      "specialPct": 18,
+      "commissionPct": 1.5,
+      "pfAmount": 1800,
+      "profTax": 200,
+      "tdsPct": 8.5
     }
   },
   "deletedPayrollMasterIds": [],
@@ -6527,7 +6614,8 @@
         "avatar": "",
         "last_login_at": null,
         "updated_at": "2026-10-06T17:06:56.585Z",
-        "lastLoginAt": "2026-10-13T08:43:07.750Z"
+        "lastLoginAt": "2026-10-13T08:43:07.750Z",
+        "empCode": "EMP-101"
       },
       {
         "id": "usr-1791811952136",

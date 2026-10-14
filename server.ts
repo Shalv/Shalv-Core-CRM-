@@ -526,14 +526,19 @@ function relinkUsersAndPayrollMasters() {
           const sliceIdx = PERSISTED_CRM_STATE.crmSlices.users.findIndex(
             (su: any) => su && String(su.id) === targetId
           );
-          if (sliceIdx >= 0 && m.accessType !== undefined) {
+          if (sliceIdx >= 0) {
             PERSISTED_CRM_STATE.crmSlices.users[sliceIdx] = {
               ...PERSISTED_CRM_STATE.crmSlices.users[sliceIdx],
-              accessType: m.accessType,
-              accessScope:
-                m.accessType === 'payroll_only'
-                  ? 'payroll_only'
-                  : PERSISTED_CRM_STATE.crmSlices.users[sliceIdx].accessScope || 'all',
+              empCode: m.empCode || PERSISTED_CRM_STATE.crmSlices.users[sliceIdx].empCode,
+              ...(m.accessType !== undefined
+                ? {
+                    accessType: m.accessType,
+                    accessScope:
+                      m.accessType === 'payroll_only'
+                        ? 'payroll_only'
+                        : PERSISTED_CRM_STATE.crmSlices.users[sliceIdx].accessScope || 'all',
+                  }
+                : {}),
             };
           }
         }
@@ -2909,7 +2914,9 @@ app.post('/api/payroll/masters', async (req: Request, res: Response) => {
       if (normCode) {
         const existingOwner = seenCodes.get(normCode);
         if (existingOwner && existingOwner !== uid) {
-          if (collisionIsOurs(existingOwner, uid)) {
+          const ownerM = combined[existingOwner] || Object.values(combined).find((x: any) => x && String(x.userId) === existingOwner);
+          const isSamePerson = ownerM && m.email && ownerM.email && String(m.email).trim().toLowerCase() === String(ownerM.email).trim().toLowerCase();
+          if (!isSamePerson && collisionIsOurs(existingOwner, uid)) {
             return res.status(400).json({
               success: false,
               message: `Duplicate Employee Code ${normCode}`,
@@ -2972,9 +2979,25 @@ app.post('/api/payroll/masters', async (req: Request, res: Response) => {
           name: m.name || MOCK_TABLES.users[existingIdx].name,
           username: m.username || MOCK_TABLES.users[existingIdx].username,
           email: m.email || MOCK_TABLES.users[existingIdx].email,
+          phone: m.phone !== undefined ? m.phone : MOCK_TABLES.users[existingIdx].phone,
+          department: m.department || MOCK_TABLES.users[existingIdx].department,
+          designation: m.designation || MOCK_TABLES.users[existingIdx].designation,
+          role: m.role || MOCK_TABLES.users[existingIdx].role,
+          location: m.location || MOCK_TABLES.users[existingIdx].location,
           status: effectiveStatus,
           passwordHash,
           empCode: normalizedMaster.empCode,
+          gender: m.gender || MOCK_TABLES.users[existingIdx].gender,
+          dateOfBirth: m.dateOfBirth || MOCK_TABLES.users[existingIdx].dateOfBirth,
+          bloodGroup: m.bloodGroup || MOCK_TABLES.users[existingIdx].bloodGroup,
+          maritalStatus: m.maritalStatus || MOCK_TABLES.users[existingIdx].maritalStatus,
+          panNumber: m.panNumber || MOCK_TABLES.users[existingIdx].panNumber,
+          bankName: m.bankName || MOCK_TABLES.users[existingIdx].bankName,
+          bankAccountNo: m.bankAccountNo || MOCK_TABLES.users[existingIdx].bankAccountNo,
+          ifscCode: m.ifscCode || MOCK_TABLES.users[existingIdx].ifscCode,
+          uanNumber: m.uanNumber || MOCK_TABLES.users[existingIdx].uanNumber,
+          pfAccountNo: m.pfAccountNo || MOCK_TABLES.users[existingIdx].pfAccountNo,
+          taxRegime: m.taxRegime || MOCK_TABLES.users[existingIdx].taxRegime,
           accessType: nextAccessType,
           accessScope:
             nextAccessType === 'payroll_only'
@@ -2999,6 +3022,17 @@ app.post('/api/payroll/masters', async (req: Request, res: Response) => {
             designation: m.designation || m.role || 'Employee',
             status: effectiveStatus,
             location: m.location || 'Mumbai HQ',
+            gender: m.gender,
+            dateOfBirth: m.dateOfBirth,
+            bloodGroup: m.bloodGroup,
+            maritalStatus: m.maritalStatus,
+            panNumber: m.panNumber,
+            bankName: m.bankName,
+            bankAccountNo: m.bankAccountNo,
+            ifscCode: m.ifscCode,
+            uanNumber: m.uanNumber,
+            pfAccountNo: m.pfAccountNo,
+            taxRegime: m.taxRegime,
             created_at: new Date().toISOString(),
           })
         );
@@ -3006,6 +3040,9 @@ app.post('/api/payroll/masters', async (req: Request, res: Response) => {
     }
     PERSISTED_CRM_STATE.payrollMasters = relinkedMap;
     MOCK_TABLES.payroll_masters = Object.values(relinkedMap);
+    if (PERSISTED_CRM_STATE.crmSlices && typeof PERSISTED_CRM_STATE.crmSlices === 'object') {
+      PERSISTED_CRM_STATE.crmSlices.users = MOCK_TABLES.users.map(sanitizeUserForClient);
+    }
     savePersistedStore();
   }
   await flushStateToDatabase();

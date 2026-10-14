@@ -29,6 +29,9 @@ import {
   getNextAvailableEmpCode,
   collectExistingEmpCodes,
   normalizeEmpCode,
+  parseEmpCodeNumber,
+  formatEmpCode,
+  resequenceEmployeeRecords,
   isDuplicateEmpCode,
   recordDeletedPayrollMasterIds,
   forgetDeletedPayrollMasterIds,
@@ -44,6 +47,7 @@ import {
   calculateEmployeePolicyPayroll,
 } from './payrollTypes';
 import {
+  Loader2,
   Plus,
   Trash2,
   Edit3,
@@ -201,10 +205,12 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
       });
     };
     window.addEventListener(PAYROLL_MASTERS_SYNC_EVENT, syncPayrollMasters);
+    window.addEventListener('crm-payroll-masters-updated', syncPayrollMasters);
     window.addEventListener('crm-employee-updated', syncPayrollMasters);
     window.addEventListener('crm-payroll-refresh', syncPayrollMasters);
     return () => {
       window.removeEventListener(PAYROLL_MASTERS_SYNC_EVENT, syncPayrollMasters);
+      window.removeEventListener('crm-payroll-masters-updated', syncPayrollMasters);
       window.removeEventListener('crm-employee-updated', syncPayrollMasters);
       window.removeEventListener('crm-payroll-refresh', syncPayrollMasters);
     };
@@ -279,7 +285,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
   const [editingClaimDraft, setEditingClaimDraft] = useState<ExpenseClaimItem | null>(null);
   const [editEmpPasswordDraft, setEditEmpPasswordDraft] = useState('');
 
-  // Build employee list ONLY from actual enrolled employees in employeeSalaryMasters
+  // Build employee list from enrolled employees and sort naturally by Employee Code (EMP-101, EMP-102...)
   const unifiedEmployeeList = React.useMemo(() => {
     const list: Array<{
       id: string;
@@ -296,11 +302,16 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
       master: EmployeeSalaryMasterRecord;
     }> = [];
 
+    const enrolledUserIds = new Set<string>();
+
     Object.values(employeeSalaryMasters).forEach((m) => {
+      if (!m || !m.userId) return;
+      enrolledUserIds.add(m.userId);
       const mEmail = m.email ? m.email.toLowerCase() : '';
       const crmUser =
         users.find((u) => u.id === m.userId) ||
         (mEmail ? users.find((u) => u.email?.toLowerCase() === mEmail) : undefined);
+      if (crmUser) enrolledUserIds.add(crmUser.id);
       list.push({
         id: m.userId,
         name: m.name || crmUser?.name || 'Employee',
@@ -317,8 +328,54 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
       });
     });
 
+    // Also include CRM users not yet enrolled in employeeSalaryMasters
+    users.forEach((u, idx) => {
+      if (!u || !u.id || enrolledUserIds.has(u.id)) return;
+      const uEmail = (u.email || '').toLowerCase();
+      if (uEmail && list.some((item) => item.email.toLowerCase() === uEmail)) return;
+
+      const fallbackMaster = buildDefaultSalaryMasterRecord(u, idx + 1);
+      list.push({
+        id: u.id,
+        name: u.name || 'User',
+        email: u.email || '',
+        phone: u.phone || '',
+        role: u.role || 'Sales Executive',
+        department: u.department || 'Sales',
+        designation: u.designation || u.role || 'Employee',
+        location: u.location || 'Mumbai HQ',
+        status: u.status || 'Active',
+        inCrm: true,
+        inPayroll: false,
+        master: fallbackMaster,
+      });
+    });
+
+    // Natural numeric sequence sort: Super Admin first (EMP-101), then by code ascending
+    list.sort((a, b) => {
+      const isSuperA = a.id === 'usr-1' || a.role === 'Super Admin';
+      const isSuperB = b.id === 'usr-1' || b.role === 'Super Admin';
+      if (isSuperA && !isSuperB) return -1;
+      if (!isSuperA && isSuperB) return 1;
+      const numA = parseEmpCodeNumber(a.master?.empCode);
+      const numB = parseEmpCodeNumber(b.master?.empCode);
+      if (numA !== numB) return numA - numB;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+
     return list;
   }, [users, employeeSalaryMasters]);
+
+  const hasEmpCodeCollisions = React.useMemo(() => {
+    const seen = new Set<string>();
+    for (const entry of unifiedEmployeeList) {
+      const code = normalizeEmpCode(entry.master?.empCode);
+      if (!code) continue;
+      if (seen.has(code)) return true;
+      seen.add(code);
+    }
+    return false;
+  }, [unifiedEmployeeList]);
 
   // Dynamic Org Options derived from Org Masters (fallback to defaults if empty)
   const dynamicRoles = React.useMemo(() => {
@@ -523,20 +580,13 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
 
   const targetMaster = targetEntry?.master || buildDefaultSalaryMasterRecord(currentUser, 0);
 
+  const [isSavingEmployee, setIsSavingEmployee] = useState(false);
+
   const updateSelectedMaster = (patch: Partial<EmployeeSalaryMasterRecord>) => {
     if (!targetEntry) return;
     const nextPatch = { ...patch };
     if (nextPatch.empCode !== undefined) {
-      const normalized = normalizeEmpCode(nextPatch.empCode);
-      if (normalized && isDuplicateEmpCode(normalized, employeeSalaryMasters, targetEntry.id)) {
-        setStatusBanner(
-          `Employee Code "${normalized}" is already assigned to another employee. Please use a unique Employee Code.`
-        );
-        return;
-      }
-      if (normalized) {
-        nextPatch.empCode = normalized;
-      }
+      nextPatch.empCode = normalizeEmpCode(nextPatch.empCode) || nextPatch.empCode;
     }
     if (nextPatch.password !== undefined) {
       nextPatch.tempPassword = nextPatch.password;
@@ -553,67 +603,14 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
         ...prev,
         [targetEntry.id]: updated,
       };
-      // Editing an employee's own master is an explicit save for that identity —
-      // clear any stale tombstone so the update is never blocked or swapped
-      forgetDeletedPayrollMasterIds([targetEntry.id]);
-      saveEmployeeSalaryMasters(next, true, false, [targetEntry.id]);
+      try {
+        localStorage.setItem(PAYROLL_MASTERS_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
       return next;
     });
-    // Also keep linked CRM User record in sync when password or identity fields are edited in Payroll Master
-    if (
-      nextPatch.password !== undefined ||
-      nextPatch.tempPassword !== undefined ||
-      nextPatch.email !== undefined ||
-      nextPatch.name !== undefined ||
-      nextPatch.phone !== undefined ||
-      nextPatch.role !== undefined ||
-      nextPatch.department !== undefined ||
-      nextPatch.designation !== undefined ||
-      nextPatch.location !== undefined ||
-      nextPatch.status !== undefined ||
-      nextPatch.accessType !== undefined ||
-      nextPatch.syncedWithCrm !== undefined
-    ) {
-      const linkedCrmUser = users.find(
-        (u) =>
-          u.id === targetEntry.id ||
-          (updated.email && u.email && u.email.trim().toLowerCase() === updated.email.trim().toLowerCase())
-      );
-      if (linkedCrmUser) {
-        const resolvedAccessType =
-          nextPatch.accessType !== undefined
-            ? nextPatch.accessType
-            : nextPatch.syncedWithCrm !== undefined
-              ? nextPatch.syncedWithCrm
-                ? 'crm_and_payroll'
-                : 'payroll_only'
-              : undefined;
-        updateUser(linkedCrmUser.id, {
-          ...(nextPatch.name !== undefined ? { name: nextPatch.name } : {}),
-          ...(nextPatch.email !== undefined ? { email: nextPatch.email } : {}),
-          ...(nextPatch.phone !== undefined ? { phone: nextPatch.phone } : {}),
-          ...(nextPatch.department !== undefined ? { department: nextPatch.department as any } : {}),
-          ...(nextPatch.designation !== undefined ? { designation: nextPatch.designation } : {}),
-          ...(nextPatch.location !== undefined ? { location: nextPatch.location } : {}),
-          ...(nextPatch.password !== undefined
-            ? {
-                password: nextPatch.password,
-                tempPassword: nextPatch.password,
-                mustChangePassword: false,
-                mustChangePasswordOnFirstLogin: false,
-              }
-            : {}),
-          ...(nextPatch.role !== undefined ? { role: nextPatch.role as UserRole } : {}),
-          ...(nextPatch.status !== undefined ? { status: nextPatch.status } : {}),
-          ...(resolvedAccessType !== undefined
-            ? {
-                accessType: resolvedAccessType,
-                accessScope: resolvedAccessType === 'payroll_only' ? 'payroll_only' : 'all',
-              }
-            : {}),
-        });
-      }
-    }
+
     if (targetEntry.id === currentUser.id) {
       setStatutory((prevStat) => ({
         ...prevStat,
@@ -624,6 +621,140 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
         bankAccountNo: updated.bankAccountNo,
         ifscCode: updated.ifscCode,
       }));
+    }
+  };
+
+  const handleSaveExistingEmployee = async () => {
+    if (!targetEntry) return;
+    const current = targetMaster;
+    const cleanName = current.name ? String(current.name).trim() : '';
+    const cleanEmail = current.email ? String(current.email).trim().toLowerCase() : '';
+    if (!cleanName) {
+      setStatusBanner('Please specify the employee name.');
+      return;
+    }
+    if (!cleanEmail) {
+      setStatusBanner('Please specify an official email address.');
+      return;
+    }
+
+    let normCode = normalizeEmpCode(current.empCode);
+    if (!normCode) {
+      normCode = getNextAvailableEmpCode(employeeSalaryMasters, collectExistingEmpCodes(users));
+    }
+
+    if (isDuplicateEmpCode(normCode, employeeSalaryMasters, targetEntry.id)) {
+      const nextFree = getNextAvailableEmpCode(employeeSalaryMasters, collectExistingEmpCodes(users));
+      setStatusBanner(
+        `Employee Code "${normCode}" is already in use by another employee. Please change it or use next free code (${nextFree}).`
+      );
+      return;
+    }
+
+    setIsSavingEmployee(true);
+    try {
+      const updatedRecord: EmployeeSalaryMasterRecord = {
+        ...current,
+        name: cleanName,
+        email: cleanEmail,
+        empCode: normCode,
+        userId: targetEntry.id,
+      };
+
+      const nextMasters: Record<string, EmployeeSalaryMasterRecord> = {
+        ...employeeSalaryMasters,
+        [targetEntry.id]: updatedRecord,
+      };
+
+      forgetDeletedPayrollMasterIds([targetEntry.id]);
+      setEmployeeSalaryMasters(nextMasters);
+
+      // Keep linked CRM User record in sync including all profile and statutory fields
+      const linkedCrmUser = users.find(
+        (u) =>
+          u.id === targetEntry.id ||
+          (cleanEmail && u.email && u.email.trim().toLowerCase() === cleanEmail)
+      );
+      if (linkedCrmUser) {
+        const resolvedAccessType =
+          updatedRecord.accessType !== undefined
+            ? updatedRecord.accessType
+            : updatedRecord.syncedWithCrm
+            ? 'crm_and_payroll'
+            : 'payroll_only';
+        updateUser(linkedCrmUser.id, {
+          name: updatedRecord.name,
+          email: updatedRecord.email,
+          phone: updatedRecord.phone,
+          department: updatedRecord.department as any,
+          designation: updatedRecord.designation,
+          location: updatedRecord.location,
+          role: updatedRecord.role as UserRole,
+          status: updatedRecord.status,
+          empCode: normCode,
+          gender: (updatedRecord as any).gender,
+          dateOfBirth: (updatedRecord as any).dateOfBirth,
+          bloodGroup: (updatedRecord as any).bloodGroup,
+          maritalStatus: (updatedRecord as any).maritalStatus,
+          panNumber: updatedRecord.panNumber,
+          bankName: updatedRecord.bankName,
+          bankAccountNo: updatedRecord.bankAccountNo,
+          ifscCode: updatedRecord.ifscCode,
+          uanNumber: updatedRecord.uanNumber,
+          pfAccountNo: updatedRecord.pfAccountNo,
+          taxRegime: updatedRecord.taxRegime,
+          ...(updatedRecord.password
+            ? {
+                password: updatedRecord.password,
+                tempPassword: updatedRecord.password,
+                mustChangePassword: false,
+                mustChangePasswordOnFirstLogin: false,
+              }
+            : {}),
+          accessType: resolvedAccessType,
+          accessScope: resolvedAccessType === 'payroll_only' ? 'payroll_only' : 'all',
+        });
+      }
+
+      const saveRes = await saveEmployeeSalaryMasters({ [targetEntry.id]: updatedRecord }, true, false, [targetEntry.id]);
+      if (saveRes.ok) {
+        setStatusBanner(
+          `✓ Successfully saved employee "${updatedRecord.name}" (${updatedRecord.empCode}) in Payroll & CRM!`
+        );
+      } else {
+        setStatusBanner(`✕ Could not save employee on server: ${saveRes.message || 'Validation error'}`);
+      }
+    } finally {
+      setIsSavingEmployee(false);
+    }
+  };
+
+  const handleResequenceAllEmployees = async () => {
+    const { resequencedMasters, resequencedUsers, changedCount } = resequenceEmployeeRecords(
+      employeeSalaryMasters,
+      users
+    );
+    if (changedCount === 0) {
+      setStatusBanner('✓ All employee records are already cleanly sequenced (EMP-101 onwards).');
+      return;
+    }
+
+    // Synchronize CRM user empCodes
+    for (const u of resequencedUsers) {
+      const match = users.find((existing) => existing.id === u.id);
+      if (match && match.empCode !== u.empCode) {
+        updateUser(u.id, { empCode: u.empCode });
+      }
+    }
+
+    setEmployeeSalaryMasters(resequencedMasters);
+    const res = await saveEmployeeSalaryMasters(resequencedMasters, true, true);
+    if (res.ok) {
+      setStatusBanner(
+        `✓ Successfully re-sequenced ${resequencedUsers.length} employees starting from EMP-101. All duplicate codes resolved!`
+      );
+    } else {
+      setStatusBanner(`✕ Could not re-sequence on server: ${res.message || 'Error occurred'}`);
     }
   };
 
@@ -719,6 +850,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
       name: newUserDraft.name.trim(),
       username: resolvedUsername,
       email: newUserDraft.email.trim(),
+      empCode: resolvedEmpCode,
       password: finalPass,
       tempPassword: finalPass,
       mustChangePassword: mustChange,
@@ -790,19 +922,14 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
       ...employeeSalaryMasters,
     };
     if (existingEmailMaster && existingEmailMaster.userId !== finalUserId) {
-      // A patch merge cannot express "replace the record that held this email", so tombstone the
-      // superseded id - the server treats tombstones as the only sanctioned way to remove one.
       recordDeletedPayrollMasterIds([existingEmailMaster.userId]);
       delete nextMasters[existingEmailMaster.userId];
     }
     nextMasters[finalUserId] = newMasterRecord;
     forgetDeletedPayrollMasterIds([finalUserId]);
-    const saveResult = await saveEmployeeSalaryMasters(nextMasters, true, false, [finalUserId]);
+    const saveResult = await saveEmployeeSalaryMasters({ [finalUserId]: newMasterRecord }, true, false, [finalUserId]);
 
     if (!saveResult.ok) {
-      // The CRM login now exists while the payroll master does not - precisely the state that read
-      // as "it shows in CRM users but not in payroll". Name the server's reason instead of
-      // claiming success, and drop the optimistic record so no phantom employee is listed.
       if (serverMasters) {
         restoreLocalEmployeeSalaryMasters(serverMasters);
         setEmployeeSalaryMasters(serverMasters);
@@ -822,13 +949,13 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
       name: '',
       username: '',
       email: '',
-      password: '',
-      tempPassword: '',
+      password: 'Welcome@123',
+      tempPassword: 'Welcome@123',
       mustChangePasswordOnFirstLogin: false,
       phone: '+91 ',
       empCode: getNextAvailableEmpCode(
         { ...(serverMasters || {}), ...nextMasters },
-        collectExistingEmpCodes(users)
+        [...collectExistingEmpCodes(users), newMasterRecord.empCode]
       ),
     });
 
@@ -1405,21 +1532,43 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
 
                   <div className="grid grid-cols-5 gap-2">
                     <div>
-                      <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
-                        Emp Code *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={newUserDraft.empCode}
-                        onChange={(e) =>
-                          setNewUserDraft({
-                            ...newUserDraft,
-                            empCode: e.target.value.toUpperCase(),
-                          })
-                        }
-                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-[#1f7e9e]"
-                      />
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="font-semibold text-slate-700 block whitespace-nowrap">
+                          Emp Code *
+                        </label>
+                        {isDuplicateEmpCode(newUserDraft.empCode, employeeSalaryMasters) && (
+                          <span className="text-[10px] font-bold text-rose-600">Taken</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="text"
+                          required
+                          value={newUserDraft.empCode}
+                          onChange={(e) =>
+                            setNewUserDraft({
+                              ...newUserDraft,
+                              empCode: e.target.value.toUpperCase(),
+                            })
+                          }
+                          className={`w-full bg-white border rounded-lg px-2 py-1.5 text-xs font-mono font-bold ${
+                            isDuplicateEmpCode(newUserDraft.empCode, employeeSalaryMasters)
+                              ? 'border-rose-400 text-rose-700 bg-rose-50/50'
+                              : 'border-slate-200 text-[#1f7e9e]'
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextCode = getNextAvailableEmpCode(employeeSalaryMasters, collectExistingEmpCodes(users));
+                            setNewUserDraft((prev) => ({ ...prev, empCode: nextCode }));
+                          }}
+                          className="px-1.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-bold whitespace-nowrap cursor-pointer border border-slate-200 shrink-0"
+                          title="Generate next sequential code"
+                        >
+                          Auto
+                        </button>
+                      </div>
                     </div>
                     <div>
                       <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
@@ -2122,17 +2271,41 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                     {/* Payroll Compensation & Statutory Fields */}
                     <div className="grid grid-cols-3 gap-2.5 pt-2 border-t border-slate-100">
                       <div>
-                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
-                          Employee Code
-                        </label>
-                        <input
-                          type="text"
-                          value={targetMaster.empCode}
-                          onChange={(e) =>
-                            updateSelectedMaster({ empCode: e.target.value.toUpperCase() })
-                          }
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-[#1f7e9e]"
-                        />
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="font-semibold text-slate-700 block whitespace-nowrap">
+                            Employee Code
+                          </label>
+                          {isDuplicateEmpCode(targetMaster.empCode, employeeSalaryMasters, targetEntry?.id) && (
+                            <span className="text-[10px] font-bold text-rose-600">Duplicate</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            value={targetMaster.empCode}
+                            onChange={(e) =>
+                              updateSelectedMaster({ empCode: e.target.value.toUpperCase() })
+                            }
+                            className={`w-full bg-slate-50 border rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold ${
+                              isDuplicateEmpCode(targetMaster.empCode, employeeSalaryMasters, targetEntry?.id)
+                                ? 'border-rose-400 text-rose-700 bg-rose-50/50'
+                                : 'border-slate-200 text-[#1f7e9e]'
+                            }`}
+                          />
+                          {isDuplicateEmpCode(targetMaster.empCode, employeeSalaryMasters, targetEntry?.id) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextFree = getNextAvailableEmpCode(employeeSalaryMasters, collectExistingEmpCodes(users));
+                                updateSelectedMaster({ empCode: nextFree });
+                              }}
+                              className="px-2 py-1.5 bg-sky-100 hover:bg-sky-200 text-sky-800 rounded-lg text-[10px] font-bold whitespace-nowrap cursor-pointer shrink-0"
+                              title="Assign next available unique code"
+                            >
+                              Auto-Fix
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <div>
                         <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
@@ -2835,16 +3008,21 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                 <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
                   <button
                     type="button"
-                    onClick={() =>
-                      setStatusBanner(
-                        `Saved CRM & Payroll Master details for ${targetEntry?.name} (${
-                          targetMaster.empCode
-                        }) — PostgreSQL employee record updated successfully.`
-                      )
-                    }
-                    className="flex-1 py-2 px-4 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-lg shadow-2xs whitespace-nowrap transition cursor-pointer"
+                    disabled={isSavingEmployee}
+                    onClick={handleSaveExistingEmployee}
+                    className="flex-1 py-2 px-4 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white font-semibold rounded-lg shadow-2xs whitespace-nowrap transition cursor-pointer flex items-center justify-center gap-2"
                   >
-                    Save Employee Record
+                    {isSavingEmployee ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                        <span>Saving Employee...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Save Employee Record</span>
+                      </>
+                    )}
                   </button>
 
                   {targetEntry && targetEntry.inCrm && targetEntry.id !== 'usr-1' && targetEntry.role !== 'Super Admin' && (
@@ -2889,7 +3067,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
 
           {/* Right 6 Cols: Unified CRM & Payroll Employee Directory Table */}
           <div className="xl:col-span-6 bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
-            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50/60">
+            <div className="px-4 py-3 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/60">
               <div className="min-w-0">
                 <h4 className="font-bold text-sm text-slate-900 whitespace-nowrap">
                   Unified Employee Directory ({unifiedEmployeeList.length})
@@ -2898,21 +3076,51 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                   View CRM &amp; Payroll sync status, allocated salary, leave quotas, or promote between systems
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setNewUserDraft((prev) => ({
-                    ...prev,
-                    empCode: getNextAvailableEmpCode(employeeSalaryMasters),
-                  }));
-                  setUserFormMode('create');
-                }}
-                className="px-3 py-1.5 bg-[#1f7e9e] hover:bg-[#17647e] text-white font-bold rounded-lg text-xs flex items-center gap-1.5 whitespace-nowrap shadow-2xs transition cursor-pointer shrink-0"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Employee</span>
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleResequenceAllEmployees}
+                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs flex items-center gap-1.5 whitespace-nowrap transition cursor-pointer border border-slate-300"
+                  title="Re-sequence all existing employees sequentially starting from EMP-101 and fix duplicate codes"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-slate-600" />
+                  <span>Re-sequence Codes</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextCode = getNextAvailableEmpCode(employeeSalaryMasters, collectExistingEmpCodes(users));
+                    setNewUserDraft((prev) => ({
+                      ...prev,
+                      empCode: nextCode,
+                    }));
+                    setUserFormMode('create');
+                  }}
+                  className="px-3 py-1.5 bg-[#1f7e9e] hover:bg-[#17647e] text-white font-bold rounded-lg text-xs flex items-center gap-1.5 whitespace-nowrap shadow-2xs transition cursor-pointer shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Employee</span>
+                </button>
+              </div>
             </div>
+
+            {hasEmpCodeCollisions && (
+              <div className="mx-4 mt-3 p-3 bg-amber-50 border border-amber-300 rounded-xl flex items-center justify-between gap-3 text-amber-900 text-xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span className="truncate">
+                    Duplicate or out-of-order Employee Codes detected. Click to re-sequence all employees sequentially (EMP-101 onwards).
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleResequenceAllEmployees}
+                  className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs shrink-0 cursor-pointer shadow-2xs"
+                >
+                  Fix &amp; Re-sequence
+                </button>
+              </div>
+            )}
 
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs whitespace-nowrap">

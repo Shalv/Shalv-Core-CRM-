@@ -1648,7 +1648,7 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
         if (!alreadyHasMaster) {
           allPayrollMastersList.push({
             userId: u.id,
-            empCode: (u as any).empCode || `EMP-${String(idx + 1).padStart(3, '0')}`,
+            empCode: (u as any).empCode || `EMP-${String(101 + idx).padStart(3, '0')}`,
             name: u.name,
             email: u.email,
             password: u.password || u.tempPassword || '',
