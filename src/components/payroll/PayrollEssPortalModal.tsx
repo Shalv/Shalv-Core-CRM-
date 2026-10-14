@@ -636,6 +636,14 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
         saveEmployeeSalaryMasters(nextMasters, true, false, [activeEmployee.id]);
       }
 
+      if (Array.isArray(resData?.auditLogs) && resData.auditLogs.length > 0) {
+        window.dispatchEvent(
+          new CustomEvent('crm-audit-logs-updated', {
+            detail: { auditLogs: resData.auditLogs },
+          })
+        );
+      }
+
       window.dispatchEvent(new CustomEvent('crm-employee-updated', { detail: { empId: activeEmployee.id } }));
       window.dispatchEvent(new CustomEvent(PAYROLL_MASTERS_SYNC_EVENT));
       window.dispatchEvent(new CustomEvent('crm-payroll-refresh'));

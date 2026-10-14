@@ -1301,6 +1301,28 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(STORAGE_KEYS.AUDIT, JSON.stringify(auditLogs));
   }, [auditLogs]);
 
+  useEffect(() => {
+    const handleAuditUpdate = (e: any) => {
+      const logs = e.detail?.auditLogs;
+      if (Array.isArray(logs) && logs.length > 0) {
+        setAuditLogs((prev) => {
+          const prevIds = new Set(prev.map((l) => l.id));
+          const newEntries = logs.filter((l) => l && l.id && !prevIds.has(l.id));
+          if (newEntries.length === 0) return prev;
+          const merged = [...newEntries, ...prev];
+          try {
+            localStorage.setItem(STORAGE_KEYS.AUDIT, JSON.stringify(merged));
+          } catch {
+            // ignore
+          }
+          return merged;
+        });
+      }
+    };
+    window.addEventListener('crm-audit-logs-updated', handleAuditUpdate);
+    return () => window.removeEventListener('crm-audit-logs-updated', handleAuditUpdate);
+  }, []);
+
   // Refresh payroll caches from the same authoritative database after sign-in and periodically
   useEffect(() => {
     if (!isAuthenticated) return;
