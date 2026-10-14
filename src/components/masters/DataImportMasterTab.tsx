@@ -8,6 +8,7 @@ import {
   buildDefaultSalaryMasterRecord,
   normalizeEmpCode,
   getNextAvailableEmpCode,
+  collectExistingEmpCodes,
   forgetDeletedPayrollMasterIds,
 } from '../payroll/payrollTypes';
 import {
@@ -867,6 +868,9 @@ export const DataImportMasterTab: React.FC<DataImportMasterTabProps> = ({
       const tempMastersForCodeGen: Record<string, EmployeeSalaryMasterRecord> = {
         ...workingMasters,
       };
+      // Codes already held on CRM users but not in payroll masters still count against the sequence,
+      // or the import would hand an existing employee's number to a new one.
+      const reservedUserCodes = collectExistingEmpCodes(users);
 
       validRecords.forEach((rec, idx) => {
         const cleanEmail = rec.email.trim().toLowerCase();
@@ -881,7 +885,7 @@ export const DataImportMasterTab: React.FC<DataImportMasterTabProps> = ({
           ? normalizeEmpCode(rec.empCode)
           : existingMaster?.empCode ||
             existingUser?.empCode ||
-            getNextAvailableEmpCode(tempMastersForCodeGen);
+            getNextAvailableEmpCode(tempMastersForCodeGen, reservedUserCodes);
 
         // Reserve this code in tempMastersForCodeGen so subsequent rows get the next code
         const reserveKey = existingUser?.id || `temp-${idx}`;

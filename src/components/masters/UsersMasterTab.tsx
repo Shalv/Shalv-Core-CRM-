@@ -16,6 +16,7 @@ import {
   buildDefaultSalaryMasterRecord,
   normalizeEmpCode,
   getNextAvailableEmpCode,
+  collectExistingEmpCodes,
   isDuplicateEmpCode,
   forgetDeletedPayrollMasterIds,
   PAYROLL_MASTERS_SYNC_EVENT,
@@ -168,7 +169,7 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
   });
 
   const [payrollDraft, setPayrollDraft] = useState({
-    empCode: getNextAvailableEmpCode(payrollMasters),
+    empCode: getNextAvailableEmpCode(payrollMasters, collectExistingEmpCodes(users)),
     monthlyGross: 78000,
     basicPct: 50,
     hraPct: 25,
@@ -272,7 +273,7 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
     setAlsoCreateInPayroll(true);
     applyPermPreset('role_default', defaultRole);
     setPayrollDraft({
-      empCode: getNextAvailableEmpCode(payrollMasters),
+      empCode: getNextAvailableEmpCode(payrollMasters, collectExistingEmpCodes(users)),
       monthlyGross: getRoleDefaultGross(defaultRole),
       basicPct: 50,
       hraPct: 25,
@@ -436,7 +437,7 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
     const resolvedEmpCode =
       normalizeEmpCode(payrollDraft.empCode) ||
       existingEmailMaster?.empCode ||
-      getNextAvailableEmpCode(payrollMasters);
+      getNextAvailableEmpCode(payrollMasters, collectExistingEmpCodes(users));
 
     if (
       alsoCreateInPayroll &&

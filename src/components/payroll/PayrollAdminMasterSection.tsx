@@ -27,6 +27,7 @@ import {
   fetchServerEmployeeSalaryMasters,
   restoreLocalEmployeeSalaryMasters,
   getNextAvailableEmpCode,
+  collectExistingEmpCodes,
   normalizeEmpCode,
   isDuplicateEmpCode,
   recordDeletedPayrollMasterIds,
@@ -242,7 +243,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
       reportingManager: users[0]?.name || 'Vikramaditya Rathore',
       assignedTerritory: 'West Zone (Maharashtra & Gujarat)',
       status: 'Active' as 'Active' | 'Inactive',
-      empCode: getNextAvailableEmpCode(employeeSalaryMasters),
+      empCode: getNextAvailableEmpCode(employeeSalaryMasters, collectExistingEmpCodes(users)),
       monthlyGross: 78000,
       basicPct: 50,
       hraPct: 25,
@@ -697,7 +698,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
     const resolvedEmpCode =
       draftedEmpCode && !isDuplicateEmpCode(draftedEmpCode, mastersForCodes, excludeId)
         ? draftedEmpCode
-        : getNextAvailableEmpCode(mastersForCodes);
+        : getNextAvailableEmpCode(mastersForCodes, collectExistingEmpCodes(users));
     if (isDuplicateEmpCode(resolvedEmpCode, mastersForCodes, excludeId)) {
       setStatusBanner(
         `Employee Code "${resolvedEmpCode}" is already assigned to another employee. Please choose a unique Employee Code.`
@@ -825,10 +826,10 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
       tempPassword: '',
       mustChangePasswordOnFirstLogin: false,
       phone: '+91 ',
-      empCode: getNextAvailableEmpCode({
-        ...(serverMasters || {}),
-        ...nextMasters,
-      }),
+      empCode: getNextAvailableEmpCode(
+        { ...(serverMasters || {}), ...nextMasters },
+        collectExistingEmpCodes(users)
+      ),
     });
 
     setStatusBanner(
@@ -1117,7 +1118,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                   onClick={() => {
                     setNewUserDraft((prev) => ({
                       ...prev,
-                      empCode: getNextAvailableEmpCode(employeeSalaryMasters),
+                      empCode: getNextAvailableEmpCode(employeeSalaryMasters, collectExistingEmpCodes(users)),
                     }));
                     setUserFormMode('create');
                   }}

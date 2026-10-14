@@ -732,9 +732,30 @@ export const normalizeEmpCode = (code?: string | null): string => {
   return trimmed;
 };
 
+// Employee codes live in TWO collections: the payroll master record AND the CRM user record. A person
+// can carry an empCode on their CRM user with no payroll master yet (CRM-only), or the reverse. The next
+// auto code must respect numbers already used in BOTH, otherwise the sequence reissues a number that is
+// already assigned and the whole save is rejected server-side as a duplicate. This reads whichever shape
+// each source uses (array or record keyed by id) and returns the non-empty codes it finds.
+export const collectExistingEmpCodes = (
+  ...sources: Array<Record<string, any> | any[] | null | undefined>
+): string[] => {
+  const codes: string[] = [];
+  for (const source of sources) {
+    if (!source) continue;
+    const rows = Array.isArray(source) ? source : Object.values(source);
+    for (const row of rows) {
+      const code = row && (row.empCode ?? row.employeeCode);
+      const text = String(code ?? '').trim();
+      if (text) codes.push(text);
+    }
+  }
+  return codes;
+};
+
 export const getNextAvailableEmpCode = (
   mastersInput?: Record<string, EmployeeSalaryMasterRecord> | EmployeeSalaryMasterRecord[],
-  extraCodes: string[] = []
+  extraCodes: (string | number | null | undefined)[] = []
 ): string => {
   const list: EmployeeSalaryMasterRecord[] = mastersInput
     ? Array.isArray(mastersInput)
@@ -742,9 +763,12 @@ export const getNextAvailableEmpCode = (
       : Object.values(mastersInput)
     : Object.values(loadEmployeeSalaryMasters());
   let maxNum = 100;
-  const allCodes = [...list.map((m) => m?.empCode || ''), ...extraCodes];
+  // Scan the master codes plus any codes handed in from other collections (CRM users). Only values that
+  // end in a number move the sequence; the trailing-digit match ignores a prefix so both EMP-101 and a
+  // raw 101 are read the same way.
+  const allCodes = [...list.map((m) => m?.empCode ?? ''), ...extraCodes];
   for (const raw of allCodes) {
-    const match = String(raw || '').trim().match(/(\d+)$/);
+    const match = String(raw ?? '').trim().match(/(\d+)$/);
     if (match) {
       const num = parseInt(match[1], 10);
       if (Number.isFinite(num) && num > maxNum) {
