@@ -1004,53 +1004,20 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
                   </div>
                 )}
 
+                {/* Sign-in guidance only. Never render the admin email, username or password
+                    here: this screen is public, the repository is public, and the seed password
+                    is already hardcoded in server.ts, so echoing it would hand anyone a
+                    working Super Admin login. */}
                 <div className="mb-4 p-3.5 bg-blue-50/90 border border-blue-200/90 rounded-xl text-xs text-blue-900 shadow-2xs">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-semibold text-blue-950 flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                      Verified Super Admin Credentials
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEmail('admin@coreenact.com');
-                          setPassword('CoreEnact@2026#');
-                          setErrors({});
-                        }}
-                        className="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-[11px] rounded transition shadow-xs cursor-pointer"
-                        title="Auto-fill with Email"
-                      >
-                        Fill Email
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEmail('admin');
-                          setPassword('CoreEnact@2026#');
-                          setErrors({});
-                        }}
-                        className="px-2 py-0.5 bg-slate-700 hover:bg-slate-800 text-white font-medium text-[11px] rounded transition shadow-xs cursor-pointer"
-                        title="Auto-fill with Username"
-                      >
-                        Fill Username
-                      </button>
-                    </div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span className="font-semibold text-blue-950">Super Admin sign-in</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 pt-1 border-t border-blue-200/60 font-mono text-[11.5px] text-blue-900">
-                    <div>
-                      <span className="text-[10px] uppercase font-sans text-blue-600 font-bold block">Email:</span>
-                      <span className="select-all font-semibold">admin@coreenact.com</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] uppercase font-sans text-blue-600 font-bold block">Username:</span>
-                      <span className="select-all font-semibold">admin</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] uppercase font-sans text-blue-600 font-bold block">Password:</span>
-                      <span className="select-all font-semibold text-emerald-800">CoreEnact@2026#</span>
-                    </div>
-                  </div>
+                  <p className="text-blue-900/90">
+                    Sign in with the Super Admin credentials issued for this workspace. For your
+                    security, credentials are not shown on this screen. If you cannot sign in,
+                    contact your system administrator to restore the seeded admin password.
+                  </p>
                 </div>
 
                 <form onSubmit={submit} noValidate>
