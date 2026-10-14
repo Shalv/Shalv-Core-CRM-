@@ -114,3 +114,24 @@ test('rebaseLocalChanges preserves user additions, deletions and edits across co
  assert.ok(rebased.customers.some((c: any) => c.id === 'c4')); // Remote addition preserved
  assert.equal(rebased.customers.some((c: any) => c.id === 'c2'), false); // Local deletion preserved
 });
+
+test('reconcileSnapshot automatically deduplicates duplicate record IDs in auditLogs and entity slices', () => {
+ const source = fixture();
+ source.auditLogs = [
+   { id: 'aud-emp-1', action: 'Updated', description: 'First log' },
+   { id: 'aud-emp-1', action: 'Updated', description: 'Duplicate of first log' },
+   { id: 'aud-emp-2', action: 'Created', description: 'Second log' },
+   { id: 'aud-emp-2', action: 'Created', description: 'Duplicate of second log' },
+ ];
+ const rawIssues = auditSnapshot(source);
+ assert.ok(rawIssues.some((i) => i.slice === 'auditLogs' && i.message === 'Duplicate record ID'));
+
+ const reconciled = reconcileSnapshot(source);
+ assert.equal(reconciled.auditLogs.length, 2);
+ assert.equal(reconciled.auditLogs[0].id, 'aud-emp-1');
+ assert.equal(reconciled.auditLogs[1].id, 'aud-emp-2');
+
+ const cleanIssues = auditSnapshot(reconciled);
+ assert.equal(cleanIssues.filter((i) => i.message === 'Duplicate record ID').length, 0);
+});
+

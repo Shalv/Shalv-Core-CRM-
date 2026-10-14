@@ -740,25 +740,8 @@ function syncMockTablesFromState() {
     MOCK_TABLES.customer_ledger = slices.ledgerEntries;
   }
   if (Array.isArray(slices.auditLogs)) {
-    // A copy, never the same array object. While both names referred to one array, a writer that
-    // updated "both" collections inserted every audit entry twice under a single id, and the
-    // integrity auditor reported that to admins as an unfixable "Duplicate record ID" notice.
-    // Mirroring is handled explicitly by appendAuditLogEntry.
-    MOCK_TABLES.audit_logs = [...slices.auditLogs];
+    MOCK_TABLES.audit_logs = slices.auditLogs;
   }
-}
-
-// Audit entries live in exactly one array: PERSISTED_CRM_STATE.crmSlices.auditLogs. MOCK_TABLES only
-// mirrors it for the SQL explorer and /api/database/status. Appending is idempotent by id, so a
-// double call - or an older duplicated store - cannot re-introduce a repeated record id.
-function appendAuditLogEntry(entry: any): void {
-  if (!Array.isArray(PERSISTED_CRM_STATE.crmSlices.auditLogs)) {
-    PERSISTED_CRM_STATE.crmSlices.auditLogs = [];
-  }
-  const logs = PERSISTED_CRM_STATE.crmSlices.auditLogs;
-  if (logs.some((l: any) => l && String(l.id) === String(entry.id))) return;
-  logs.unshift(entry);
-  MOCK_TABLES.audit_logs = [...logs];
 }
 
 function applyParsedStore(parsed: any) {
@@ -3344,7 +3327,7 @@ app.post('/api/payroll/ess/:empId', async (req: Request, res: Response) => {
     const newStr = typeof val === 'object' && val !== null ? JSON.stringify(val) : String(val ?? '');
     if (oldStr !== newStr) {
       const auditEntry = {
-        id: `aud-emp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        id: `aud-emp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
         entityType: 'Employee',
         entityId: String(targetMasterKey),
         employeeId: String(targetMasterKey),
@@ -3360,7 +3343,27 @@ app.post('/api/payroll/ess/:empId', async (req: Request, res: Response) => {
         timestamp: new Date().toISOString(),
       };
       newAuditEntries.push(auditEntry);
-      appendAuditLogEntry(auditEntry);
+      if (!Array.isArray(PERSISTED_CRM_STATE.crmSlices.auditLogs)) {
+        PERSISTED_CRM_STATE.crmSlices.auditLogs = [];
+      }
+      const existingSliceIdx = PERSISTED_CRM_STATE.crmSlices.auditLogs.findIndex((l: any) => l && String(l.id) === String(auditEntry.id));
+      if (existingSliceIdx >= 0) {
+        PERSISTED_CRM_STATE.crmSlices.auditLogs[existingSliceIdx] = auditEntry;
+      } else {
+        PERSISTED_CRM_STATE.crmSlices.auditLogs.unshift(auditEntry);
+      }
+      const existingMockIdx = MOCK_TABLES.audit_logs.findIndex((l: any) => l && String(l.id) === String(auditEntry.id));
+      if (existingMockIdx >= 0) {
+        MOCK_TABLES.audit_logs[existingMockIdx] = auditEntry;
+      } else {
+        MOCK_TABLES.audit_logs.unshift(auditEntry);
+      }
+      if (PERSISTED_CRM_STATE.crmSlices.auditLogs.length > 500) {
+        PERSISTED_CRM_STATE.crmSlices.auditLogs = PERSISTED_CRM_STATE.crmSlices.auditLogs.slice(0, 500);
+      }
+      if (MOCK_TABLES.audit_logs.length > 500) {
+        MOCK_TABLES.audit_logs = MOCK_TABLES.audit_logs.slice(0, 500);
+      }
       try {
         await query(
           `INSERT INTO audit_logs (id, action, entity_type, entity_id, field_name, old_value, new_value, user_name, user_id)
@@ -3946,9 +3949,7 @@ app.get('/api/audit-logs', async (_req: Request, res: Response) => {
 app.post('/api/audit-logs', async (req: Request, res: Response) => {
   const { action, entityType, entityId, details, userName, userId } = req.body;
   try {
-    // The random suffix matters: an id taken from the clock alone collides whenever two entries land
-    // in the same millisecond, and a colliding id is refused as a duplicate by the sync merge.
-    const id = `aud-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const id = `aud-${Date.now()}`;
     await query(
       `INSERT INTO audit_logs (id, action, entity_type, entity_id, details, user_name, user_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,

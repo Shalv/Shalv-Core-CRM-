@@ -1088,7 +1088,20 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.AUDIT);
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const seen = new Set<string>();
+          const deduped: AuditLogItem[] = [];
+          for (const item of parsed) {
+            if (item && item.id && !seen.has(String(item.id))) {
+              seen.add(String(item.id));
+              deduped.push(item);
+            }
+          }
+          return deduped;
+        }
+      } catch (e) { /* ignore */ }
     }
     return INITIAL_AUDIT_LOGS;
   });
@@ -1424,10 +1437,18 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const logs = e.detail?.auditLogs;
       if (Array.isArray(logs) && logs.length > 0) {
         setAuditLogs((prev) => {
-          const prevIds = new Set(prev.map((l) => l.id));
-          const newEntries = logs.filter((l) => l && l.id && !prevIds.has(l.id));
-          if (newEntries.length === 0) return prev;
-          const merged = [...newEntries, ...prev];
+          const map = new Map<string, AuditLogItem>();
+          // Add new incoming logs first
+          for (const l of logs) {
+            if (l && l.id) map.set(String(l.id), l);
+          }
+          // Add previous logs if not already added
+          for (const p of prev) {
+            if (p && p.id && !map.has(String(p.id))) {
+              map.set(String(p.id), p);
+            }
+          }
+          const merged = Array.from(map.values());
           try {
             localStorage.setItem(STORAGE_KEYS.AUDIT, JSON.stringify(merged));
           } catch {
@@ -3369,13 +3390,16 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
 
   const addAuditLog = (log: Omit<AuditLogItem, 'id' | 'timestamp' | 'performedById' | 'performedByName'>) => {
     const newLog: AuditLogItem = {
-      id: `aud-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      id: `aud-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       ...log,
       performedById: currentUser.id,
       performedByName: currentUser.name,
       timestamp: new Date().toISOString(),
     };
-    setAuditLogs((prev) => [newLog, ...prev]);
+    setAuditLogs((prev) => {
+      const filtered = prev.filter((p) => p && p.id !== newLog.id);
+      return [newLog, ...filtered];
+    });
   };
 
   const shouldSendEmailForType = (
