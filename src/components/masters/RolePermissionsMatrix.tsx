@@ -8,6 +8,7 @@ import {
   RolePermissionsMap,
 } from '../../types';
 import { ALL_CRM_MODULES, DEFAULT_ROLE_PERMISSIONS } from '../../data/initialData';
+import { crmVisibleUsers } from '../../shared/userScope';
 import {
   ShieldCheck,
   Shield,
@@ -143,12 +144,16 @@ export const RolePermissionsMatrix: React.FC<RolePermissionsMatrixProps> = ({
     loginAsUser,
   } = useCrm();
 
+  // Payroll-Only employees have no CRM permissions to configure, so the matrix only enumerates
+  // CRM profiles. Record lookups below still use the full `users` list to resolve any id handed in.
+  const crmUsers = crmVisibleUsers(users);
+
   // Primary mode is User-Wise Permissions ('user'), with optional 'role' template mode
   const [matrixMode, setMatrixMode] = useState<'user' | 'role'>('user');
 
   // Selected User for User-Wise Permissions Matrix
   const [selectedUserId, setSelectedUserId] = useState<string>(
-    initialUserId || users.find((u) => u.role !== 'Super Admin')?.id || users[0]?.id || ''
+    initialUserId || crmUsers.find((u) => u.role !== 'Super Admin')?.id || crmUsers[0]?.id || ''
   );
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState<string>('ALL');
@@ -173,7 +178,7 @@ export const RolePermissionsMatrix: React.FC<RolePermissionsMatrixProps> = ({
     setTimeout(() => setNotificationMsg(null), 3500);
   };
 
-  const selectedUser = users.find((u) => u.id === selectedUserId) || users[0];
+  const selectedUser = users.find((u) => u.id === selectedUserId) || crmUsers[0];
 
   // Helper to resolve a user's effective permissions map (User-Wise Permissions + Role Baseline fallback)
   const getEffectiveUserPermissionsMap = (user: User): RolePermissionsMap => {
@@ -228,7 +233,7 @@ export const RolePermissionsMatrix: React.FC<RolePermissionsMatrixProps> = ({
   };
 
   // Filtered users in selector strip
-  const filteredUsersList = users.filter((u) => {
+  const filteredUsersList = crmUsers.filter((u) => {
     const matchRole = userRoleFilter === 'ALL' || u.role === userRoleFilter;
     const q = userSearchQuery.trim().toLowerCase();
     const matchSearch =
@@ -652,7 +657,7 @@ export const RolePermissionsMatrix: React.FC<RolePermissionsMatrixProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-2.5">
             {ALL_ROLES.map((r) => {
               const isSelected = selectedRole === r.role;
-              const count = users.filter((u) => u.role === r.role).length;
+              const count = crmUsers.filter((u) => u.role === r.role).length;
 
               return (
                 <button

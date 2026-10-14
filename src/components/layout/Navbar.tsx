@@ -33,6 +33,7 @@ import {
 import { UserRole } from '../../types';
 import { UserAvatar, isImageAvatar, optimizeProfileImageFile } from '../common/UserAvatar';
 import { PayrollEssPortalModal, EssTabKey } from '../payroll/PayrollEssPortalModal';
+import { crmVisibleUsers } from '../../shared/userScope';
 
 interface NavbarProps {
   onOpenCreateLead: () => void;
@@ -853,9 +854,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                       )}
                     </div>
 
-                    {/* User Switcher List */}
+                    {/* User Switcher List - CRM profiles only: a Payroll-Only employee has no CRM workspace to switch into */}
                     <div className="py-1 max-h-64 overflow-y-auto divide-y divide-slate-100/80">
-                      {users.map((u) => {
+                      {crmVisibleUsers(users).map((u) => {
                         const isCurrent = u.id === currentUser.id;
                         return (
                           <button

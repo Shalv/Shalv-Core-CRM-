@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useCrm } from '../../context/CrmContext';
 import { User } from '../../types';
+import { crmVisibleUsers } from '../../shared/userScope';
 import {
   Settings,
   ShieldCheck,
@@ -65,6 +66,9 @@ export const MastersView: React.FC<MastersViewProps> = ({
     auditLogs,
     currentUser,
   } = useCrm();
+
+  // Master tab badges report CRM profiles, not Payroll-Only employees.
+  const crmUsers = crmVisibleUsers(users);
 
   const [activeTab, setActiveTab] = useState<MasterTab>('users');
   const [searchQuery, setSearchQuery] = useState('');
@@ -234,7 +238,7 @@ export const MastersView: React.FC<MastersViewProps> = ({
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 mt-0.5 truncate whitespace-nowrap">
-                  {users.length} Users, RBAC Matrix & Audit Trail
+                  {crmUsers.length} Users, RBAC Matrix & Audit Trail
                 </p>
               </div>
             </button>
@@ -341,7 +345,7 @@ export const MastersView: React.FC<MastersViewProps> = ({
                         : 'bg-white text-slate-600'
                     }`}
                   >
-                    {users.length}
+                    {crmUsers.length}
                   </span>
                 </button>
 
@@ -585,7 +589,7 @@ export const MastersView: React.FC<MastersViewProps> = ({
               className="bg-slate-100 border border-slate-200 text-slate-800 rounded-xl px-3 py-1.5 text-xs font-semibold focus:outline-none focus:border-indigo-600 cursor-pointer shadow-2xs"
             >
               <optgroup label="Access & Security">
-                <option value="users">Users & Login Profiles ({users.length})</option>
+                <option value="users">Users &amp; Login Profiles ({crmUsers.length})</option>
                 <option value="permissions">User-Wise Permissions (RBAC)</option>
                 <option value="audit">Audit Trail ({auditLogs.length})</option>
               </optgroup>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useCrm } from '../../context/CrmContext';
+import { crmVisibleUsers } from '../../shared/userScope';
 import {
   Lead,
   LeadStatus,
@@ -1006,7 +1007,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
           className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 font-medium"
         >
           <option value="">All owners</option>
-          {users.map((u) => (
+          {crmVisibleUsers(users).map((u) => (
             <option key={u.id} value={u.id}>
               {u.name}
             </option>
@@ -1653,7 +1654,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs"
                   >
                     <option value="">Unassigned</option>
-                    {users.map((u) => (
+                    {crmVisibleUsers(users).map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.name} ({u.role})
                       </option>

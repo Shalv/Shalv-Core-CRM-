@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useCrm } from '../../context/CrmContext';
+import { crmVisibleUsers } from '../../shared/userScope';
 import {
   Opportunity,
   OpportunityStage,
@@ -1424,7 +1425,7 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({
                     onChange={(e) => setNewTaskAssignee(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white"
                   >
-                    {users.map((u) => (
+                    {crmVisibleUsers(users).map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.name}
                       </option>
@@ -1653,7 +1654,7 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({
                     onChange={(e) => setNewOppOwnerId(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white"
                   >
-                    {users.map((u) => (
+                    {crmVisibleUsers(users).map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.name} ({u.role})
                       </option>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useCrm } from '../../context/CrmContext';
+import { crmVisibleUsers } from '../../shared/userScope';
 import { Customer, CustomerContact } from '../../types';
 import {
   Building,
@@ -791,7 +792,7 @@ export const CustomersContactsMasterTab: React.FC<CustomersContactsMasterTabProp
                     onChange={(e) => setCustForm({ ...custForm, salesOwnerId: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
                   >
-                    {users.map((u) => (
+                    {crmVisibleUsers(users).map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.name} ({u.role})
                       </option>

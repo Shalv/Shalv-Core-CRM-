@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useCrm } from '../../context/CrmContext';
+import { crmVisibleUsers } from '../../shared/userScope';
 import {
   AmcContract,
   AmcContractType,
@@ -220,7 +221,11 @@ export const SupportAmcView: React.FC<SupportAmcViewProps> = ({
   const [tktPriority, setTktPriority] = useState<SupportTicketPriority>('High');
   const [tktSubject, setTktSubject] = useState('');
   const [tktDescription, setTktDescription] = useState('');
-  const [tktAssignedToId, setTktAssignedToId] = useState(users[1]?.id || users[0]?.id || '');
+  const [tktAssignedToId, setTktAssignedToId] = useState(
+    // Default to CRM profiles: index 1 of the raw list is frequently a Payroll-Only employee, who
+    // would receive a support ticket they cannot open.
+    crmVisibleUsers(users)[1]?.id || crmVisibleUsers(users)[0]?.id || ''
+  );
   const [tktIsBillable, setTktIsBillable] = useState(false);
   const [tktEstimatedAmount, setTktEstimatedAmount] = useState<number>(0);
 
@@ -1750,7 +1755,7 @@ export const SupportAmcView: React.FC<SupportAmcViewProps> = ({
                       onChange={(e) => setTktAssignedToId(e.target.value)}
                       className="w-1/2 p-2 rounded-lg border border-slate-200 bg-white"
                     >
-                      {users.map((u) => (
+                      {crmVisibleUsers(users).map((u) => (
                         <option key={u.id} value={u.id}>
                           {u.name}
                         </option>

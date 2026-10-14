@@ -20,6 +20,7 @@ import {
   Award,
 } from 'lucide-react';
 import { UserAvatar } from '../common/UserAvatar';
+import { crmVisibleUsers } from '../../shared/userScope';
 import { UserRole } from '../../types';
 
 export type DashboardPerspectiveKey =
@@ -220,7 +221,7 @@ export const IndividualUserHeroBanner: React.FC<IndividualUserHeroBannerProps> =
                       </p>
                     </div>
                     <div className="max-h-64 overflow-y-auto space-y-0.5">
-                      {users.map((u) => {
+                      {crmVisibleUsers(users).map((u) => {
                         const isCurrent = u.id === currentUser.id;
                         return (
                           <button

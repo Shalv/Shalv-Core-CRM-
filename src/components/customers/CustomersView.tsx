@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useCrm } from '../../context/CrmContext';
+import { crmVisibleUsers } from '../../shared/userScope';
 import { Customer, CustomerAddress, CustomerContact } from '../../types';
 import {
   Building,
@@ -115,7 +116,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
     creditLimit: 2000000,
     currency: 'INR',
     status: 'Active' as Customer['status'],
-    salesOwnerId: users[0]?.id || '',
+    salesOwnerId: crmVisibleUsers(users)[0]?.id || '',
     remarks: '',
     addressLine1: '',
     city: 'New Delhi',
@@ -203,7 +204,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
       creditLimit: 2000000,
       currency: 'INR',
       status: 'Active',
-      salesOwnerId: users[0]?.id || '',
+      salesOwnerId: crmVisibleUsers(users)[0]?.id || '',
       remarks: '',
       addressLine1: '',
       city: 'New Delhi',
@@ -225,7 +226,8 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
 
   const handleCreateCustomer = (e: React.FormEvent) => {
     e.preventDefault();
-    const owner = users.find((u) => u.id === newCust.salesOwnerId) || users[0];
+    const owner =
+      users.find((u) => u.id === newCust.salesOwnerId) || crmVisibleUsers(users)[0];
     const pTerm = paymentTerms.find((p) => p.id === newCust.paymentTermsId) || paymentTerms[0];
     const computedCode = getStateCode(newCust.state);
 

@@ -20,6 +20,7 @@ import {
   forgetDeletedPayrollMasterIds,
   PAYROLL_MASTERS_SYNC_EVENT,
 } from '../payroll/payrollTypes';
+import { crmVisibleUsers } from '../../shared/userScope';
 import {
   Users,
   Plus,
@@ -70,6 +71,10 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
     canEdit,
     canDelete,
   } = useCrm();
+
+  // Payroll-Only employees keep a record in `users` for ESS login but are not CRM profiles: every
+  // list, counter and default below reads crmUsers so they cannot leak into the CRM User Master.
+  const crmUsers = crmVisibleUsers(users);
 
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -154,7 +159,7 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
     phone: '',
     designation: '',
     location: 'New Delhi HQ',
-    reportingManager: users[0]?.name || 'Vikramaditya Rathore',
+    reportingManager: crmUsers[0]?.name || 'Vikramaditya Rathore',
     assignedTerritory: 'North Zone (Delhi NCR)',
     role: 'Sales Executive',
     department: 'Sales',
@@ -257,7 +262,7 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
       phone: '+91 ',
       designation: 'Account Executive',
       location: 'New Delhi HQ',
-      reportingManager: users[0]?.name || 'Vikramaditya Rathore',
+      reportingManager: crmUsers[0]?.name || 'Vikramaditya Rathore',
       assignedTerritory: 'North Zone (Delhi NCR)',
       role: defaultRole,
       department: 'Sales',
@@ -306,7 +311,7 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
       phone: u.phone || '',
       designation: u.designation || '',
       location: u.location || 'New Delhi HQ',
-      reportingManager: u.reportingManager || users[0]?.name || 'Vikramaditya Rathore',
+      reportingManager: u.reportingManager || crmUsers[0]?.name || 'Vikramaditya Rathore',
       assignedTerritory: u.assignedTerritory || u.location || 'Pan-India',
       role: u.role,
       department: u.department,
@@ -718,7 +723,7 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
   };
 
   const q = searchQuery.trim().toLowerCase();
-  const filteredUsers = users.filter((u) => {
+  const filteredUsers = crmUsers.filter((u) => {
     const matchesSearch =
       !q ||
       u.name.toLowerCase().includes(q) ||
@@ -736,14 +741,14 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
     return matchesSearch && matchesRole && matchesStatus;
   });
 
-  const activeCount = users.filter((u) => u.status !== 'Inactive').length;
-  const adminCount = users.filter(
+  const activeCount = crmUsers.filter((u) => u.status !== 'Inactive').length;
+  const adminCount = crmUsers.filter(
     (u) => u.role === 'Super Admin' || u.role === 'Administrator'
   ).length;
-  const salesCount = users.filter(
+  const salesCount = crmUsers.filter(
     (u) => u.role === 'Sales Manager' || u.role === 'Sales Executive'
   ).length;
-  const financeCount = users.filter(
+  const financeCount = crmUsers.filter(
     (u) => u.role === 'Finance Manager' || u.role === 'Finance Executive'
   ).length;
 
@@ -839,7 +844,7 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
             Total User Profiles
           </div>
           <div className="mt-1 flex items-baseline justify-between">
-            <span className="text-xl font-bold text-slate-900">{users.length}</span>
+            <span className="text-xl font-bold text-slate-900">{crmUsers.length}</span>
             <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
               {activeCount} Active
             </span>
@@ -900,7 +905,7 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
               onChange={(e) => setRoleFilter(e.target.value)}
               className="bg-white border border-slate-200 text-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer shadow-2xs"
             >
-              <option value="ALL">All Roles ({users.length})</option>
+              <option value="ALL">All Roles ({crmUsers.length})</option>
               <option value="Super Admin">Super Admin</option>
               <option value="Administrator">Administrator</option>
               <option value="Sales Manager">Sales Manager</option>
@@ -1632,7 +1637,7 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
                         onChange={(e) => setForm({ ...form, reportingManager: e.target.value })}
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs"
                       >
-                        {users.map((u) => (
+                        {crmUsers.map((u) => (
                           <option key={u.id} value={u.name}>
                             {u.name} ({u.role})
                           </option>

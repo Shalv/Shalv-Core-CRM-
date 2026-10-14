@@ -2,6 +2,7 @@ import React from 'react';
 import { useCrm } from '../../context/CrmContext';
 import { CrmModuleKey } from '../../types';
 import { ALL_CRM_MODULES } from '../../data/initialData';
+import { crmVisibleUsers } from '../../shared/userScope';
 import {
   ShieldAlert,
   ArrowLeft,
@@ -44,7 +45,11 @@ export const AccessRestrictedView: React.FC<AccessRestrictedViewProps> = ({
   const editAllowed = hasPermission(typedKey, 'edit');
   const deleteAllowed = hasPermission(typedKey, 'delete');
 
-  const otherUsers = users.filter((u) => u.id !== currentUser.id && u.status !== 'Inactive');
+  // CRM profiles only - a Payroll-Only employee never holds CRM access, so listing them as an
+  // alternative to ask for access would send the admin to someone who cannot grant it.
+  const otherUsers = crmVisibleUsers(users).filter(
+    (u) => u.id !== currentUser.id && u.status !== 'Inactive'
+  );
 
   return (
     <div className="max-w-3xl mx-auto py-12 px-4">

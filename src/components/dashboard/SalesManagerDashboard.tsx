@@ -14,6 +14,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { UserAvatar } from '../common/UserAvatar';
+import { crmVisibleUsers } from '../../shared/userScope';
 
 interface SalesManagerDashboardProps {
   onNavigate: (module: string, itemId?: string) => void;
@@ -46,7 +47,9 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
 
   // Sales team members (Department === 'Sales' or has leads/opps assigned)
   const salesTeamMembers = useMemo(() => {
-    const list = users.filter(
+    // Payroll-Only employees are excluded: they own no CRM pipeline, so counting them here would
+    // put a payroll-only person on the sales leaderboard with zero deals.
+    const list = crmVisibleUsers(users).filter(
       (u) =>
         u.department === 'Sales' ||
         u.role.includes('Sales') ||
