@@ -737,13 +737,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
         ? login(cleanEmail, cleanPassword, { portalMode: 'crm' })
         : {success:false, message:'Sign-in could not be verified.'};
     } catch (error) {
-      if (healStaleAdminCache()) {
-        setStatus('idle');
-        setErrors({});
-        return;
-      }
+      const failure = error instanceof Error ? error.message : 'Sign-in failed.';
       setStatus('idle');
-      setErrors({password:error instanceof Error ? error.message : 'Sign-in failed.'});
+      // Still drop stale cached admin credentials after a server-side reset, but never let that
+      // cleanup hide the server's actual rejection reason - otherwise a genuinely wrong password
+      // on a stale deployment looks like a transient glitch the user cannot act on.
+      healStaleAdminCache();
+      setErrors({ password: failure });
       return;
     }
 

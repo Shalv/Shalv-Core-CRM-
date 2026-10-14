@@ -77,6 +77,7 @@ import {
 } from '../data/supportAmcData';
 import { useApplicationSync, SyncStatus } from './useApplicationSync';
 import { Snapshot, recordPendingUserPassword, isRemovedPredefinedUser } from '../shared/integrity';
+import { isAuthoritativeAuthRejection } from '../shared/authFallback';
 
 function crmAuthHeaders(extra: Record<string, string> = { 'Content-Type': 'application/json' }): Record<string, string> {
   let token: string | null = null;
@@ -2138,6 +2139,15 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
         }
       } catch {
         /* ignore */
+      }
+
+      // A definitive "no" from the server must not be replaced by the local fallback below: that
+      // fallback synthesizes a tokenless "success", so the workspace renders for a moment and then
+      // the /api/auth/session check clears isAuthenticated and dumps the user back on the login
+      // screen - perceived as "the admin password keeps failing, over and over". Unreachable
+      // servers, non-JSON bodies and 5xx responses keep the offline fallback (see authFallback).
+      if (!verifyOk && isAuthoritativeAuthRejection(response.status, data)) {
+        throw new Error(String(data.message || 'Invalid work email or password.'));
       }
 
       if (!verifyOk) {
