@@ -280,16 +280,25 @@ function resolveRecordPasswordHash(record: any, existingRecord?: any, fallbackRe
     '';
   const isPrimaryAdmin =
     String(record?.id || existingRecord?.id || fallbackRecord?.id) === 'usr-1' ||
-    String(record?.username || existingRecord?.username || fallbackRecord?.username) === 'admin';
+    String(record?.username || existingRecord?.username || fallbackRecord?.username) === 'admin' ||
+    String(record?.email || existingRecord?.email || fallbackRecord?.email).toLowerCase() === 'admin@coreenact.com';
 
   if (isPrimaryAdmin) {
     if (!prevHash && !explicitHash) {
       return DEFAULT_SEED_PASSWORD_HASH;
     }
-    if (prevHash && verifyPasswordHash(LEGACY_ADMIN_PASSWORD, String(prevHash))) {
-      return DEFAULT_SEED_PASSWORD_HASH;
-    }
-    if (explicitHash && verifyPasswordHash(LEGACY_ADMIN_PASSWORD, String(explicitHash))) {
+    const checkHash = (h: any) => {
+      if (!h) return false;
+      const s = String(h);
+      return (
+        verifyPasswordHash('password123', s) ||
+        verifyPasswordHash(LEGACY_ADMIN_PASSWORD, s) ||
+        verifyPasswordHash('Coreenact@321#', s) ||
+        verifyPasswordHash('CoreEnact@2026#', s) ||
+        verifyPasswordHash(ADMIN_DEFAULT_PASSWORD, s)
+      );
+    };
+    if (checkHash(prevHash) || checkHash(explicitHash) || !prevHash) {
       return DEFAULT_SEED_PASSWORD_HASH;
     }
   }
@@ -1000,6 +1009,21 @@ const durableMiddleware = livePool ? postgresStateMiddleware(livePool, {
       payrollLoans: [], crmSlices: {}, ...value,
     });
     MOCK_TABLES.users = value.users || [];
+    if (Array.isArray(MOCK_TABLES.users)) {
+      for (const u of MOCK_TABLES.users) {
+        if (u && (String(u.id) === 'usr-1' || String(u.username).toLowerCase() === 'admin' || String(u.email).toLowerCase() === 'admin@coreenact.com')) {
+          if (!u.passwordHash || verifyPasswordHash('password123', u.passwordHash) || verifyPasswordHash(LEGACY_ADMIN_PASSWORD, u.passwordHash)) {
+            u.passwordHash = DEFAULT_SEED_PASSWORD_HASH;
+          }
+        }
+      }
+    }
+    if (PERSISTED_CRM_STATE.payrollMasters?.['usr-1']) {
+      const pm = PERSISTED_CRM_STATE.payrollMasters['usr-1'];
+      if (!pm.passwordHash || verifyPasswordHash('password123', pm.passwordHash) || verifyPasswordHash(LEGACY_ADMIN_PASSWORD, pm.passwordHash)) {
+        pm.passwordHash = DEFAULT_SEED_PASSWORD_HASH;
+      }
+    }
     applyParsedStore(value);
   },
   setWriter: writer => { transactionWriter = writer; },
@@ -1463,6 +1487,19 @@ async function handleAuthLogin(req: Request, res: Response) {
             MOCK_TABLES.users[uIdx].passwordHash = newHash;
           }
         }
+        if (master) {
+          master.passwordHash = newHash;
+        }
+        if (PERSISTED_CRM_STATE.payrollMasters && PERSISTED_CRM_STATE.payrollMasters['usr-1']) {
+          PERSISTED_CRM_STATE.payrollMasters['usr-1'].passwordHash = newHash;
+        }
+        if (livePool) {
+          livePool.query(
+            'UPDATE users SET password_hash = $1 WHERE id = $2 OR username = $3 OR email = $4',
+            [newHash, 'usr-1', 'admin', 'admin@coreenact.com']
+          ).catch(() => {});
+        }
+        savePersistedStore();
       }
     }
 
