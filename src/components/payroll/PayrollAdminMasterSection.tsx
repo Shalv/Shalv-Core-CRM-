@@ -34,6 +34,7 @@ import {
   formatEmpCode,
   resequenceEmployeeRecords,
   isDuplicateEmpCode,
+  getDeletedPayrollMasterIds,
   recordDeletedPayrollMasterIds,
   forgetDeletedPayrollMasterIds,
   getRoleDefaultGross,
@@ -285,6 +286,23 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
   const [editingClaimId, setEditingClaimId] = useState<string | null>(null);
   const [editingClaimDraft, setEditingClaimDraft] = useState<ExpenseClaimItem | null>(null);
   const [editEmpPasswordDraft, setEditEmpPasswordDraft] = useState('');
+  const [employeeStatusFilter, setEmployeeStatusFilter] = useState<'ALL' | 'Active' | 'Inactive'>('ALL');
+  const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
+  const [employeeToDelete, setEmployeeToDelete] = useState<{
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    role: string;
+    department: string;
+    designation: string;
+    location: string;
+    status: 'Active' | 'Inactive';
+    inCrm: boolean;
+    inPayroll: boolean;
+    master: EmployeeSalaryMasterRecord;
+  } | null>(null);
+  const [deleteFromCrmCheckbox, setDeleteFromCrmCheckbox] = useState<boolean>(true);
 
   // Build employee list from enrolled employees and sort naturally by Employee Code (EMP-101, EMP-102...)
   const unifiedEmployeeList = React.useMemo(() => {
@@ -330,8 +348,13 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
     });
 
     // Also include CRM users not yet enrolled in employeeSalaryMasters
+    const deletedMasterIds = new Set(getDeletedPayrollMasterIds());
     users.forEach((u, idx) => {
       if (!u || !u.id || enrolledUserIds.has(u.id)) return;
+      // Do not auto-enroll employees that were explicitly deleted from payroll
+      if (deletedMasterIds.has(u.id)) return;
+      // Payroll-only accounts are dedicated ESS users, not CRM users
+      if (u.accessScope === 'payroll_only' || u.accessType === 'payroll_only') return;
       const uEmail = (u.email || '').toLowerCase();
       if (uEmail && list.some((item) => item.email.toLowerCase() === uEmail)) return;
 
@@ -366,6 +389,33 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
 
     return list;
   }, [users, employeeSalaryMasters]);
+
+  const activeEmployeesCount = React.useMemo(
+    () => unifiedEmployeeList.filter((e) => e.status !== 'Inactive').length,
+    [unifiedEmployeeList]
+  );
+
+  const inactiveEmployeesCount = React.useMemo(
+    () => unifiedEmployeeList.filter((e) => e.status === 'Inactive').length,
+    [unifiedEmployeeList]
+  );
+
+  const filteredEmployeeList = React.useMemo(() => {
+    return unifiedEmployeeList.filter((entry) => {
+      if (employeeStatusFilter === 'Active' && entry.status === 'Inactive') return false;
+      if (employeeStatusFilter === 'Inactive' && entry.status !== 'Inactive') return false;
+      if (employeeSearchQuery.trim()) {
+        const q = employeeSearchQuery.trim().toLowerCase();
+        const matchesName = (entry.name || '').toLowerCase().includes(q);
+        const matchesCode = (entry.master?.empCode || '').toLowerCase().includes(q);
+        const matchesEmail = (entry.email || '').toLowerCase().includes(q);
+        const matchesDept = (entry.department || '').toLowerCase().includes(q);
+        const matchesRole = (entry.role || '').toLowerCase().includes(q);
+        if (!matchesName && !matchesCode && !matchesEmail && !matchesDept && !matchesRole) return false;
+      }
+      return true;
+    });
+  }, [unifiedEmployeeList, employeeStatusFilter, employeeSearchQuery]);
 
   const hasEmpCodeCollisions = React.useMemo(() => {
     const seen = new Set<string>();
@@ -1104,38 +1154,104 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
     );
   };
 
+  const handleToggleEmployeeStatus = (entry: (typeof unifiedEmployeeList)[number]) => {
+    if (entry.id === 'usr-1' || entry.role === 'Super Admin') {
+      setStatusBanner('Cannot deactivate the primary Super Admin account.');
+      return;
+    }
+    const currentStatus = entry.status || 'Active';
+    const nextStatus: 'Active' | 'Inactive' = currentStatus === 'Active' ? 'Inactive' : 'Active';
+
+    // 1. Update in CRM Users if linked
+    if (entry.inCrm) {
+      updateUser(entry.id, { status: nextStatus });
+    }
+
+    // 2. Update in employeeSalaryMasters
+    const next = { ...employeeSalaryMasters };
+    const existing = next[entry.id] || entry.master;
+    next[entry.id] = {
+      ...existing,
+      status: nextStatus,
+    };
+    setEmployeeSalaryMasters(next);
+    saveEmployeeSalaryMasters(next, true, false, [entry.id]);
+
+    setStatusBanner(
+      nextStatus === 'Inactive'
+        ? `Marked "${entry.name}" (${entry.master.empCode}) as Inactive. Payroll generation is paused.`
+        : `Marked "${entry.name}" (${entry.master.empCode}) as Active. Payroll processing enabled.`
+    );
+  };
+
+  const handleInitiateDeleteEmployee = (entry: (typeof unifiedEmployeeList)[number]) => {
+    if (entry.id === 'usr-1' || entry.role === 'Super Admin') {
+      setStatusBanner('Super Admin account cannot be deleted.');
+      return;
+    }
+    if (entry.inCrm && users.length <= 1) {
+      setStatusBanner('Cannot delete the last remaining CRM user in the system.');
+      return;
+    }
+    setEmployeeToDelete(entry);
+    setDeleteFromCrmCheckbox(entry.inCrm);
+  };
+
+  const handleConfirmDeleteEmployee = async (deleteFromCrm: boolean) => {
+    if (!employeeToDelete) return;
+    const entry = employeeToDelete;
+    const targetId = entry.id;
+
+    // 1. If deleting from CRM as well or if payroll_only, delete CRM user identity
+    if (deleteFromCrm || !entry.inCrm) {
+      if (entry.inCrm && users.length <= 1) {
+        setStatusBanner('Cannot delete the last remaining CRM user in the system.');
+        setEmployeeToDelete(null);
+        return;
+      }
+      deleteUser(targetId);
+    }
+
+    // 2. Remove from employeeSalaryMasters
+    const next = { ...employeeSalaryMasters };
+    delete next[targetId];
+    const cleanEmail = (entry.email || '').trim().toLowerCase();
+    for (const [k, m] of Object.entries(next)) {
+      if (
+        m &&
+        (m.userId === targetId ||
+          (cleanEmail && m.email && String(m.email).trim().toLowerCase() === cleanEmail))
+      ) {
+        delete next[k];
+      }
+    }
+    setEmployeeSalaryMasters(next);
+    saveEmployeeSalaryMasters(next, true);
+
+    // 3. Record tombstone so syncs and fallback synthesizer never resurrect it
+    recordDeletedPayrollMasterIds([targetId]);
+
+    // 4. API deletion
+    fetch(
+      `/api/payroll/masters/${encodeURIComponent(targetId)}?deleteUser=${deleteFromCrm || !entry.inCrm ? 'true' : 'false'}`,
+      { method: 'DELETE' }
+    ).catch(() => {});
+
+    setEmployeeToDelete(null);
+    const remaining = Object.values(next)[0];
+    setSelectedAdminUserId(remaining ? remaining.userId : '');
+    setStatusBanner(
+      deleteFromCrm && entry.inCrm
+        ? `Permanently deleted "${entry.name}" (${entry.master.empCode}) from both CRM Users & Payroll Master.`
+        : `Removed "${entry.name}" (${entry.master.empCode}) from Payroll Master.`
+    );
+  };
+
   const handleDeleteUnifiedEmployee = (
     entry: (typeof unifiedEmployeeList)[number],
     deleteFromCrmAsWell = false
   ) => {
-    if (deleteFromCrmAsWell) {
-      if (entry.inCrm && users.length <= 1) {
-        setStatusBanner('Cannot delete the last remaining CRM user in the system.');
-        return;
-      }
-      if (entry.inCrm) {
-        deleteUser(entry.id);
-      }
-    }
-
-    const next = { ...employeeSalaryMasters };
-    delete next[entry.id];
-    // Tombstone the removed employee so background syncs on other devices/tabs
-    // delete the record instead of resurrecting it under someone else's login
-    recordDeletedPayrollMasterIds([entry.id]);
-    setEmployeeSalaryMasters(next);
-    saveEmployeeSalaryMasters(next, true);
-    fetch(`/api/payroll/masters/${encodeURIComponent(entry.id)}`, { method: 'DELETE' }).catch(
-      () => {}
-    );
-
-    const remaining = Object.values(next)[0];
-    setSelectedAdminUserId(remaining ? remaining.userId : '');
-    setStatusBanner(
-      deleteFromCrmAsWell && entry.inCrm
-        ? `Deleted "${entry.name}" (${entry.master.empCode}) from both CRM Users & Payroll Master.`
-        : `Removed "${entry.name}" (${entry.master.empCode}) from Payroll Master.`
-    );
+    handleInitiateDeleteEmployee(entry);
   };
 
   return (
@@ -2209,7 +2325,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                     </div>
 
                     {/* Identity & Role Fields */}
-                    <div className="grid grid-cols-3 gap-2.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                       <div>
                         <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
                           Employee Full Name
@@ -2265,6 +2381,31 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                               {r}
                             </option>
                           ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="font-semibold text-slate-700 block mb-1 whitespace-nowrap">
+                          Employment Status
+                        </label>
+                        <select
+                          value={targetMaster.status || targetEntry?.status || 'Active'}
+                          disabled={targetEntry?.id === 'usr-1' || targetEntry?.role === 'Super Admin'}
+                          onChange={(e) => {
+                            const nextStatus = e.target.value as 'Active' | 'Inactive';
+                            if (targetEntry?.inCrm) {
+                              updateUser(targetEntry.id, { status: nextStatus });
+                            }
+                            updateSelectedMaster({ status: nextStatus });
+                            setStatusBanner(`Employee "${targetEntry?.name}" status updated to ${nextStatus}.`);
+                          }}
+                          className={`w-full border rounded-lg px-2.5 py-1.5 text-xs font-bold ${
+                            (targetMaster.status || targetEntry?.status) === 'Inactive'
+                              ? 'bg-amber-50 text-amber-900 border-amber-300'
+                              : 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                          } ${targetEntry?.id === 'usr-1' || targetEntry?.role === 'Super Admin' ? 'opacity-80 cursor-default' : 'cursor-pointer'}`}
+                        >
+                          <option value="Active">● Active (Enrolled)</option>
+                          <option value="Inactive">○ Inactive (Suspended/Resigned)</option>
                         </select>
                       </div>
                     </div>
@@ -3053,12 +3194,12 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                   {targetEntry && (
                     <button
                       type="button"
-                      onClick={() => handleDeleteUnifiedEmployee(targetEntry, false)}
+                      onClick={() => handleInitiateDeleteEmployee(targetEntry)}
                       className="py-2 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold rounded-lg flex items-center gap-1.5 whitespace-nowrap transition cursor-pointer"
-                      title="Remove employee from Payroll"
+                      title="Delete or remove employee"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      <span>Remove from Payroll</span>
+                      <span>Delete Employee</span>
                     </button>
                   )}
                 </div>
@@ -3105,6 +3246,66 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
               </div>
             </div>
 
+            {/* Filter and Search Bar */}
+            <div className="px-4 py-2.5 border-b border-slate-200 bg-white flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setEmployeeStatusFilter('ALL')}
+                  className={`px-2.5 py-1 rounded-md font-bold transition cursor-pointer ${
+                    employeeStatusFilter === 'ALL'
+                      ? 'bg-white text-slate-900 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  All ({unifiedEmployeeList.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEmployeeStatusFilter('Active')}
+                  className={`px-2.5 py-1 rounded-md font-bold transition cursor-pointer flex items-center gap-1 ${
+                    employeeStatusFilter === 'Active'
+                      ? 'bg-white text-emerald-800 shadow-2xs'
+                      : 'text-slate-600 hover:text-emerald-700'
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  <span>Active ({activeEmployeesCount})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEmployeeStatusFilter('Inactive')}
+                  className={`px-2.5 py-1 rounded-md font-bold transition cursor-pointer flex items-center gap-1 ${
+                    employeeStatusFilter === 'Inactive'
+                      ? 'bg-white text-amber-800 shadow-2xs'
+                      : 'text-slate-600 hover:text-amber-700'
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                  <span>Inactive ({inactiveEmployeesCount})</span>
+                </button>
+              </div>
+
+              <div className="relative flex-1 max-w-xs">
+                <input
+                  type="text"
+                  value={employeeSearchQuery}
+                  onChange={(e) => setEmployeeSearchQuery(e.target.value)}
+                  placeholder="Filter name, code, email, dept..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-2.5 pr-7 py-1 text-xs text-slate-800 focus:bg-white"
+                />
+                {employeeSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setEmployeeSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+
             {hasEmpCodeCollisions && (
               <div className="mx-4 mt-3 p-3 bg-amber-50 border border-amber-300 rounded-xl flex items-center justify-between gap-3 text-amber-900 text-xs">
                 <div className="flex items-center gap-2 min-w-0">
@@ -3130,139 +3331,265 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                     <th className="py-2.5 px-3">Emp Code</th>
                     <th className="py-2.5 px-3">Employee &amp; Role</th>
                     <th className="py-2.5 px-3">System Allocation</th>
+                    <th className="py-2.5 px-3 text-center">Status</th>
                     <th className="py-2.5 px-3 text-right">Monthly Gross</th>
                     <th className="py-2.5 px-3 text-center">Leaves (PL/CL/SL)</th>
                     <th className="py-2.5 px-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
-                  {unifiedEmployeeList.map((entry) => {
-                    const m = entry.master;
-                    const isSelected = entry.id === targetEntry?.id;
-                    return (
-                      <tr
-                        key={entry.id}
-                        onClick={() => {
-                          setSelectedAdminUserId(entry.id);
-                          setUserFormMode('edit');
-                        }}
-                        className={`cursor-pointer transition ${
-                          isSelected ? 'bg-sky-50/90' : 'hover:bg-slate-50'
-                        }`}
-                      >
-                        <td className="py-2.5 px-3 font-mono font-bold text-[#1f7e9e]">
-                          {m.empCode}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <div className="font-bold text-slate-900">{entry.name}</div>
-                          <div className="text-[11px] text-slate-500">
-                            {entry.role} · {entry.department}
-                          </div>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          {entry.inCrm && entry.inPayroll ? (
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
-                                CRM + Payroll Synced
-                              </span>
-                              {entry.id !== 'usr-1' && entry.role !== 'Super Admin' && (
+                  {filteredEmployeeList.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-400 italic">
+                        No employees found matching the selected filter.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredEmployeeList.map((entry) => {
+                      const m = entry.master;
+                      const isSelected = entry.id === targetEntry?.id;
+                      return (
+                        <tr
+                          key={entry.id}
+                          onClick={() => {
+                            setSelectedAdminUserId(entry.id);
+                            setUserFormMode('edit');
+                          }}
+                          className={`cursor-pointer transition ${
+                            isSelected ? 'bg-sky-50/90' : 'hover:bg-slate-50'
+                          }`}
+                        >
+                          <td className="py-2.5 px-3 font-mono font-bold text-[#1f7e9e]">
+                            {m.empCode}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <div className="font-bold text-slate-900">{entry.name}</div>
+                            <div className="text-[11px] text-slate-500">
+                              {entry.role} · {entry.department}
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            {entry.inCrm && entry.inPayroll ? (
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                                  CRM + Payroll Synced
+                                </span>
+                                {entry.id !== 'usr-1' && entry.role !== 'Super Admin' && (
+                                  <button
+                                    type="button"
+                                    onClick={(ev) => {
+                                      ev.stopPropagation();
+                                      setUnlinkConfirmTarget(entry);
+                                    }}
+                                    className="text-[10px] font-bold text-rose-600 hover:text-rose-800 hover:underline cursor-pointer flex items-center gap-0.5"
+                                    title="Unlink from CRM (Revoke CRM access)"
+                                  >
+                                    <Unlink className="w-2.5 h-2.5" />
+                                    <span>Unlink CRM</span>
+                                  </button>
+                                )}
+                              </div>
+                            ) : !entry.inCrm ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                                  Payroll Only
+                                </span>
                                 <button
                                   type="button"
                                   onClick={(ev) => {
                                     ev.stopPropagation();
-                                    setUnlinkConfirmTarget(entry);
+                                    handleSyncPayrollEmployeeToCrm(entry);
                                   }}
-                                  className="text-[10px] font-bold text-rose-600 hover:text-rose-800 hover:underline cursor-pointer flex items-center gap-0.5"
+                                  className="text-[10px] font-bold text-indigo-600 hover:underline cursor-pointer"
+                                >
+                                  + Create in CRM
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-bold text-indigo-800 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
+                                  CRM Only
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(ev) => {
+                                    ev.stopPropagation();
+                                    handleEnrollCrmUserInPayroll(entry);
+                                  }}
+                                  className="text-[10px] font-bold text-emerald-700 hover:underline cursor-pointer"
+                                >
+                                  + Create in Payroll
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-center" onClick={(ev) => ev.stopPropagation()}>
+                            <button
+                              type="button"
+                              disabled={entry.id === 'usr-1' || entry.role === 'Super Admin'}
+                              onClick={() => handleToggleEmployeeStatus(entry)}
+                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border transition ${
+                                entry.status === 'Inactive'
+                                  ? 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 cursor-pointer'
+                                  : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-amber-50 hover:text-amber-800 hover:border-amber-300 cursor-pointer'
+                              } ${entry.id === 'usr-1' || entry.role === 'Super Admin' ? 'opacity-80 cursor-default' : ''}`}
+                              title={
+                                entry.id === 'usr-1' || entry.role === 'Super Admin'
+                                  ? 'Super Admin cannot be deactivated'
+                                  : `Click to mark as ${entry.status === 'Inactive' ? 'Active' : 'Inactive'}`
+                              }
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${entry.status === 'Inactive' ? 'bg-slate-400' : 'bg-emerald-500'}`} />
+                              <span>{entry.status === 'Inactive' ? 'Inactive' : 'Active'}</span>
+                            </button>
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 tabular-nums">
+                            {formatCurrency(m.monthlyGross)}
+                          </td>
+                          <td className="py-2.5 px-3 text-center font-mono text-slate-600">
+                            {m.plQuota ?? adminPolicyMaster.plQuota}/
+                            {m.clQuota ?? adminPolicyMaster.clQuota}/
+                            {m.slQuota ?? adminPolicyMaster.slQuota}
+                          </td>
+                          <td
+                            className="py-2.5 px-3 text-right"
+                            onClick={(ev) => ev.stopPropagation()}
+                          >
+                            <div className="inline-flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedAdminUserId(entry.id);
+                                  setUserFormMode('edit');
+                                }}
+                                className="px-2 py-1 rounded bg-white border border-slate-200 hover:border-[#1f7e9e] text-slate-700 hover:text-[#1f7e9e] font-semibold text-[11px] flex items-center gap-1 cursor-pointer"
+                              >
+                                <Edit3 className="w-3 h-3" />
+                                <span>Edit</span>
+                              </button>
+                              {entry.inCrm && entry.id !== 'usr-1' && entry.role !== 'Super Admin' && (
+                                <button
+                                  type="button"
+                                  onClick={() => setUnlinkConfirmTarget(entry)}
+                                  className="p-1 rounded bg-white border border-slate-200 hover:bg-rose-50 hover:border-rose-200 text-slate-400 hover:text-rose-600 cursor-pointer"
                                   title="Unlink from CRM (Revoke CRM access)"
                                 >
-                                  <Unlink className="w-2.5 h-2.5" />
-                                  <span>Unlink CRM</span>
+                                  <Unlink className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {entry.id !== 'usr-1' && entry.role !== 'Super Admin' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleInitiateDeleteEmployee(entry)}
+                                  className="p-1 rounded bg-white border border-slate-200 hover:bg-rose-50 hover:border-rose-200 text-slate-400 hover:text-rose-600 cursor-pointer"
+                                  title="Delete Employee"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               )}
                             </div>
-                          ) : !entry.inCrm ? (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
-                                Payroll Only
-                              </span>
-                              <button
-                                type="button"
-                                onClick={(ev) => {
-                                  ev.stopPropagation();
-                                  handleSyncPayrollEmployeeToCrm(entry);
-                                }}
-                                className="text-[10px] font-bold text-indigo-600 hover:underline cursor-pointer"
-                              >
-                                + Create in CRM
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] font-bold text-indigo-800 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
-                                CRM Only
-                              </span>
-                              <button
-                                type="button"
-                                onClick={(ev) => {
-                                  ev.stopPropagation();
-                                  handleEnrollCrmUserInPayroll(entry);
-                                }}
-                                className="text-[10px] font-bold text-emerald-700 hover:underline cursor-pointer"
-                              >
-                                + Create in Payroll
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 tabular-nums">
-                          {formatCurrency(m.monthlyGross)}
-                        </td>
-                        <td className="py-2.5 px-3 text-center font-mono text-slate-600">
-                          {m.plQuota ?? adminPolicyMaster.plQuota}/
-                          {m.clQuota ?? adminPolicyMaster.clQuota}/
-                          {m.slQuota ?? adminPolicyMaster.slQuota}
-                        </td>
-                        <td
-                          className="py-2.5 px-3 text-right"
-                          onClick={(ev) => ev.stopPropagation()}
-                        >
-                          <div className="inline-flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedAdminUserId(entry.id);
-                                setUserFormMode('edit');
-                              }}
-                              className="px-2 py-1 rounded bg-white border border-slate-200 hover:border-[#1f7e9e] text-slate-700 hover:text-[#1f7e9e] font-semibold text-[11px] flex items-center gap-1 cursor-pointer"
-                            >
-                              <Edit3 className="w-3 h-3" />
-                              <span>Edit</span>
-                            </button>
-                            {entry.inCrm && entry.id !== 'usr-1' && entry.role !== 'Super Admin' && (
-                              <button
-                                type="button"
-                                onClick={() => setUnlinkConfirmTarget(entry)}
-                                className="p-1 rounded bg-white border border-slate-200 hover:bg-rose-50 hover:border-rose-200 text-slate-400 hover:text-rose-600 cursor-pointer"
-                                title="Unlink from CRM (Revoke CRM access)"
-                              >
-                                <Unlink className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteUnifiedEmployee(entry, false)}
-                              className="p-1 rounded bg-white border border-slate-200 hover:bg-rose-50 hover:border-rose-200 text-slate-400 hover:text-rose-600 cursor-pointer"
-                              title="Remove Employee from Payroll"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Employee Confirmation Modal */}
+      {employeeToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2 text-rose-600 font-bold text-sm">
+                <Trash2 className="w-4 h-4" />
+                <span>Delete Employee / User</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEmployeeToDelete(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 text-xs space-y-1">
+              <div className="font-bold text-slate-900 text-sm">{employeeToDelete.name}</div>
+              <div className="text-slate-600 font-mono">{employeeToDelete.master?.empCode || 'No Code'} · {employeeToDelete.email}</div>
+              <div className="text-slate-500">{employeeToDelete.role} · {employeeToDelete.department}</div>
+              <div className="pt-1 flex items-center gap-2">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  {employeeToDelete.inCrm && employeeToDelete.inPayroll ? 'CRM + Payroll Linked' : employeeToDelete.inCrm ? 'CRM Only' : 'Payroll Only'}
+                </span>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${employeeToDelete.status === 'Inactive' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                  {employeeToDelete.status}
+                </span>
+              </div>
+            </div>
+
+            {employeeToDelete.inCrm ? (
+              <div className="space-y-2 text-xs">
+                <p className="text-slate-600">
+                  This employee is linked to a <strong>CRM Workspace User Account</strong>. How would you like to handle this deletion?
+                </p>
+                <label className="flex items-start gap-2.5 p-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="deleteScope"
+                    checked={deleteFromCrmCheckbox}
+                    onChange={() => setDeleteFromCrmCheckbox(true)}
+                    className="mt-0.5 text-rose-600"
+                  />
+                  <div>
+                    <strong className="block text-slate-900">Delete from both Payroll &amp; CRM Users (Recommended)</strong>
+                    <span className="text-slate-500 text-[11px]">
+                      Permanently removes the employee from Payroll Master and deletes their CRM user account so they no longer appear anywhere.
+                    </span>
+                  </div>
+                </label>
+                <label className="flex items-start gap-2.5 p-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="deleteScope"
+                    checked={!deleteFromCrmCheckbox}
+                    onChange={() => setDeleteFromCrmCheckbox(false)}
+                    className="mt-0.5 text-rose-600"
+                  />
+                  <div>
+                    <strong className="block text-slate-900">Remove from Payroll Master only</strong>
+                    <span className="text-slate-500 text-[11px]">
+                      Keeps the CRM user active for CRM modules, but removes them completely from payroll salary processing and payroll directory.
+                    </span>
+                  </div>
+                </label>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-600">
+                Are you sure you want to permanently delete this employee from Payroll Master? Their salary records and ESS portal login will be removed.
+              </p>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setEmployeeToDelete(null)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfirmDeleteEmployee(employeeToDelete.inCrm ? deleteFromCrmCheckbox : true)}
+                className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer flex items-center gap-1.5 shadow-sm"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Confirm Delete</span>
+              </button>
             </div>
           </div>
         </div>

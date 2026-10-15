@@ -1,4 +1,4 @@
-import initialStore from './backend/initial-store.json';
+import initialStore from './backend/initial-store.json' with { type: 'json' };
 import { postgresStateMiddleware } from './backend/postgresState.ts';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import dotenv from 'dotenv';
@@ -475,7 +475,14 @@ function relinkUsersAndPayrollMasters() {
         : undefined);
     const targetId = matchedUser ? String(matchedUser.id) : mId;
     const resolvedHash = resolveRecordPasswordHash(m, relinkedMasters[targetId], matchedUser);
-    const effectiveStatus = m.status || m.employmentStatus || (matchedUser && matchedUser.status !== 'Inactive' ? matchedUser.status : undefined) || 'Active';
+    const effectiveStatus =
+      m.status === 'Inactive' || m.status === 'Active'
+        ? m.status
+        : m.employmentStatus === 'Inactive' || m.employmentStatus === 'Active'
+        ? m.employmentStatus
+        : matchedUser?.status === 'Inactive' || matchedUser?.status === 'Active'
+        ? matchedUser.status
+        : 'Active';
     relinkedMasters[targetId] = stripPlaintextAndResetFlags({
       ...relinkedMasters[targetId],
       ...m,
@@ -2961,7 +2968,14 @@ app.post('/api/payroll/masters', async (req: Request, res: Response) => {
       const existingUser = existingIdx >= 0 ? MOCK_TABLES.users[existingIdx] : undefined;
       const existingMaster = currentMasters[canonicalUserId] || currentMasters[String(m.userId)];
       const passwordHash = resolveRecordPasswordHash(m, existingMaster, existingUser);
-      const effectiveStatus = m.status || m.employmentStatus || (existingUser && existingUser.status !== 'Inactive' ? existingUser.status : undefined) || 'Active';
+      const effectiveStatus =
+        m.status === 'Inactive' || m.status === 'Active'
+          ? m.status
+          : m.employmentStatus === 'Inactive' || m.employmentStatus === 'Active'
+          ? m.employmentStatus
+          : existingUser?.status === 'Inactive' || existingUser?.status === 'Active'
+          ? existingUser.status
+          : 'Active';
 
       const normalizedMaster = stripPlaintextAndResetFlags({
         ...existingMaster,
@@ -3060,7 +3074,9 @@ app.delete('/api/payroll/masters/:id', async (req: Request, res: Response) => {
     return res.status(403).json({ success: false, message: 'Administrator permission required.' });
   }
   const { id } = req.params;
+  const deleteCrmUser = req.query.deleteUser === 'true';
   if (id) {
+    const existingMaster = PERSISTED_CRM_STATE.payrollMasters?.[id];
     delete PERSISTED_CRM_STATE.payrollMasters[id];
     if (!Array.isArray(PERSISTED_CRM_STATE.deletedPayrollMasterIds)) {
       PERSISTED_CRM_STATE.deletedPayrollMasterIds = [];
@@ -3071,6 +3087,31 @@ app.delete('/api/payroll/masters/:id', async (req: Request, res: Response) => {
     MOCK_TABLES.payroll_masters = Object.values(PERSISTED_CRM_STATE.payrollMasters).filter(
       Boolean
     ) as any[];
+
+    // If explicitly requested or if user was payroll_only, remove from users slice
+    const cleanEmail = existingMaster?.email ? String(existingMaster.email).trim().toLowerCase() : '';
+    const targetUser = (MOCK_TABLES.users || []).find(
+      (u: any) =>
+        String(u?.id) === String(id) ||
+        (cleanEmail && u?.email && String(u.email).trim().toLowerCase() === cleanEmail)
+    );
+    const isPayrollOnly = targetUser && (targetUser.accessScope === 'payroll_only' || targetUser.accessType === 'payroll_only');
+
+    if (deleteCrmUser || isPayrollOnly) {
+      if (targetUser?.id) {
+        const uId = String(targetUser.id);
+        MOCK_TABLES.users = (MOCK_TABLES.users || []).filter((u: any) => String(u?.id) !== uId);
+        if (Array.isArray(PERSISTED_CRM_STATE.crmSlices?.users)) {
+          PERSISTED_CRM_STATE.crmSlices.users = PERSISTED_CRM_STATE.crmSlices.users.filter(
+            (u: any) => String(u?.id) !== uId
+          );
+        }
+        try {
+          await query('DELETE FROM users WHERE id = $1', [uId]);
+        } catch {}
+      }
+    }
+
     savePersistedStore();
   }
   await flushStateToDatabase();
@@ -3570,7 +3611,14 @@ app.post('/api/sync/push', async (req: Request, res: Response) => {
       const prevMaster = existingMap.get(canonicalId);
       const prevUser = uIdx >= 0 ? MOCK_TABLES.users[uIdx] : undefined;
       const passwordHash = resolveRecordPasswordHash(m, prevMaster, prevUser);
-      const effectiveStatus = m.status || m.employmentStatus || (prevUser && prevUser.status !== 'Inactive' ? prevUser.status : undefined) || 'Active';
+      const effectiveStatus =
+        m.status === 'Inactive' || m.status === 'Active'
+          ? m.status
+          : m.employmentStatus === 'Inactive' || m.employmentStatus === 'Active'
+          ? m.employmentStatus
+          : prevUser?.status === 'Inactive' || prevUser?.status === 'Active'
+          ? prevUser.status
+          : 'Active';
       existingMap.set(
         canonicalId,
         stripPlaintextAndResetFlags({
