@@ -28,6 +28,7 @@ import {
   Edit3,
   Trash2,
 } from 'lucide-react';
+import { EmptyState } from '../ui/EmptyState';
 
 interface CustomersViewProps {
   onOpenTrace: (leadId?: string, customerId?: string, orderId?: string) => void;
@@ -764,7 +765,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
                     </div>
 
                     <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                      <table className="w-full text-left text-xs">
+                      <table className="table-modern w-full text-left text-xs">
                         <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
                           <tr>
                             <th className="p-3">Date</th>
@@ -827,7 +828,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
 
                     <div className="space-y-2">
                       {customerOrders.length === 0 ? (
-                        <p className="text-slate-400 italic">No orders found.</p>
+                        <EmptyState compact illustration="orders" title="No orders yet" message="Orders raised for this customer will appear here." />
                       ) : (
                         customerOrders.map((ord) => (
                           <div
@@ -868,7 +869,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
                   <div className="space-y-3">
                     <h4 className="font-bold text-slate-800 text-sm">Milestone Schedule</h4>
                     <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                      <table className="w-full text-left text-xs">
+                      <table className="table-modern w-full text-left text-xs">
                         <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
                           <tr>
                             <th className="p-2.5">Code</th>

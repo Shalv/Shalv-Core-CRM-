@@ -1304,7 +1304,7 @@ export const PayrollAdminDashboardReportSection: React.FC<
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
             {/* Left / Main 8 Cols: Attendance Register Table with Google Coordinates */}
             <div className="xl:col-span-8 overflow-x-auto border border-slate-200 rounded-xl">
-              <table className="w-full text-left border-collapse text-xs">
+              <table className="table-modern w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-slate-900 text-white text-[10px] uppercase tracking-wider whitespace-nowrap">
                     <th className="py-2.5 px-3">Employee</th>
@@ -1750,7 +1750,7 @@ export const PayrollAdminDashboardReportSection: React.FC<
                 <span className="text-[11px] text-slate-500">Google Maps</span>
               </div>
               <div className="overflow-x-auto max-h-56 border border-slate-200 rounded-xl">
-                <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+                <table className="table-modern w-full text-left border-collapse text-xs whitespace-nowrap">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase">
                       <th className="py-2 px-3">Action</th>
@@ -1858,7 +1858,7 @@ export const PayrollAdminDashboardReportSection: React.FC<
                   </span>
                 </div>
                 <div className="overflow-x-auto max-h-80">
-                  <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+                  <table className="table-modern w-full text-left border-collapse text-xs whitespace-nowrap">
                     <thead>
                       <tr className="border-b border-slate-200 text-[10px] text-slate-500 uppercase bg-white">
                         <th className="py-2 px-3">Employee</th>
@@ -1959,7 +1959,7 @@ export const PayrollAdminDashboardReportSection: React.FC<
                   </span>
                 </div>
                 <div className="overflow-x-auto max-h-80">
-                  <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+                  <table className="table-modern w-full text-left border-collapse text-xs whitespace-nowrap">
                     <thead>
                       <tr className="border-b border-slate-200 text-[10px] text-slate-500 uppercase bg-white">
                         <th className="py-2 px-3">Employee</th>
@@ -2072,7 +2072,7 @@ export const PayrollAdminDashboardReportSection: React.FC<
           </div>
 
           <div className="overflow-x-auto border border-slate-200 rounded-xl">
-            <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+            <table className="table-modern w-full text-left border-collapse text-xs whitespace-nowrap">
               <thead>
                 <tr className="bg-slate-900 text-white text-[10px] uppercase tracking-wider">
                   <th className="py-2.5 px-3">Emp Code</th>
@@ -2298,7 +2298,7 @@ export const PayrollAdminDashboardReportSection: React.FC<
           </div>
 
           <div className="overflow-x-auto border border-slate-200 rounded-xl">
-            <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+            <table className="table-modern w-full text-left border-collapse text-xs whitespace-nowrap">
               <thead>
                 <tr className="bg-slate-900 text-white text-[10px] uppercase tracking-wider">
                   <th className="py-2.5 px-3">Loan ID &amp; Date</th>

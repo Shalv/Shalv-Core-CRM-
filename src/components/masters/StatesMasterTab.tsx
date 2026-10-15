@@ -183,7 +183,7 @@ export const StatesMasterTab: React.FC<StatesMasterTabProps> = ({ searchQuery })
 
         {/* States Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="table-modern w-full text-left text-xs">
             <thead className="bg-slate-50/80 text-slate-600 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
               <tr>
                 <th className="py-3 px-4">State / UT Name</th>

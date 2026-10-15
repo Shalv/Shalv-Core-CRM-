@@ -940,7 +940,7 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
 
         {/* Users Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs whitespace-nowrap">
+          <table className="table-modern w-full text-left text-xs whitespace-nowrap">
             <thead className="bg-slate-50/80 text-slate-600 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
               <tr>
                 <th className="py-3 px-4">User Profile</th>
@@ -1764,7 +1764,7 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
 
                   {/* 15-Module Matrix Table */}
                   <div className="border border-slate-200 rounded-xl overflow-hidden max-h-72 overflow-y-auto">
-                    <table className="w-full text-left text-xs whitespace-nowrap">
+                    <table className="table-modern w-full text-left text-xs whitespace-nowrap">
                       <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold sticky top-0">
                         <tr>
                           <th className="py-2 px-3">CRM Module</th>

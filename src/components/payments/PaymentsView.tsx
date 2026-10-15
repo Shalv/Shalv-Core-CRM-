@@ -523,7 +523,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
       {/* Receipts Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+          <table className="table-modern w-full text-left text-xs border-collapse">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
               <tr>
                 <th className="p-3.5">Receipt #</th>

@@ -926,7 +926,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({
               <div className="space-y-2">
                 <span className="font-bold text-slate-700 text-xs">Purchased Items & Deliverables</span>
                 <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                  <table className="w-full text-left text-xs">
+                  <table className="table-modern w-full text-left text-xs">
                     <thead>
                       <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
                         <th className="py-2.5 px-3">Item Description</th>

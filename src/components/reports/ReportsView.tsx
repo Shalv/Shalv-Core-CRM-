@@ -1005,7 +1005,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {activeReport === 'lead_register' && (
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="table-modern w-full text-left text-xs">
               <thead className="bg-slate-50/90 text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-200">
                 <tr>
                   <th className="py-3.5 px-4">Lead #</th>
@@ -1061,7 +1061,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {activeReport === 'opportunity_register' && (
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="table-modern w-full text-left text-xs">
               <thead className="bg-slate-50/90 text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-200">
                 <tr>
                   <th className="py-3.5 px-4">Opportunity #</th>
@@ -1119,7 +1119,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {activeReport === 'customer_register' && (
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="table-modern w-full text-left text-xs">
               <thead className="bg-slate-50/90 text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-200">
                 <tr>
                   <th className="py-3.5 px-4">Customer Code</th>
@@ -1175,7 +1175,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {activeReport === 'sales_register' && (
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="table-modern w-full text-left text-xs">
               <thead className="bg-slate-50/90 text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-200">
                 <tr>
                   <th className="py-3.5 px-4">SO #</th>
@@ -1231,7 +1231,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {activeReport === 'milestone_register' && (
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="table-modern w-full text-left text-xs">
               <thead className="bg-slate-50/90 text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-200">
                 <tr>
                   <th className="py-3.5 px-4">Code</th>
@@ -1289,7 +1289,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {activeReport === 'gst_tax_register' && (
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="table-modern w-full text-left text-xs">
               <thead className="bg-slate-50/90 text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-200">
                 <tr>
                   <th className="py-3.5 px-4">Invoice #</th>
@@ -1351,7 +1351,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {activeReport === 'collection_register' && (
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="table-modern w-full text-left text-xs">
               <thead className="bg-slate-50/90 text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-200">
                 <tr>
                   <th className="py-3.5 px-4">Receipt #</th>
@@ -1401,7 +1401,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {activeReport === 'ledger_aging_register' && (
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="table-modern w-full text-left text-xs">
               <thead className="bg-slate-50/90 text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-200">
                 <tr>
                   <th className="py-3.5 px-4">Customer Code</th>
@@ -1457,7 +1457,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {activeReport === 'activity_register' && (
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="table-modern w-full text-left text-xs">
               <thead className="bg-slate-50/90 text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-200">
                 <tr>
                   <th className="py-3.5 px-4">Activity Type</th>
@@ -1513,7 +1513,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {activeReport === 'support_register' && (
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="table-modern w-full text-left text-xs">
               <thead className="bg-slate-50/90 text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-200">
                 <tr>
                   <th className="py-3.5 px-4">Ticket #</th>
@@ -1587,7 +1587,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {activeReport === 'purchase_register' && (
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="table-modern w-full text-left text-xs">
               <thead className="bg-slate-50/90 text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-200">
                 <tr>
                   <th className="py-3.5 px-4">PO Number</th>
