@@ -36,6 +36,36 @@ export interface ModulePermission {
 
 export type RolePermissionsMap = Record<CrmModuleKey, ModulePermission>;
 
+/* ----------------------------------------------------------------------------
+ * Payroll (PayChakra) permission model
+ * A parallel RBAC matrix for the payroll / ESS modules, mirroring the CRM one.
+ * Actions are view / create / edit / approve (payroll uses "approve" instead of
+ * "delete", because payroll records are approved or reversed, never hard-deleted).
+ * -------------------------------------------------------------------------- */
+export type PayrollModuleKey =
+  | 'payroll_overview'
+  | 'employees'
+  | 'attendance'
+  | 'leaves'
+  | 'reimbursements'
+  | 'loans'
+  | 'payslips'
+  | 'tax'
+  | 'reports'
+  | 'policy'
+  | 'integration';
+
+export type PayrollPermissionAction = 'view' | 'create' | 'edit' | 'approve';
+
+export interface PayrollModulePermission {
+  view: boolean;
+  create: boolean;
+  edit: boolean;
+  approve: boolean;
+}
+
+export type PayrollPermissionsMap = Record<PayrollModuleKey, PayrollModulePermission>;
+
 export interface User {
   id: string;
   name: string;
