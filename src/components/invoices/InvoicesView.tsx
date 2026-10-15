@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useCrm } from '../../context/CrmContext';
+import { resolveGstRate } from '../../shared/gst';
 import { Invoice, InvoiceType, PaymentStage, InvoiceItem } from '../../types';
 import {
   Receipt,
@@ -85,6 +86,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
     deletePayment,
     formatCurrency,
     supplierCompany,
+    getStateCode,
   } = useCrm();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -173,7 +175,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
       uom: products[0]?.uom || 'Lot',
       quantity: 1,
       unitRate: products[0]?.sellingPrice || 100000,
-      gstRate: products[0]?.gstRate || 18,
+      gstRate: resolveGstRate(products[0]?.gstRate),
     },
   ]);
 
@@ -369,7 +371,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
     const ms = milestones.find((m) => m.id === mId);
     const ord = orders.find((o) => o.id === formOrderId);
     if (ms && ord) {
-      const gstRate = ord.items[0]?.gstRate || 18;
+      const gstRate = resolveGstRate(ord.items[0]?.gstRate);
       const taxable = Math.round(ms.amount / (1 + gstRate / 100));
       setFormDueDate(ms.dueDate || formDueDate);
       setFormPaymentStage(
@@ -427,7 +429,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
         uom: products[0]?.uom || 'Lot',
         quantity: 1,
         unitRate: products[0]?.sellingPrice || 100000,
-        gstRate: products[0]?.gstRate || 18,
+        gstRate: resolveGstRate(products[0]?.gstRate),
       },
     ]);
     setIsCreateModalOpen(true);
@@ -530,7 +532,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
       customer.addresses.find((a) => a.type === 'Shipping') ||
       billingAddress;
 
-    const isInterState = billingAddress.stateCode !== supplierCompany.stateCode;
+    const isInterState = (billingAddress.stateCode || getStateCode(billingAddress.state)) !== supplierCompany.stateCode;
 
     let subtotalTaxable = 0;
     let totalCgst = 0;

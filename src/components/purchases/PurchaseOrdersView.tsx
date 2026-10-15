@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useCrm } from '../../context/CrmContext';
+import { resolveGstRate } from '../../shared/gst';
 import {
   FileSpreadsheet,
   Plus,
@@ -137,7 +138,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({
       quantity: 1,
       unitPrice: products[0]?.costPrice || 5000,
       discountPercent: 0,
-      gstRate: products[0]?.gstRate || 18,
+      gstRate: resolveGstRate(products[0]?.gstRate),
     },
   ]);
 
@@ -232,7 +233,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({
         quantity: 1,
         unitPrice: products[0]?.costPrice || 5000,
         discountPercent: 0,
-        gstRate: products[0]?.gstRate || 18,
+        gstRate: resolveGstRate(products[0]?.gstRate),
       },
     ]);
     setIsCreateModalOpen(true);
@@ -252,7 +253,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({
         quantity: 1,
         unitPrice: prod?.costPrice || 1000,
         discountPercent: 0,
-        gstRate: prod?.gstRate || 18,
+        gstRate: resolveGstRate(prod?.gstRate),
       },
     ]);
   };
@@ -275,7 +276,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({
           item.hsnSac = prod.hsnSac || '998313';
           item.unit = prod.uom || 'Each';
           item.unitPrice = prod.costPrice || 0;
-          item.gstRate = prod.gstRate || 18;
+          item.gstRate = resolveGstRate(prod.gstRate);
         }
       }
       next[index] = item;
@@ -291,7 +292,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({
       const gross = (item.quantity || 0) * (item.unitPrice || 0);
       const discount = (gross * (item.discountPercent || 0)) / 100;
       const taxable = Math.max(0, gross - discount);
-      const gstRate = item.gstRate || 18;
+      const gstRate = resolveGstRate(item.gstRate);
       const taxAmt = (taxable * gstRate) / 100;
 
       let cgst = 0;
@@ -1283,7 +1284,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({
                         <label className="block text-[10px] text-slate-500 mb-0.5">GST %</label>
                         <select
                           value={item.gstRate}
-                          onChange={(e) => handleItemChange(idx, 'gstRate', parseFloat(e.target.value) || 18)}
+                          onChange={(e) => handleItemChange(idx, 'gstRate', resolveGstRate(parseFloat(e.target.value)))}
                           className="w-full p-1.5 rounded border border-slate-200 bg-white font-mono"
                         >
                           <option value={18}>18%</option>

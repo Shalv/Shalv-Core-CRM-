@@ -302,6 +302,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     });
   }, [invoices, dateRange, q]);
 
+  // 6b. GST register scope: statutory Tax invoices only, excluding cancelled ones. Proforma
+  // invoices are not tax invoices and must never appear in a GSTR-1 style register; cancelled
+  // invoices must be excluded too. The ledger/AR register below already scopes this way.
+  const gstRegisterInvoices = useMemo(
+    () => filteredInvoices.filter((i) => (i.invoiceType || 'Tax') === 'Tax' && i.status !== 'Cancelled'),
+    [filteredInvoices]
+  );
+
   // 7. Filtered Payments
   const filteredPayments = useMemo(() => {
     return payments.filter((p) => {
@@ -516,7 +524,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         downloadCsv(
           'GST_Tax_Register',
           ['Invoice #', 'Date', 'Customer', 'GSTIN', 'Place of Supply', 'Taxable Value', 'CGST', 'SGST', 'IGST', 'Total Invoice', 'Paid', 'Balance'],
-          filteredInvoices.map((i) => [
+          gstRegisterInvoices.map((i) => [
             i.invoiceNumber,
             i.invoiceDate,
             `"${i.customerName}"`,
@@ -687,12 +695,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         ];
       }
       case 'gst_tax_register': {
-        const taxable = filteredInvoices.reduce((s, i) => s + i.subtotalTaxable, 0);
-        const gst = filteredInvoices.reduce((s, i) => s + i.totalTax, 0);
-        const grand = filteredInvoices.reduce((s, i) => s + i.grandTotal, 0);
-        const balance = filteredInvoices.reduce((s, i) => s + i.balanceAmount, 0);
+        const taxable = gstRegisterInvoices.reduce((s, i) => s + i.subtotalTaxable, 0);
+        const gst = gstRegisterInvoices.reduce((s, i) => s + i.totalTax, 0);
+        const grand = gstRegisterInvoices.reduce((s, i) => s + i.grandTotal, 0);
+        const balance = gstRegisterInvoices.reduce((s, i) => s + i.balanceAmount, 0);
         return [
-          { label: 'Taxable Turnover', value: formatCurrency(taxable), sub: `${filteredInvoices.length} GST Invoices` },
+          { label: 'Taxable Turnover', value: formatCurrency(taxable), sub: `${gstRegisterInvoices.length} GST Invoices` },
           { label: 'Total Output GST', value: formatCurrency(gst), sub: 'CGST + SGST + IGST liability' },
           { label: 'Gross Billed Value', value: formatCurrency(grand), sub: 'Total invoiced with tax' },
           { label: 'Balance Receivable', value: formatCurrency(balance), sub: 'Unpaid invoice balance' },

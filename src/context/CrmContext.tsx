@@ -76,7 +76,8 @@ import {
   INITIAL_LICENSE_TYPES,
 } from '../data/supportAmcData';
 import { useApplicationSync, SyncStatus } from './useApplicationSync';
-import { Snapshot, recordPendingUserPassword, isRemovedPredefinedUser } from '../shared/integrity';
+import { Snapshot, recordPendingUserPassword, isRemovedPredefinedUser, milestoneInvoiceItems, validatePaymentLinks } from '../shared/integrity';
+import { resolveGstRate } from '../shared/gst';
 import { isAuthoritativeAuthRejection } from '../shared/authFallback';
 
 function crmAuthHeaders(extra: Record<string, string> = { 'Content-Type': 'application/json' }): Record<string, string> {
@@ -2265,26 +2266,10 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
             targetLocal?.role === 'Administrator';
 
           const cleanPass = String(password || '').trim();
-          const lowerPass = cleanPass.toLowerCase();
-          const isAdminPass =
-            cleanPass === 'CoreEnact@2026#' ||
-            lowerPass === 'coreenact@2026#' ||
-            cleanPass === 'Coreenact@321#' ||
-            lowerPass === 'coreenact@321#' ||
-            cleanPass === 'Coreenact@321' ||
-            lowerPass === 'coreenact@321' ||
-            cleanPass === 'CoreEnact@321#' ||
-            cleanPass === 'Admin@CoreEnact2026' ||
-            lowerPass === 'admin@coreenact2026' ||
-            cleanPass === 'CoreEnact@2026' ||
-            lowerPass === 'coreenact@2026' ||
-            cleanPass === 'Admin@123' ||
-            lowerPass === 'admin@123' ||
-            lowerPass === 'admin123' ||
-            lowerPass === 'admin' ||
-            cleanPass === 'Shalv@123' ||
-            lowerPass === 'shalv@123';
 
+          // SECURITY: the hardcoded admin-password list that used to live here (and was injected
+          // for primary-admin aliases) has been removed. The offline fallback now matches only
+          // passwords actually stored on the local record and never grants a session on a guess.
           const validPasswords = [
             targetLocal.password,
             targetLocal.tempPassword,
@@ -2293,12 +2278,9 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
             localUser?.password,
             localUser?.tempPassword,
             pendingPass,
-            ...(isPrimaryAdminAccount ? ['CoreEnact@2026#', 'Coreenact@321#', 'Admin@CoreEnact2026'] : []),
           ].filter((p): p is string => typeof p === 'string' && p.trim().length > 0);
 
-          const passMatched =
-            validPasswords.some((p) => p.trim() === cleanPass) ||
-            (isPrimaryAdminAccount && isAdminPass);
+          const passMatched = validPasswords.some((p) => p.trim() === cleanPass);
 
           if (passMatched) {
             // Proactively sync this local record to the server with the verified password
@@ -2347,26 +2329,12 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
               }
             }
             if (!verifyOk) {
-              data = {
-                success: true,
-                authenticated: true,
-                user: syncPayloadUser,
-                payrollMaster: localMaster || syncPayloadUser,
-              };
-              verifyOk = true;
+              // SECURITY: no client-side session fabrication. If the server cannot confirm the
+              // credentials, the login fails rather than granting a tokenless "success".
+              throw new Error('Could not reach the server to verify your credentials. Please try again when you are online.');
             }
           } else {
-            if (isPrimaryAdminAccount && isAdminPass) {
-              data = {
-                success: true,
-                authenticated: true,
-                user: targetLocal,
-                payrollMaster: localMaster || targetLocal,
-              };
-              verifyOk = true;
-            } else {
-              throw new Error('Invalid password. Please check your credentials or contact your administrator.');
-            }
+            throw new Error('Invalid password. Please check your credentials or contact your administrator.');
           }
         } else {
           throw new Error(data?.message || `No account found with identifier "${identifier}". Check your Employee Code (e.g. EMP-101) or work email.`);
@@ -5745,37 +5713,14 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
     dueDateObj.setDate(dueDateObj.getDate() + 15);
     const dueDate = milestone.dueDate || dueDateObj.toISOString().split('T')[0];
 
-    const taxRatio = order.totalTax / order.grandTotal;
-    const milestoneTotalTax = Math.round(milestone.amount * taxRatio);
-    const milestoneTaxable = milestone.amount - milestoneTotalTax;
-
-    let cgst = 0;
-    let sgst = 0;
-    let igst = 0;
-
-    if (order.isInterState) {
-      igst = milestoneTotalTax;
-    } else {
-      cgst = Math.round(milestoneTotalTax / 2);
-      sgst = milestoneTotalTax - cgst;
-    }
-
-    const item: InvoiceItem = {
-      id: `invi-pi-${Date.now()}`,
-      productName: `${order.items[0]?.productName || 'Project Service'} - ${milestone.milestoneCode} (${milestone.percentage}%)`,
-      description: `${milestone.milestoneCode}: ${milestone.description}`,
-      hsnSac: order.items[0]?.hsnSac || '998313',
-      uom: 'Lot',
-      quantity: 1,
-      unitRate: milestoneTaxable,
-      taxableAmount: milestoneTaxable,
-      gstRate: order.items[0]?.gstRate || 18,
-      cgstAmount: cgst,
-      sgstAmount: sgst,
-      igstAmount: igst,
-      totalTax: milestoneTotalTax,
-      lineTotal: milestone.amount,
-    };
+    // Preserve each order line's own tax rate (mixed-rate and zero-rate orders) rather than
+    // collapsing the milestone to one blended rate labelled with the first product's rate.
+    const items: InvoiceItem[] = milestoneInvoiceItems(order, milestone) as InvoiceItem[];
+    const milestoneTaxable = items.reduce((s, i) => s + i.taxableAmount, 0);
+    const cgst = items.reduce((s, i) => s + i.cgstAmount, 0);
+    const sgst = items.reduce((s, i) => s + i.sgstAmount, 0);
+    const igst = items.reduce((s, i) => s + i.igstAmount, 0);
+    const milestoneTotalTax = items.reduce((s, i) => s + i.totalTax, 0);
 
     const newProforma: Invoice = {
       id: `pi-${Date.now()}`,
@@ -5805,7 +5750,7 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
       paidAmount: milestone.paidAmount || 0,
       balanceAmount: Math.max(0, milestone.amount - (milestone.paidAmount || 0)),
       status: 'Issued',
-      items: [item],
+      items,
       bankDetails: SUPPLIER_COMPANY.bankDetails,
       notes: `Proforma Invoice issued against Sales Order ${order.orderNumber} - Milestone ${milestone.milestoneCode}`,
       createdAt: now,
@@ -6069,38 +6014,14 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
     dueDateObj.setDate(dueDateObj.getDate() + 15);
     const dueDate = dueDateObj.toISOString().split('T')[0];
 
-    // Compute taxable and tax proportionally for the milestone amount
-    const taxRatio = order.totalTax / order.grandTotal;
-    const milestoneTotalTax = Math.round(milestone.amount * taxRatio);
-    const milestoneTaxable = milestone.amount - milestoneTotalTax;
-
-    let cgst = 0;
-    let sgst = 0;
-    let igst = 0;
-
-    if (order.isInterState) {
-      igst = milestoneTotalTax;
-    } else {
-      cgst = Math.round(milestoneTotalTax / 2);
-      sgst = milestoneTotalTax - cgst;
-    }
-
-    const item: InvoiceItem = {
-      id: `invi-${Date.now()}`,
-      productName: `${order.items[0]?.productName || 'Project Service'} - ${milestone.milestoneCode} (${milestone.percentage}%)`,
-      description: `${milestone.milestoneCode}: ${milestone.description}`,
-      hsnSac: order.items[0]?.hsnSac || '998313',
-      uom: 'Lot',
-      quantity: 1,
-      unitRate: milestoneTaxable,
-      taxableAmount: milestoneTaxable,
-      gstRate: order.items[0]?.gstRate || 18,
-      cgstAmount: cgst,
-      sgstAmount: sgst,
-      igstAmount: igst,
-      totalTax: milestoneTotalTax,
-      lineTotal: milestone.amount,
-    };
+    // Preserve each order line's own tax rate (mixed-rate and zero-rate orders) rather than
+    // collapsing the milestone to one blended rate labelled with the first product's rate.
+    const items: InvoiceItem[] = milestoneInvoiceItems(order, milestone) as InvoiceItem[];
+    const milestoneTaxable = items.reduce((s, i) => s + i.taxableAmount, 0);
+    const cgst = items.reduce((s, i) => s + i.cgstAmount, 0);
+    const sgst = items.reduce((s, i) => s + i.sgstAmount, 0);
+    const igst = items.reduce((s, i) => s + i.igstAmount, 0);
+    const milestoneTotalTax = items.reduce((s, i) => s + i.totalTax, 0);
 
     const alreadyPaid = milestone.paidAmount || 0;
     const balance = Math.max(0, milestone.amount - alreadyPaid);
@@ -6133,7 +6054,7 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
       paidAmount: alreadyPaid,
       balanceAmount: balance,
       status: balance <= 0 ? 'Paid' : alreadyPaid > 0 ? 'Partially Paid' : 'Issued',
-      items: [item],
+      items,
       bankDetails: SUPPLIER_COMPANY.bankDetails,
       notes: `Invoice issued against Sales Order ${order.orderNumber} - Milestone ${milestone.milestoneCode}`,
       createdAt: now,
@@ -7146,6 +7067,22 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
     const customer = customers.find((c) => c.id === paymentData.customerId);
     if (!customer) throw new Error('Customer not found');
 
+    // Validate the receipt against its linked invoice/milestone/order BEFORE mutating state, so an
+    // overpayment, a cross-customer allocation, an out-of-range TDS or a payment against a
+    // cancelled/converted/draft invoice is rejected up front with a clear message instead of
+    // showing a false success and only failing later on the server audit.
+    validatePaymentLinks(
+      { invoices, milestones, orders, customers, payments } as unknown as Snapshot,
+      {
+        amount: paymentData.amount,
+        tdsDeducted: paymentData.tdsDeducted,
+        customerId: paymentData.customerId,
+        invoiceId: paymentData.invoiceId,
+        milestoneId: paymentData.milestoneId,
+        salesOrderId: paymentData.salesOrderId,
+      }
+    );
+
     const nextRecSeq = payments.length + 1;
     const receiptNumber = `REC-2026-${String(nextRecSeq).padStart(5, '0')}`;
     const tds = paymentData.tdsDeducted || 0;
@@ -7641,7 +7578,7 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
     if (!contract) return null;
 
     const customer = customers.find((c) => c.id === contract.customerId);
-    const defaultAddr: CustomerAddress = customer?.addresses?.[0] || {
+    const defaultAddr: CustomerAddress = (customer?.addresses?.find((a) => a.type === 'Billing') || customer?.addresses?.[0]) || {
       id: `addr-${Date.now()}`,
       type: 'Billing',
       addressLine1: contract.customerName,
@@ -7653,9 +7590,9 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
       isDefault: true,
     };
 
-    const isInterState = (defaultAddr.stateCode || '07') !== (supplierCompany.stateCode || '07');
+    const isInterState = ((defaultAddr.stateCode || (defaultAddr.state ? getStateCode(defaultAddr.state) : '')) || '07') !== (supplierCompany.stateCode || '07');
     const taxable = contract.annualValue;
-    const gstRate = contract.gstRate || 18;
+    const gstRate = resolveGstRate(contract.gstRate);
     const totalTax = Math.round((taxable * gstRate) / 100);
     const cgst = isInterState ? 0 : totalTax / 2;
     const sgst = isInterState ? 0 : totalTax / 2;
@@ -8051,7 +7988,8 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
     if (!ticket) return null;
 
     const customer = customers.find((c) => c.id === ticket.customerId);
-    const stateCode = customer?.addresses?.[0]?.stateCode || '07';
+    const billingAddr = customer?.addresses?.find((a) => a.type === 'Billing') || customer?.addresses?.[0];
+    const stateCode = billingAddr?.stateCode || (billingAddr?.state ? getStateCode(billingAddr.state) : '') || '07';
     const isInterState = stateCode !== (supplierCompany.stateCode || '07');
 
     const taxableAmount = params.estimatedHours * params.hourlyRate;
@@ -8140,7 +8078,7 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
     }
 
     const customer = customers.find((c) => c.id === cr.customerId);
-    const defaultAddr: CustomerAddress = customer?.addresses?.[0] || {
+    const defaultAddr: CustomerAddress = (customer?.addresses?.find((a) => a.type === 'Billing') || customer?.addresses?.[0]) || {
       id: `addr-${Date.now()}`,
       type: 'Billing',
       addressLine1: cr.customerName,
@@ -8152,7 +8090,7 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
       isDefault: true,
     };
 
-    const isInterState = (defaultAddr.stateCode || '07') !== (supplierCompany.stateCode || '07');
+    const isInterState = ((defaultAddr.stateCode || (defaultAddr.state ? getStateCode(defaultAddr.state) : '')) || '07') !== (supplierCompany.stateCode || '07');
     const nowDate = new Date().toISOString().split('T')[0];
     const dueObj = new Date();
     dueObj.setDate(dueObj.getDate() + 30);
@@ -8169,7 +8107,7 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
       quantity: 1,
       unitRate: cr.taxableAmount,
       taxableAmount: cr.taxableAmount,
-      gstRate: cr.gstRate || 18,
+      gstRate: resolveGstRate(cr.gstRate),
       cgstAmount: cr.cgstAmount,
       sgstAmount: cr.sgstAmount,
       igstAmount: cr.igstAmount,
@@ -8221,7 +8159,7 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
 
     const customer = customers.find((c) => c.id === ticket.customerId);
     const contract = amcContracts.find((a) => a.id === ticket.contractId);
-    const defaultAddr: CustomerAddress = customer?.addresses?.[0] || {
+    const defaultAddr: CustomerAddress = (customer?.addresses?.find((a) => a.type === 'Billing') || customer?.addresses?.[0]) || {
       id: `addr-${Date.now()}`,
       type: 'Billing',
       addressLine1: ticket.customerName,
@@ -8233,7 +8171,7 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
       isDefault: true,
     };
 
-    const isInterState = (defaultAddr.stateCode || '07') !== (supplierCompany.stateCode || '07');
+    const isInterState = ((defaultAddr.stateCode || (defaultAddr.state ? getStateCode(defaultAddr.state) : '')) || '07') !== (supplierCompany.stateCode || '07');
     const rate = contract?.hourlyOverageRate || 1500;
     const taxable =
       ticket.estimatedBillingAmount && ticket.estimatedBillingAmount > 0
@@ -8326,7 +8264,7 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
     const customer = customers.find((c) => c.id === params.customerId);
     if (!customer || params.items.length === 0) return null;
 
-    const defaultAddr: CustomerAddress = customer.addresses?.[0] || {
+    const defaultAddr: CustomerAddress = (customer.addresses?.find((a) => a.type === 'Billing') || customer.addresses?.[0]) || {
       id: `addr-${Date.now()}`,
       type: 'Billing',
       addressLine1: customer.name,
@@ -8338,7 +8276,7 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
       isDefault: true,
     };
 
-    const isInterState = (defaultAddr.stateCode || '07') !== (supplierCompany.stateCode || '07');
+    const isInterState = ((defaultAddr.stateCode || (defaultAddr.state ? getStateCode(defaultAddr.state) : '')) || '07') !== (supplierCompany.stateCode || '07');
     const invoiceItems: InvoiceItem[] = params.items.map((row, idx) => {
       const lic = licenseTypes.find((l) => l.id === row.licenseId) || licenseTypes[0];
       const unitRate =

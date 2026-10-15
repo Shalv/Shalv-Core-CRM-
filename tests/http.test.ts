@@ -29,7 +29,7 @@ test('server login rejects bad credentials and issues a working HttpOnly session
  assert.equal((await call('/api/auth/verify',{identifier:'admin',password:'wrong'})).status,401);
  assert.equal((await call('/api/auth/verify',{identifier:'admin',password:'password123'})).status,401);
  assert.equal((await call('/api/auth/verify',{identifier:'admin',password:''})).status,400);
- const response=await call('/api/auth/verify',{identifier:'admin',password:process.env.ADMIN_PASSWORD || 'Coreenact@321#'});assert.equal(response.status,200);
+ const response=await call('/api/auth/verify',{identifier:'admin',password:process.env.ADMIN_PASSWORD || 'CoreEnact@2026#'});assert.equal(response.status,200);
  assert.match(response.headers.get('set-cookie')||'',/HttpOnly/);adminCookie=(response.headers.get('set-cookie')||'').split(';')[0];
  const account=await response.json();assert.equal(account.user.passwordHash,undefined);
  assert.equal((await call('/api/state',undefined,adminCookie)).status,200);
@@ -45,7 +45,7 @@ test('created account logs in; password change persists and ordinary users canno
  response=await call('/api/auth/change-password',{userId:user.id,currentPassword:user.password,newPassword:'Changed@123',confirmPassword:'Changed@123'},cookie);assert.equal(response.status,200);
  assert.equal((await call('/api/auth/verify',{identifier:user.username,password:user.password})).status,401);
  assert.equal((await call('/api/auth/verify',{identifier:user.username,password:'Changed@123'})).status,200);
- assert.equal((await call('/api/auth/change-password',{userId:'usr-1',currentPassword:process.env.ADMIN_PASSWORD || 'Coreenact@321#',newPassword:'Wrong@123',confirmPassword:'Wrong@123'},cookie)).status,403);
+ assert.equal((await call('/api/auth/change-password',{userId:'usr-1',currentPassword:process.env.ADMIN_PASSWORD || 'CoreEnact@2026#',newPassword:'Wrong@123',confirmPassword:'Wrong@123'},cookie)).status,403);
 });
 test('employee created in Payroll Master logs into ESS portal with email and admin-set password, then changes password from profile for further login',async()=>{
  const empMaster={
@@ -82,7 +82,7 @@ test('employee created in Payroll Master logs into ESS portal with email and adm
  assert.match(crmLoginJson.message, /Access Restricted/);
 });
 test('ESS updates permitted employee fields with audit trail, protects admin fields, and reflects in admin state', async () => {
- const adminLogin = await call('/api/auth/verify', { identifier: 'admin', password: 'Coreenact@321#' });
+ const adminLogin = await call('/api/auth/verify', { identifier: 'admin', password: 'CoreEnact@2026#' });
  assert.equal(adminLogin.status, 200);
  const adminData = await adminLogin.json();
  assert.equal(adminData.user.username, 'admin');

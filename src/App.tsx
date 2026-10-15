@@ -20,6 +20,7 @@ import { PostgresDatabaseView } from './components/database/PostgresDatabaseView
 import { LoginView } from './components/auth/LoginView';
 import { PayrollLoginView } from './components/auth/PayrollLoginView';
 import { LifecycleTraceModal } from './components/common/LifecycleTraceModal';
+import { AiAssistantPanel } from './components/ai/AiAssistantPanel';
 import { AccessRestrictedView } from './components/common/AccessRestrictedView';
 import { DataSyncNotice } from './components/common/DataSyncNotice';
 import { PayrollEssPortalModal } from './components/payroll/PayrollEssPortalModal';
@@ -567,6 +568,9 @@ function MainAppContent() {
         invoiceId={traceInvoiceId}
         onNavigateToModule={handleNavigate}
       />
+
+      {/* Floating AI assistant (assistant / insights / email drafting) */}
+      <AiAssistantPanel />
 
       {syncStatus && retrySync && reloadSavedSync && (
         <DataSyncNotice
