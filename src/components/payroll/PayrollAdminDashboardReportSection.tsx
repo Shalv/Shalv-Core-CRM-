@@ -945,7 +945,7 @@ export const PayrollAdminDashboardReportSection: React.FC<
                   };
                   updatePolicyMaster(reset);
                   setStatusBanner(
-                    'Reset policy rules to official CoreEnact Solutions Policy CS-HR-POL-001 v1.0 defaults.'
+                    'Reset policy rules to official Coreenact Solutions Policy CS-HR-POL-001 v1.0 defaults.'
                   );
                 }}
                 className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold cursor-pointer"

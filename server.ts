@@ -309,6 +309,7 @@ function resolveRecordPasswordHash(record: any, existingRecord?: any, fallbackRe
         verifyPasswordHash('password123', s) ||
         verifyPasswordHash(LEGACY_ADMIN_PASSWORD, s) ||
         verifyPasswordHash('Coreenact@321#', s) ||
+        verifyPasswordHash('Coreenact@2026#', s) ||
         verifyPasswordHash('CoreEnact@2026#', s) ||
         verifyPasswordHash(ADMIN_DEFAULT_PASSWORD, s)
       );
@@ -1597,6 +1598,8 @@ async function handleAuthLogin(req: Request, res: Response) {
       const lowerPass = cleanPass.toLowerCase();
       const isRecognizedAdminPass =
         cleanPass === ADMIN_DEFAULT_PASSWORD ||
+        cleanPass === 'Coreenact@2026#' ||
+        lowerPass === 'coreenact@2026#' ||
         cleanPass === 'Coreenact@321#' ||
         lowerPass === 'coreenact@321#' ||
         cleanPass === 'Coreenact@321' ||

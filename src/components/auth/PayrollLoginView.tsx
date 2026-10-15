@@ -1,567 +1,41 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useCrm } from '../../context/CrmContext';
-import { BrandLogo, SwirlingRibbonEmblem } from '../common/BrandLogo';
+import {
+  Lock,
+  User as UserIcon,
+  Eye,
+  EyeOff,
+  ArrowRight,
+  ArrowLeft,
+  CheckCircle2,
+  AlertCircle,
+  Building2,
+  Calendar,
+  FileText,
+  KeyRound,
+  Shield,
+  ChevronRight,
+  Sparkles,
+  Fingerprint,
+  Layers,
+  Clock,
+  Compass,
+} from 'lucide-react';
 
 interface PayrollLoginViewProps {
   onSwitchToCrmLogin?: () => void;
 }
 
-const payChakraAuroraCss = `
-.pca-root {
-  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
-  --font-body: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
-
-  --bg: #ffffff;
-  --ink: #0f172a;
-  --muted: #475569;
-  --line: #e2e8f0;
-  --field: #f8fafc;
-  --cyan: #0284c7;
-  --blue: #2563eb;
-  --pink: #d946ef;
-  --grad: linear-gradient(135deg, #0284c7 0%, #2563eb 50%, #4f46e5 100%);
-  --on-grad: #ffffff;
-  --error: #b91c1c;
-  --ok: #047857;
-  color-scheme: light;
-
-  position: relative;
-  min-height: 100vh;
-  width: 100%;
-  margin: 0;
-  background: radial-gradient(circle at 28% 48%, rgba(240, 249, 255, 0.85) 0%, rgba(255, 255, 255, 0.94) 55%, #f8fafc 100%) !important;
-  color: var(--ink);
-  font: 15px/1.55 var(--font-body);
-  padding-inline: 16px;
-  padding-block: 32px;
-  overflow-x: hidden;
-  box-sizing: border-box;
-}
-
-.pca-chakra-canvas {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
-  display: block;
-  z-index: 0;
-  pointer-events: none;
-}
-
-.pca-root * {
-  box-sizing: border-box;
-}
-
-.pca-stage {
-  position: relative;
-  z-index: 1;
-  max-width: 1160px;
-  margin-inline: auto;
-  min-height: calc(100vh - 64px);
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
-  gap: clamp(28px, 6vw, 88px);
-  align-items: center;
-}
-
-/* ---------- Left ---------- */
-.pca-brand {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-}
-
-.pca-brand-logo-img {
-  max-height: 88px;
-  max-width: 220px;
-  width: auto;
-  height: auto;
-  object-fit: contain;
-  display: block;
-  filter: drop-shadow(0 6px 16px rgba(37, 99, 235, 0.18));
-  border-radius: 12px;
-}
-
-.pca-brand-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.pca-brand-company {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: clamp(1.6rem, 3.4vw, 2.2rem);
-  letter-spacing: -0.015em;
-  color: #0f172a;
-  line-height: 1.15;
-}
-
-.pca-brand-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #0284c7;
-  background: rgba(240, 249, 255, 0.95);
-  border: 1px solid #bae6fd;
-  padding: 3px 10px;
-  border-radius: 9999px;
-  width: fit-content;
-}
-
-.pca-card-brand-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding-bottom: 16px;
-  margin-bottom: 18px;
-  border-bottom: 1px solid #f1f5f9;
-}
-
-.pca-intro h1 {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: clamp(2.3rem, 5.2vw, 3.8rem);
-  line-height: 1.08;
-  letter-spacing: -0.02em;
-  margin: 32px 0 18px;
-  text-wrap: balance;
-  color: #0f172a;
-}
-
-.pca-intro h1 em {
-  font-style: italic;
-  padding-right: 0.06em;
-  color: #2563eb;
-}
-
-.pca-lede {
-  color: #334155;
-  max-width: 46ch;
-  margin: 0;
-  font-size: 1.08rem;
-  line-height: 1.6;
-}
-
-.pca-facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0;
-  margin: 40px 0 0;
-  padding: 0;
-  max-width: 620px;
-  border-top: 1px solid #e2e8f0;
-}
-
-.pca-facts div {
-  flex: 1 1 170px;
-  min-width: 0;
-  padding: 18px 20px 0 0;
-}
-
-.pca-facts div + div {
-  padding-left: 20px;
-  border-left: 1px solid #e2e8f0;
-}
-
-.pca-facts dt {
-  font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #64748b;
-  margin: 0 0 6px;
-}
-
-.pca-facts dd {
-  margin: 0;
-  font-weight: 700;
-  font-size: 1.02rem;
-  font-variant-numeric: tabular-nums;
-  color: #0f172a;
-}
-
-.pca-facts dd small {
-  display: block;
-  color: #0284c7;
-  font-weight: 600;
-  font-size: 0.84rem;
-  margin-top: 3px;
-}
-
-/* ---------- Card ---------- */
-.pca-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 24px;
-  padding: clamp(26px, 4vw, 42px);
-  box-shadow: 0 20px 45px -12px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(15, 23, 42, 0.04);
-  min-width: 0;
-}
-
-.pca-portal-tabs {
-  display: flex;
-  gap: 6px;
-  padding: 4px;
-  border-radius: 12px;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  margin-bottom: 20px;
-}
-
-.pca-portal-tab {
-  flex: 1;
-  border: 0;
-  border-radius: 9px;
-  padding: 8px 12px;
-  font: 700 0.78rem var(--font-body);
-  cursor: pointer;
-  background: transparent;
-  color: #475569;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-}
-
-.pca-portal-tab:hover {
-  color: #0f172a;
-}
-
-.pca-portal-tab.active {
-  background: #ffffff;
-  color: #1e293b;
-  border: 1px solid #cbd5e1;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-  cursor: default;
-}
-
-.pca-card .pca-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #0369a1;
-  background: #f0f9ff;
-  border: 1px solid #bae6fd;
-  padding: 4px 10px;
-  border-radius: 9999px;
-  margin-bottom: 16px;
-}
-
-.pca-card h2 {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 2.05rem;
-  line-height: 1.15;
-  margin: 0 0 6px;
-  color: #0f172a;
-}
-
-.pca-card .pca-sub {
-  color: #475569;
-  margin: 0 0 24px;
-  font-size: 0.95rem;
-  line-height: 1.5;
-}
-
-.pca-field {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 18px;
-}
-
-.pca-field label {
-  font-weight: 700;
-  font-size: 0.76rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #334155;
-}
-
-.pca-input-wrap {
-  position: relative;
-}
-
-.pca-input-wrap input {
-  width: 100%;
-  height: 50px;
-  padding: 0 18px;
-  color: #0f172a;
-  background: #f8fafc;
-  font: 500 0.96rem var(--font-body) !important;
-  border: 1px solid #cbd5e1;
-  border-radius: 12px;
-  outline: 0;
-  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
-}
-
-.pca-input-wrap input::placeholder {
-  color: #94a3b8;
-}
-
-.pca-input-wrap input:hover {
-  border-color: #94a3b8;
-  background: #ffffff;
-}
-
-.pca-input-wrap input:focus-visible {
-  border-color: #2563eb;
-  background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
-}
-
-.pca-field.bad input {
-  border-color: #dc2626;
-  background: #fff5f5;
-  animation: pca-shake 0.35s;
-}
-
-@keyframes pca-shake {
-  25% { transform: translateX(-5px); }
-  50% { transform: translateX(5px); }
-  75% { transform: translateX(-2px); }
-}
-
-.pca-err {
-  color: #b91c1c;
-  font-size: 0.84rem;
-  font-weight: 500;
-  min-height: 1.2em;
-  margin: 0;
-}
-
-.pca-has-peek input {
-  padding-right: 70px;
-}
-
-.pca-peek {
-  position: absolute;
-  right: 6px;
-  top: 50%;
-  translate: 0 -50%;
-  height: 38px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: #475569;
-  font: 700 0.74rem var(--font-body);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.pca-peek:hover {
-  color: #0f172a;
-  background: #f1f5f9;
-}
-
-.pca-peek:focus-visible {
-  outline: 2px solid #2563eb;
-  outline-offset: 1px;
-}
-
-.pca-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin: 6px 0 24px;
-}
-
-.pca-switch {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  cursor: pointer;
-  font-size: 0.92rem;
-  font-weight: 500;
-  color: #1e293b;
-}
-
-.pca-switch input {
-  position: absolute;
-  opacity: 0;
-  width: 1px;
-  height: 1px;
-}
-
-.pca-track {
-  width: 44px;
-  height: 24px;
-  border-radius: 999px;
-  background: #e2e8f0;
-  border: 1px solid #cbd5e1;
-  position: relative;
-  flex: none;
-  transition: background 0.25s, border-color 0.25s;
-}
-
-.pca-knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #475569;
-  transition: transform 0.25s cubic-bezier(0.3, 1.4, 0.5, 1), background 0.25s;
-}
-
-.pca-switch input:checked + .pca-track {
-  background: linear-gradient(135deg, #0284c7 0%, #2563eb 50%, #4338ca 100%);
-  border-color: transparent;
-}
-
-.pca-switch input:checked + .pca-track .pca-knob {
-  transform: translateX(20px);
-  background: #ffffff;
-}
-
-.pca-switch input:focus-visible + .pca-track {
-  outline: 2px solid #2563eb;
-  outline-offset: 3px;
-}
-
-.pca-link {
-  color: #2563eb;
-  font-weight: 700;
-  font-size: 0.92rem;
-  background: none;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-  text-decoration: underline;
-  text-decoration-color: #93c5fd;
-  text-underline-offset: 4px;
-  text-decoration-thickness: 1.5px;
-  transition: color 0.15s, text-decoration-color 0.15s;
-}
-
-.pca-link:hover {
-  color: #1d4ed8;
-  text-decoration-color: #2563eb;
-}
-
-.pca-link:focus-visible {
-  outline: 2px solid #2563eb;
-  outline-offset: 3px;
-  border-radius: 4px;
-}
-
-.pca-go {
-  width: 100%;
-  height: 52px;
-  border: 0;
-  border-radius: 12px;
-  cursor: pointer;
-  background: linear-gradient(135deg, #0284c7 0%, #2563eb 50%, #4338ca 100%);
-  color: #ffffff;
-  font: 800 1rem var(--font-body);
-  letter-spacing: 0.02em;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  box-shadow: 0 10px 25px -4px rgba(37, 99, 235, 0.35);
-  transition: transform 0.15s, box-shadow 0.2s, opacity 0.2s;
-}
-
-.pca-go:hover {
-  box-shadow: 0 14px 30px -4px rgba(37, 99, 235, 0.45);
-  transform: translateY(-1px);
-}
-
-.pca-go:active {
-  transform: translateY(1px);
-}
-
-.pca-go:focus-visible {
-  outline: 2px solid #2563eb;
-  outline-offset: 3px;
-}
-
-.pca-go[disabled] {
-  cursor: progress;
-  opacity: 0.85;
-}
-
-.pca-spin {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 3px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #ffffff;
-  animation: pca-rot 0.7s linear infinite;
-}
-
-@keyframes pca-rot {
-  to { transform: rotate(360deg); }
-}
-
-.pca-status {
-  margin: 14px 0 0;
-  padding: 10px 14px;
-  border-radius: 10px;
-  font-size: 0.88rem;
-  font-weight: 500;
-  line-height: 1.45;
-}
-
-.pca-status.ok {
-  color: #047857;
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
-}
-
-.pca-status.bad {
-  color: #b91c1c;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-}
-
-.pca-foot {
-  margin: 18px 0 0;
-  font-size: 0.82rem;
-  color: #64748b;
-  line-height: 1.45;
-}
-
-@media (max-width: 860px) {
-  .pca-stage { grid-template-columns: minmax(0, 1fr); min-height: 0; gap: 36px; }
-  .pca-brand img, .pca-brand svg { width: 68px; height: 68px; }
-  .pca-intro h1 { margin-top: 24px; }
-  .pca-facts { margin-top: 28px; }
-}
-
-@media (max-width: 420px) {
-  .pca-facts div { flex-basis: 100%; padding-left: 0 !important; border-left: 0 !important; padding-bottom: 4px; }
-  .pca-card { border-radius: 20px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pca-go, .pca-input-wrap input, .pca-knob, .pca-track { transition: none; }
-  .pca-field.bad input { animation: none; }
-  .pca-spin { animation-duration: 1.8s; }
-}
-`;
-
 function nextPayRun(now = new Date()) {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const payday = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  const days = Math.round((payday.getTime() - today.getTime()) / 86400000);
-  const date = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short' }).format(payday);
-  return { date, days };
+  const totalDaysInMonth = payday.getDate();
+  const currentDay = today.getDate();
+  const progressPct = Math.min(100, Math.round((currentDay / totalDaysInMonth) * 100));
+  const days = Math.max(0, Math.round((payday.getTime() - today.getTime()) / 86400000));
+  const dateFormatted = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }).format(payday);
+  const monthName = new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric' }).format(payday);
+  return { dateFormatted, days, monthName, progressPct, currentDay, totalDaysInMonth };
 }
 
 export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCrmLogin }) => {
@@ -574,7 +48,7 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
     supplierCompany,
   } = useCrm();
 
-  const urlLockedIdentity = React.useMemo(() => {
+  const urlLockedIdentity = useMemo(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const emailParam = (params.get('email') || '').trim();
@@ -606,7 +80,7 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<{ text: string; ok: boolean }>({ text: '', ok: false });
 
-  // Self-service password change mode (requires current password)
+  // Self-service password change mode
   const [isResetMode, setIsResetMode] = useState(false);
   const [resetForm, setResetForm] = useState({
     identifier: '',
@@ -615,6 +89,7 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
     confirmPassword: '',
   });
 
+  // Artistic Generative Guilloché Canvas (Kinetic Mathematical Spirograph)
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -623,14 +98,13 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     let w = 0;
     let h = 0;
     let raf: number;
-    let angle = 0;
-    let innerAngle = 0;
     let time = 0;
-    const mouse = { x: -999, y: -999, targetX: 0, targetY: 0 };
+
+    const mouse = { x: 0, y: 0, targetX: 0, targetY: 0 };
 
     const resize = () => {
       if (!canvas) return;
@@ -646,215 +120,121 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
     window.addEventListener('resize', resize);
 
     const onMouseMove = (e: MouseEvent) => {
-      mouse.targetX = e.clientX;
-      mouse.targetY = e.clientY;
+      mouse.targetX = (e.clientX / (window.innerWidth || 1) - 0.5) * 40;
+      mouse.targetY = (e.clientY / (window.innerHeight || 1) - 0.5) * 40;
     };
     window.addEventListener('mousemove', onMouseMove);
 
-    const motes = Array.from({ length: 36 }, (_, i) => ({
-      angle: (i / 36) * Math.PI * 2,
-      distRatio: 0.35 + (i % 6) * 0.14,
-      speed: (0.0016 + (i % 5) * 0.0011) * (i % 2 === 0 ? 1 : -1),
-      radius: 1.5 + (i % 4) * 0.9,
-      color: ['#0284c7', '#2563eb', '#7c3aed', '#d946ef', '#f59e0b', '#10b981'][i % 6],
-      alpha: 0.25 + (i % 5) * 0.12,
-    }));
-
-    const draw = () => {
+    const render = () => {
       ctx.clearRect(0, 0, w, h);
 
-      if (mouse.targetX > 0) {
-        mouse.x += (mouse.targetX - mouse.x) * 0.04;
-        mouse.y += (mouse.targetY - mouse.y) * 0.04;
-      }
+      // Smooth mouse easing
+      mouse.x += (mouse.targetX - mouse.x) * 0.05;
+      mouse.y += (mouse.targetY - mouse.y) * 0.05;
 
-      const baseX = w >= 860 ? w * 0.34 : w * 0.5;
-      const baseY = h * 0.5;
-      const offsetX = mouse.x > 0 ? (mouse.x - w * 0.5) * 0.03 : 0;
-      const offsetY = mouse.y > 0 ? (mouse.y - h * 0.5) * 0.03 : 0;
-      const cx = baseX + offsetX;
-      const cy = baseY + offsetY;
+      // Dynamic center: on larger viewports anchor on left side, on mobile centered
+      const cx = (w >= 1024 ? w * 0.32 : w * 0.5) + mouse.x;
+      const cy = h * 0.5 + mouse.y;
 
-      const R = Math.max(160, Math.min(w * 0.32, h * 0.44, 340));
-      const pulse = 1 + Math.sin(time * 0.02) * 0.025;
+      const baseRadius = Math.max(140, Math.min(w * 0.28, h * 0.38, 380));
 
-      // 1. Ambient atmospheric glow
-      const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 1.9);
-      glow.addColorStop(0, 'rgba(56, 189, 248, 0.16)');
-      glow.addColorStop(0.3, 'rgba(99, 102, 241, 0.09)');
-      glow.addColorStop(0.65, 'rgba(217, 70, 239, 0.035)');
+      // 1. Soft atmospheric light gradient
+      const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseRadius * 1.8);
+      glow.addColorStop(0, 'rgba(14, 165, 233, 0.09)');
+      glow.addColorStop(0.35, 'rgba(99, 102, 241, 0.05)');
+      glow.addColorStop(0.7, 'rgba(217, 70, 239, 0.02)');
       glow.addColorStop(1, 'rgba(255, 255, 255, 0)');
       ctx.fillStyle = glow;
       ctx.fillRect(0, 0, w, h);
 
-      // 2. Outer concentric geometry rings
+      // 2. Artistic Parametric Guilloché Rings (Harmonic mathematical wave rings)
       ctx.save();
-      ctx.lineWidth = 1.2;
-      ctx.strokeStyle = 'rgba(2, 132, 199, 0.18)';
-      ctx.beginPath();
-      ctx.arc(cx, cy, R * 1.12 * pulse, 0, Math.PI * 2);
-      ctx.stroke();
-
-      ctx.setLineDash([4, 8]);
-      ctx.strokeStyle = 'rgba(99, 102, 241, 0.22)';
-      ctx.beginPath();
-      ctx.arc(cx, cy, R * 1.04, 0, Math.PI * 2);
-      ctx.stroke();
-
-      ctx.setLineDash([2, 5]);
-      ctx.strokeStyle = 'rgba(14, 165, 233, 0.2)';
-      ctx.beginPath();
-      ctx.arc(cx, cy, R * 0.94, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-
-      // 3. Rotating outer lotus/chakra petal beads (32 intervals)
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(angle * 0.75);
-      const beadCount = 32;
-      for (let i = 0; i < beadCount; i++) {
-        const theta = (i * Math.PI * 2) / beadCount;
-        const bx = Math.cos(theta) * (R * 1.04);
-        const by = Math.sin(theta) * (R * 1.04);
-        ctx.fillStyle = i % 4 === 0 ? 'rgba(37, 99, 235, 0.45)' : 'rgba(2, 132, 199, 0.28)';
-        ctx.beginPath();
-        ctx.arc(bx, by, i % 4 === 0 ? 3.2 : 2.0, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.restore();
-
-      // 4. Sacred 24 radiant spokes
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(angle * 0.5);
-      const spokeCount = 24;
-      for (let i = 0; i < spokeCount; i++) {
-        const theta = (i * Math.PI * 2) / spokeCount;
-        const innerX = Math.cos(theta) * (R * 0.24);
-        const innerY = Math.sin(theta) * (R * 0.24);
-        const outerX = Math.cos(theta) * (R * 0.92);
-        const outerY = Math.sin(theta) * (R * 0.92);
-
-        const isMajor = i % 6 === 0;
-        ctx.lineWidth = isMajor ? 1.8 : 0.9;
-        ctx.strokeStyle = isMajor ? 'rgba(37, 99, 235, 0.35)' : 'rgba(14, 165, 233, 0.16)';
-        ctx.beginPath();
-        ctx.moveTo(innerX, innerY);
-        ctx.lineTo(outerX, outerY);
-        ctx.stroke();
-
-        if (isMajor) {
-          const midX = Math.cos(theta) * (R * 0.62);
-          const midY = Math.sin(theta) * (R * 0.62);
-          ctx.fillStyle = 'rgba(79, 70, 229, 0.45)';
-          ctx.beginPath();
-          ctx.arc(midX, midY, 2.5, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-      ctx.restore();
-
-      // 5. Four sweeping multi-color spiraling chakra ribbon arms
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(-innerAngle);
-      const quadColors = [
-        { c1: '#00F2FE', c2: '#1D4ED8' },
-        { c1: '#FF0844', c2: '#7C3AED' },
-        { c1: '#EF4444', c2: '#F59E0B' },
-        { c1: '#10B981', c2: '#06B6D4' },
+      const ringCount = 5;
+      const harmonics = [
+        { n: 7, d: 4, speed: 0.0008, color: 'rgba(2, 132, 199, 0.24)', width: 1.1 },
+        { n: 9, d: 5, speed: -0.0006, color: 'rgba(37, 99, 235, 0.28)', width: 1.2 },
+        { n: 11, d: 6, speed: 0.0005, color: 'rgba(99, 102, 241, 0.22)', width: 1.0 },
+        { n: 8, d: 3, speed: -0.0009, color: 'rgba(124, 58, 237, 0.18)', width: 0.9 },
+        { n: 13, d: 7, speed: 0.0004, color: 'rgba(14, 165, 233, 0.16)', width: 0.8 },
       ];
 
-      for (let q = 0; q < 4; q++) {
-        ctx.save();
-        ctx.rotate((q * Math.PI) / 2);
+      for (let r = 0; r < ringCount; r++) {
+        const cfg = harmonics[r];
+        const rad = baseRadius * (0.55 + r * 0.11);
+        const rot = time * cfg.speed;
 
         ctx.beginPath();
-        ctx.moveTo(R * 0.12, R * 0.65);
-        ctx.bezierCurveTo(R * 0.06, R * 0.38, R * 0.18, R * 0.12, R * 0.44, R * 0.08);
-        ctx.bezierCurveTo(R * 0.66, R * 0.04, R * 0.88, R * 0.12, R * 0.96, R * 0.32);
-        ctx.bezierCurveTo(R * 0.78, R * 0.18, R * 0.58, R * 0.14, R * 0.42, R * 0.18);
-        ctx.bezierCurveTo(R * 0.24, R * 0.24, R * 0.15, R * 0.42, R * 0.14, R * 0.65);
-        ctx.closePath();
+        ctx.strokeStyle = cfg.color;
+        ctx.lineWidth = cfg.width;
 
-        const grad = ctx.createLinearGradient(R * 0.1, R * 0.65, R * 0.95, R * 0.2);
-        grad.addColorStop(0, quadColors[q].c1);
-        grad.addColorStop(1, quadColors[q].c2);
-        ctx.fillStyle = grad;
-        ctx.globalAlpha = 0.28;
-        ctx.fill();
+        const steps = 180;
+        for (let i = 0; i <= steps; i++) {
+          const theta = (i / steps) * Math.PI * 2;
+          const k = cfg.n / cfg.d;
+          const wave = Math.sin(theta * k + rot * 4) * (rad * 0.06);
+          const currentRad = rad + wave;
+          const px = cx + Math.cos(theta + rot) * currentRad;
+          const py = cy + Math.sin(theta + rot) * currentRad;
 
-        ctx.beginPath();
-        ctx.moveTo(R * 0.38, R * 0.2);
-        ctx.bezierCurveTo(R * 0.52, R * 0.16, R * 0.68, R * 0.22, R * 0.76, R * 0.32);
-        ctx.bezierCurveTo(R * 0.64, R * 0.26, R * 0.52, R * 0.24, R * 0.42, R * 0.26);
-        ctx.bezierCurveTo(R * 0.3, R * 0.29, R * 0.22, R * 0.4, R * 0.24, R * 0.55);
-        ctx.bezierCurveTo(R * 0.18, R * 0.42, R * 0.2, R * 0.26, R * 0.38, R * 0.2);
-        ctx.closePath();
-        ctx.globalAlpha = 0.22;
-        ctx.fill();
-
-        ctx.beginPath();
-        ctx.arc(R * 0.42, R * 0.42, 6.2, 0, Math.PI * 2);
-        ctx.globalAlpha = 0.45;
-        ctx.fillStyle = quadColors[q].c2;
-        ctx.fill();
-
-        ctx.restore();
-      }
-      ctx.restore();
-
-      // 6. Inner core rings & Bindu center
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.lineWidth = 1.6;
-      ctx.strokeStyle = 'rgba(2, 132, 199, 0.4)';
-      ctx.beginPath();
-      ctx.arc(0, 0, R * 0.24, 0, Math.PI * 2);
-      ctx.stroke();
-
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = 'rgba(79, 70, 229, 0.3)';
-      ctx.beginPath();
-      ctx.arc(0, 0, R * 0.15, 0, Math.PI * 2);
-      ctx.stroke();
-
-      const coreGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 0.08);
-      coreGrad.addColorStop(0, '#38bdf8');
-      coreGrad.addColorStop(0.5, '#2563eb');
-      coreGrad.addColorStop(1, '#1e3a8a');
-      ctx.fillStyle = coreGrad;
-      ctx.globalAlpha = 0.65;
-      ctx.beginPath();
-      ctx.arc(0, 0, R * 0.08 * pulse, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-
-      // 7. Orbiting cosmic stardust motes
-      motes.forEach((m) => {
-        const mx = cx + Math.cos(m.angle) * (R * m.distRatio);
-        const my = cy + Math.sin(m.angle) * (R * m.distRatio);
-        ctx.fillStyle = m.color;
-        ctx.globalAlpha = m.alpha * (0.8 + Math.sin(time * 0.03 + m.angle) * 0.2);
-        ctx.beginPath();
-        ctx.arc(mx, my, m.radius, 0, Math.PI * 2);
-        ctx.fill();
-
-        if (!reduce) {
-          m.angle += m.speed;
+          if (i === 0) {
+            ctx.moveTo(px, py);
+          } else {
+            ctx.lineTo(px, py);
+          }
         }
-      });
+        ctx.closePath();
+        ctx.stroke();
+      }
 
-      if (!reduce) {
-        angle += 0.0028;
-        innerAngle += 0.002;
+      // 3. Precision Concentric Calibration Marks (Fine Tick Marks of a Master Chronometer)
+      ctx.lineWidth = 1;
+      const tickRadius = baseRadius * 1.04;
+      const tickCount = 60;
+      for (let i = 0; i < tickCount; i++) {
+        const theta = (i / tickCount) * Math.PI * 2 + time * 0.0002;
+        const isMajor = i % 5 === 0;
+        const len = isMajor ? 9 : 4;
+        const x1 = cx + Math.cos(theta) * tickRadius;
+        const y1 = cy + Math.sin(theta) * tickRadius;
+        const x2 = cx + Math.cos(theta) * (tickRadius - len);
+        const y2 = cy + Math.sin(theta) * (tickRadius - len);
+
+        ctx.strokeStyle = isMajor ? 'rgba(37, 99, 235, 0.45)' : 'rgba(148, 163, 184, 0.25)';
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+
+      // 4. Center Harmonic Core
+      const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseRadius * 0.16);
+      coreGrad.addColorStop(0, 'rgba(56, 189, 248, 0.22)');
+      coreGrad.addColorStop(0.6, 'rgba(37, 99, 235, 0.12)');
+      coreGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      ctx.fillStyle = coreGrad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, baseRadius * 0.16, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Precision crosshairs
+      ctx.strokeStyle = 'rgba(2, 132, 199, 0.22)';
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(cx - 24, cy);
+      ctx.lineTo(cx + 24, cy);
+      ctx.moveTo(cx, cy - 24);
+      ctx.lineTo(cx, cy + 24);
+      ctx.stroke();
+
+      ctx.restore();
+
+      if (!reduceMotion) {
         time += 1;
-        raf = requestAnimationFrame(draw);
+        raf = requestAnimationFrame(render);
       }
     };
 
-    draw();
+    render();
 
     return () => {
       cancelAnimationFrame(raf);
@@ -863,8 +243,8 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
     };
   }, []);
 
-  const { date, days } = nextPayRun();
-  const when = days === 0 ? 'closes today' : days === 1 ? 'in 1 day' : `in ${days} days`;
+  const { dateFormatted, days, monthName, progressPct, currentDay, totalDaysInMonth } = nextPayRun();
+  const countdownText = days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days} days`;
 
   const validate = ({ empId, password }: { empId: string; password: string }) => {
     const nextErrors = { empId: '', password: '' };
@@ -872,9 +252,9 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
       nextErrors.empId = 'Enter your employee code or work email.';
     }
     if (!password) {
-      nextErrors.password = 'Enter your password.';
+      nextErrors.password = 'Enter your account password.';
     } else if (password === 'password123') {
-      nextErrors.password = 'The default password "password123" is disabled. Please enter your secure password.';
+      nextErrors.password = 'Default password "password123" is disabled. Please enter your secure password.';
     }
     return nextErrors;
   };
@@ -900,9 +280,9 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
       ) {
         setAttempt((n) => n + 1);
         setStatus({
-          text: `Access Restricted: This personal ESS portal link is assigned to ${
+          text: `Access Restricted: This ESS portal link is assigned exclusively to ${
             urlLockedIdentity.email || urlLockedIdentity.empCode
-          } only. You cannot sign in with another employee's login.`,
+          }. Please sign in with the assigned account.`,
           ok: false,
         });
         return;
@@ -925,13 +305,13 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
           })
         : {
             success: false,
-            message: 'Sign in failed. Check your details and try again.',
+            message: 'Invalid credentials. Check your employee code or password and try again.',
           };
 
       if (!res.success) {
         setAttempt((n) => n + 1);
         setStatus({
-          text: res.message || 'Sign in failed. Check your details and try again.',
+          text: res.message || 'Invalid credentials. Check your employee code or password.',
           ok: false,
         });
         return;
@@ -944,13 +324,13 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
       }
 
       setStatus({
-        text: 'Signed in. Redirecting to Payroll Dashboard…',
+        text: 'Credentials verified. Redirecting to your ESS portal…',
         ok: true,
       });
     } catch (err: any) {
       setAttempt((n) => n + 1);
       setStatus({
-        text: err?.message || 'Sign in failed. Check your details and try again.',
+        text: err?.message || 'Sign in failed. Check your network connection.',
         ok: false,
       });
     } finally {
@@ -971,7 +351,7 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
     }
     if (!currPass) {
       setStatus({
-        text: 'Enter your current password (set by Admin or your previous password).',
+        text: 'Enter your current password set by HR Admin.',
         ok: false,
       });
       return;
@@ -981,7 +361,7 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
       return;
     }
     if (nextPass !== confirmPass) {
-      setStatus({ text: 'New password and confirm password do not match.', ok: false });
+      setStatus({ text: 'New password and confirmation do not match.', ok: false });
       return;
     }
 
@@ -999,14 +379,14 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
       const data = await response.json().catch(() => null);
       if (!response.ok || data?.success === false) {
         setStatus({
-          text: data?.message || 'Current password is incorrect. Contact Admin if you forgot your password.',
+          text: data?.message || 'Current password is incorrect. Contact your HR administrator.',
           ok: false,
         });
         return;
       }
     } catch {
       setStatus({
-        text: 'Could not verify current password with server. Please sign in and change your password from My Profile.',
+        text: 'Could not connect to the authentication server. Please try again.',
         ok: false,
       });
       return;
@@ -1019,365 +399,579 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
       setValues({ empId: idTrim, password: nextPass });
       setIsResetMode(false);
       setStatus({
-        text: 'Password updated! Click Sign in to open your ESS portal.',
+        text: 'Password updated successfully! Sign in with your new password.',
         ok: true,
       });
     } else {
       setValues({ empId: idTrim, password: nextPass });
       setIsResetMode(false);
       setStatus({
-        text: 'Password updated! Click Sign in to open your ESS portal.',
+        text: 'Password updated successfully! Sign in with your new password.',
         ok: true,
       });
     }
   };
 
   return (
-    <div className="pca-root">
-      <style>{payChakraAuroraCss}</style>
-      <canvas ref={canvasRef} className="pca-chakra-canvas" aria-hidden="true" />
+    <div className="relative min-h-screen w-full bg-[#fbfcfd] text-slate-900 flex flex-col justify-between overflow-x-hidden select-none font-sans">
+      {/* Background Generative Guilloché Canvas */}
+      <canvas
+        ref={canvasRef}
+        className="fixed inset-0 w-full h-full pointer-events-none z-0"
+        aria-hidden="true"
+      />
 
-      <main className="pca-stage">
-        <section className="pca-intro" aria-label="About PayChakra">
-          <div className="pca-brand">
+      {/* Top Header - Clean Architectural Bar */}
+      <header className="relative z-10 w-full border-b border-slate-200/70 bg-white/70 backdrop-blur-md px-4 sm:px-8 lg:px-14 xl:px-18 py-3.5">
+        <div className="w-full flex items-center justify-between gap-4">
+          
+          {/* Brand Wordmark */}
+          <div className="flex items-center gap-3">
             <img
               src="/paychakra-logo.svg"
-              alt="PayChakra"
-              className="pca-brand-logo-img max-h-16 md:max-h-20 w-auto max-w-[280px] object-contain drop-shadow-md"
+              alt="PayChakra Logo"
+              className="h-8 sm:h-9 w-auto max-w-[200px] object-contain drop-shadow-xs"
             />
+            <div className="hidden md:flex items-center gap-2 pl-3.5 border-l border-slate-200 text-xs font-medium text-slate-500">
+              <span className="font-semibold text-slate-800">PayChakra</span>
+              <span className="text-slate-300">/</span>
+              <span>Unified ESS Cloud</span>
+            </div>
           </div>
 
-          <h1>
-            Payroll that turns <em>on time</em>, every month.
-          </h1>
-          <p className="pca-lede">
-            Payslips, Form 16, PF and leave balances for every employee, in one place.
-          </p>
-
-          <dl className="pca-facts">
-            <div>
-              <dt>Pay run</dt>
-              <dd>
-                {date}
-                <small>{when}</small>
-              </dd>
-            </div>
-            <div>
-              <dt>Statutory</dt>
-              <dd>
-                PF · ESI · TDS
-                <small>Form 16 on request</small>
-              </dd>
-            </div>
-            <div>
-              <dt>Access</dt>
-              <dd>
-                Employees and HR
-                <small>Role-based sign in</small>
-              </dd>
-            </div>
-          </dl>
-        </section>
-
-        <section className="pca-card" aria-labelledby="login-title">
-          <div className="pca-card-brand-bar">
-            <img
-              src="/paychakra-logo.svg"
-              alt="PayChakra"
-              className="h-8 max-w-[180px] w-auto object-contain drop-shadow-xs"
-            />
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-sky-800 bg-sky-50 border border-sky-200 px-2.5 py-0.5 rounded-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
-              Verified Payroll
-            </span>
-          </div>
-
-          {onSwitchToCrmLogin && !urlLockedIdentity.isLockedLink && (
-            <div className="pca-portal-tabs" role="tablist" aria-label="Portal Switcher">
+          {/* Right Top Actions */}
+          <div className="flex items-center gap-3">
+            {onSwitchToCrmLogin && !urlLockedIdentity.isLockedLink && (
               <button
                 type="button"
-                role="tab"
-                aria-selected="false"
-                className="pca-portal-tab"
                 onClick={onSwitchToCrmLogin}
+                className="group inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg shadow-2xs hover:border-slate-300 transition-all cursor-pointer"
               >
-                Enterprise CRM
+                <Building2 className="w-3.5 h-3.5 text-slate-500 group-hover:text-blue-600 transition-colors" />
+                <span className="hidden xs:inline">CRM System</span>
+                <span className="xs:hidden">CRM</span>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
               </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected="true"
-                className="pca-portal-tab active"
-              >
-                Payroll Portal
-              </button>
-            </div>
-          )}
+            )}
 
-          <div className="pca-eyebrow">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <rect x="4" y="11" width="16" height="10" rx="2.5" />
-              <path d="M8 11V8a4 4 0 0 1 8 0v3" />
-            </svg>
-            Secure sign in
+            <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-600 bg-slate-100/80 border border-slate-200/60 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              <span>AY 2026-27 Compliant</span>
+            </div>
           </div>
 
-          {!isResetMode ? (
-            <>
-              <h2 id="login-title">Welcome back</h2>
-              <p className="pca-sub">
-                {users.length === 0
-                  ? 'No employees are registered yet. Sign in through the CRM workspace to set up your administrator account and enroll employees.'
-                  : "Use your employee code or work email to open this month's payslip."}
-              </p>
+        </div>
+      </header>
 
-              {users.length === 0 && (
-                <div
-                  style={{
-                    marginBottom: 18,
-                    padding: '12px 14px',
-                    background: '#f8fafc',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: 12,
-                    fontSize: '0.84rem',
-                    color: '#334155',
-                  }}
-                >
-                  <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>
-                    No Active Employees
+      {/* Main Full-Width Content Stage */}
+      <main className="relative z-10 flex-1 w-full px-4 sm:px-8 lg:px-14 xl:px-18 py-8 sm:py-12 lg:py-16 flex items-center">
+        <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 xl:gap-20 items-center">
+          
+          {/* Left Column: Artistic Typography, Cycle Meter & Domain Highlights */}
+          <div className="lg:col-span-7 xl:col-span-7 flex flex-col gap-8 w-full">
+            
+            {/* Minimal Sub-kicker */}
+            <div className="flex items-center gap-2 text-xs font-bold tracking-widest text-sky-800 uppercase">
+              <span className="w-6 h-[1.5px] bg-sky-600" />
+              <span>Harmonic Precision in Motion</span>
+            </div>
+
+            {/* Editorial Headline */}
+            <div className="space-y-4">
+              <h1 className="text-3xl sm:text-5xl lg:text-5xl xl:text-6xl font-extrabold tracking-tight text-slate-900 leading-[1.07]">
+                Every salary cycle,{' '}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-600">
+                  mathematically punctual.
+                </span>
+              </h1>
+              <p className="text-base sm:text-lg text-slate-600 max-w-2xl font-normal leading-relaxed">
+                A clean, effortless Employee Self-Service ecosystem. One touchpoint for instant payslip retrieval, Form 16 issuance, biometric attendance reconciliation, and verified statutory filings.
+              </p>
+            </div>
+
+            {/* Artistic Precision Cycle Card */}
+            <div className="w-full bg-white/85 border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-sm backdrop-blur-md">
+              <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  {/* Circular Progress Gauge */}
+                  <div className="relative w-11 h-11 flex items-center justify-center">
+                    <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                      <path
+                        className="text-slate-100"
+                        strokeWidth="3.2"
+                        stroke="currentColor"
+                        fill="none"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      />
+                      <path
+                        className="text-blue-600 transition-all duration-1000 ease-out"
+                        strokeDasharray={`${progressPct}, 100`}
+                        strokeWidth="3.2"
+                        strokeLinecap="round"
+                        stroke="currentColor"
+                        fill="none"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      />
+                    </svg>
+                    <span className="absolute font-mono text-[11px] font-bold text-slate-800 tabular-nums">
+                      {progressPct}%
+                    </span>
                   </div>
-                  <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>
-                    All user accounts have been removed. Switch to the Enterprise CRM tab above to initialize your Super Admin account.
-                  </p>
+
+                  <div>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Payroll Cadence</span>
+                    <p className="text-sm sm:text-base font-bold text-slate-900">{monthName}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="px-3 py-1 bg-sky-50 border border-sky-200 rounded-lg text-xs font-semibold text-sky-800 flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-sky-600" />
+                    <span>Disbursal: <strong>{countdownText}</strong></span>
+                  </div>
+                  <div className="hidden sm:flex px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-semibold text-emerald-800 items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>EPF / ESIC Aligned</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Minimalist Data Readouts */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4">
+                <div>
+                  <span className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Settlement</span>
+                  <span className="font-mono text-sm sm:text-base font-bold text-slate-900 tabular-nums">{dateFormatted}</span>
+                </div>
+                <div>
+                  <span className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Statutory</span>
+                  <span className="text-sm sm:text-base font-bold text-slate-900">PF · ESI · TDS</span>
+                </div>
+                <div>
+                  <span className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">TDS Regimes</span>
+                  <span className="text-sm sm:text-base font-bold text-slate-900">New & Old Tax</span>
+                </div>
+                <div>
+                  <span className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Protocol</span>
+                  <span className="text-sm sm:text-base font-bold text-emerald-700 flex items-center gap-1">
+                    <Shield className="w-3.5 h-3.5 text-emerald-600" /> Direct NEFT
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 3 Clean Minimal Feature Highlights */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
+              <div className="p-4 bg-white/70 border border-slate-200/80 rounded-xl">
+                <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center mb-2.5">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <h2 className="text-xs font-bold text-slate-900">1-Click Payslips</h2>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Cryptographically verified PDFs of salary statements and Form 16.
+                </p>
+              </div>
+
+              <div className="p-4 bg-white/70 border border-slate-200/80 rounded-xl">
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center mb-2.5">
+                  <Fingerprint className="w-4 h-4" />
+                </div>
+                <h2 className="text-xs font-bold text-slate-900">Attendance Sync</h2>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Live biometric integration, automated overtime, and leave quotas.
+                </p>
+              </div>
+
+              <div className="p-4 bg-white/70 border border-slate-200/80 rounded-xl">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center mb-2.5">
+                  <Layers className="w-4 h-4" />
+                </div>
+                <h2 className="text-xs font-bold text-slate-900">Statutory Proof</h2>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Pre-configured EPFO and ESIC filing ledgers with zero manual error.
+                </p>
+              </div>
+            </div>
+
+            {/* Operating Entity Trust Bar */}
+            {supplierCompany?.name && (
+              <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
+                <Compass className="w-3.5 h-3.5 text-slate-400" />
+                <span>Operating for: <strong className="font-semibold text-slate-700">{supplierCompany.name}</strong></span>
+                {supplierCompany.state && <span>· {supplierCompany.state}</span>}
+              </div>
+            )}
+          </div>
+
+          {/* Right Column: Clean Minimalist Authentication Card */}
+          <div className="lg:col-span-5 xl:col-span-5 w-full max-w-lg lg:max-w-none xl:max-w-xl mx-auto lg:ml-auto">
+            <div className="bg-white/95 backdrop-blur-xl rounded-3xl border border-slate-200/90 shadow-[0_24px_64px_-12px_rgba(15,23,42,0.08)] p-6 sm:p-8 xl:p-10 relative overflow-hidden transition-all">
+              
+              {/* Subtle Hairline Accent Line */}
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600" />
+
+              {/* Minimal Portal Mode Switcher */}
+              {onSwitchToCrmLogin && !urlLockedIdentity.isLockedLink && (
+                <div className="flex items-center gap-1 p-1 bg-slate-100/90 border border-slate-200/70 rounded-xl mb-6">
+                  <button
+                    type="button"
+                    onClick={onSwitchToCrmLogin}
+                    className="flex-1 py-1.5 px-3 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-lg transition-all text-center cursor-pointer"
+                  >
+                    Enterprise CRM
+                  </button>
+                  <button
+                    type="button"
+                    className="flex-1 py-1.5 px-3 text-xs font-bold text-blue-900 bg-white shadow-2xs border border-slate-200/80 rounded-lg text-center"
+                  >
+                    Payroll Portal
+                  </button>
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} noValidate>
-                <div className={`pca-field${errors.empId ? ' bad' : ''}`}>
-                  <label htmlFor="empid">Employee code or work email</label>
-                  <div className="pca-input-wrap">
-                    <input
-                      key={`id-${attempt}`}
-                      id="empid"
-                      name="empid"
-                      type="text"
-                      autoComplete="username"
-                      placeholder="EMP-001 or employee@company.com"
-                      value={values.empId}
-                      onChange={(e) => {
-                        setValues((v) => ({ ...v, empId: e.target.value }));
-                        if (errors.empId) setErrors((err) => ({ ...err, empId: '' }));
-                      }}
-                      aria-invalid={Boolean(errors.empId)}
-                      aria-describedby="e-id"
-                    />
+              {/* Locked Employee Notice */}
+              {urlLockedIdentity.isLockedLink && (
+                <div className="mb-5 p-3.5 bg-sky-50 border border-sky-200 rounded-xl flex items-start gap-2.5">
+                  <Shield className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
+                  <div className="text-xs">
+                    <p className="font-bold text-sky-900">Assigned Employee Profile</p>
+                    <p className="text-sky-700 mt-0.5 font-mono text-[11px]">
+                      {urlLockedIdentity.email || urlLockedIdentity.empCode}
+                    </p>
                   </div>
-                  <p className="pca-err" id="e-id" role="alert">
-                    {errors.empId}
-                  </p>
                 </div>
+              )}
 
-                <div className={`pca-field${errors.password ? ' bad' : ''}`}>
-                  <label htmlFor="pw">Password</label>
-                  <div className="pca-input-wrap pca-has-peek">
-                    <input
-                      key={`pw-${attempt}`}
-                      id="pw"
-                      name="pw"
-                      type={showPw ? 'text' : 'password'}
-                      autoComplete="current-password"
-                      placeholder="Your password"
-                      value={values.password}
-                      onChange={(e) => {
-                        setValues((v) => ({ ...v, password: e.target.value }));
-                        if (errors.password) setErrors((err) => ({ ...err, password: '' }));
-                      }}
-                      aria-invalid={Boolean(errors.password)}
-                      aria-describedby="e-pw"
-                    />
+              {!isResetMode ? (
+                <>
+                  <div className="mb-6">
+                    <div className="inline-flex items-center gap-1.5 text-xs font-bold text-sky-700 uppercase tracking-wider mb-1">
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>Employee Self-Service (ESS)</span>
+                    </div>
+                    <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                      Sign in to Payroll
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                      {users.length === 0
+                        ? 'No employee profiles registered yet. Switch to CRM to initialize Super Admin.'
+                        : 'Access your payslips, tax deductions, and leave balances.'}
+                    </p>
+                  </div>
+
+                  {/* Empty Workspace Banner */}
+                  {users.length === 0 && (
+                    <div className="mb-5 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900">
+                      <div className="font-bold flex items-center gap-1.5 mb-1">
+                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>Workspace Initializing</span>
+                      </div>
+                      <p className="text-amber-800 leading-relaxed">
+                        No employees currently enrolled. Use the Enterprise CRM tab above to sign in as Super Admin.
+                      </p>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleSubmit} noValidate className="space-y-4">
+                    {/* Identifier Field */}
+                    <div>
+                      <label htmlFor="empid" className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                        Employee Code or Work Email
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                          <UserIcon className="w-4 h-4" />
+                        </div>
+                        <input
+                          key={`id-${attempt}`}
+                          id="empid"
+                          name="empid"
+                          type="text"
+                          autoComplete="username"
+                          placeholder="e.g. EMP-101 or name@coreenact.com"
+                          value={values.empId}
+                          readOnly={urlLockedIdentity.isLockedLink}
+                          onChange={(e) => {
+                            setValues((v) => ({ ...v, empId: e.target.value }));
+                            if (errors.empId) setErrors((err) => ({ ...err, empId: '' }));
+                          }}
+                          className={`w-full pl-10 pr-3.5 py-3 text-sm font-medium rounded-xl border bg-slate-50/60 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none transition-all ${
+                            errors.empId
+                              ? 'border-red-400 focus:ring-2 focus:ring-red-200 bg-red-50/20'
+                              : 'border-slate-300 focus:border-blue-600 focus:ring-3 focus:ring-blue-100'
+                          }`}
+                          aria-invalid={Boolean(errors.empId)}
+                          aria-describedby="e-id"
+                        />
+                      </div>
+                      {errors.empId && (
+                        <p className="text-xs font-semibold text-red-600 mt-1.5 flex items-center gap-1" id="e-id" role="alert">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span>{errors.empId}</span>
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Password Field */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label htmlFor="pw" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                          Password
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setResetForm({
+                              identifier: values.empId,
+                              currentPassword: '',
+                              newPassword: '',
+                              confirmPassword: '',
+                            });
+                            setStatus({ text: '', ok: false });
+                            setIsResetMode(true);
+                          }}
+                          className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
+                        >
+                          Change password?
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                          <Lock className="w-4 h-4" />
+                        </div>
+                        <input
+                          key={`pw-${attempt}`}
+                          id="pw"
+                          name="pw"
+                          type={showPw ? 'text' : 'password'}
+                          autoComplete="current-password"
+                          placeholder="••••••••••••"
+                          value={values.password}
+                          onChange={(e) => {
+                            setValues((v) => ({ ...v, password: e.target.value }));
+                            if (errors.password) setErrors((err) => ({ ...err, password: '' }));
+                          }}
+                          className={`w-full pl-10 pr-12 py-3 text-sm font-medium rounded-xl border bg-slate-50/60 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none transition-all ${
+                            errors.password
+                              ? 'border-red-400 focus:ring-2 focus:ring-red-200 bg-red-50/20'
+                              : 'border-slate-300 focus:border-blue-600 focus:ring-3 focus:ring-blue-100'
+                          }`}
+                          aria-invalid={Boolean(errors.password)}
+                          aria-describedby="e-pw"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPw((s) => !s)}
+                          className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-700 cursor-pointer"
+                          aria-label={showPw ? 'Hide password' : 'Show password'}
+                        >
+                          {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      {errors.password && (
+                        <p className="text-xs font-semibold text-red-600 mt-1.5 flex items-center gap-1" id="e-pw" role="alert">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span>{errors.password}</span>
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Remember me toggle */}
+                    <div className="flex items-center justify-between pt-1">
+                      <label className="flex items-center gap-2.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={keep}
+                          onChange={(e) => setKeep(e.target.checked)}
+                          className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <span className="text-xs font-medium text-slate-700">Remember this device</span>
+                      </label>
+                      <span className="text-[11px] text-slate-400">8-hour session</span>
+                    </div>
+
+                    {/* Primary Submit Button */}
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full mt-2 py-3 px-4 rounded-xl text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 active:scale-[0.99] shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75 disabled:cursor-wait"
+                    >
+                      {loading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                          <span>Authenticating…</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Open ESS Portal</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </>
+                      )}
+                    </button>
+
+                    {/* Status Feedback Banner */}
+                    {status.text && (
+                      <div
+                        className={`p-3 rounded-xl text-xs font-semibold flex items-start gap-2 ${
+                          status.ok
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            : 'bg-red-50 text-red-800 border border-red-200'
+                        }`}
+                        role="status"
+                        aria-live="polite"
+                      >
+                        {status.ok ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                        )}
+                        <span className="leading-snug">{status.text}</span>
+                      </div>
+                    )}
+                  </form>
+                </>
+              ) : (
+                /* Self-Service Password Reset View */
+                <>
+                  <div className="mb-5">
                     <button
                       type="button"
-                      className="pca-peek"
-                      onClick={() => setShowPw((s) => !s)}
-                      aria-label={showPw ? 'Hide password' : 'Show password'}
-                      aria-pressed={showPw}
+                      onClick={() => {
+                        setIsResetMode(false);
+                        setStatus({ text: '', ok: false });
+                      }}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors mb-3 cursor-pointer"
                     >
-                      {showPw ? 'Hide' : 'Show'}
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      <span>Back to sign in</span>
                     </button>
+                    <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">Change password</h2>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Verify your current password assigned by your HR Admin to establish a new password.
+                    </p>
                   </div>
-                  <p className="pca-err" id="e-pw" role="alert">
-                    {errors.password}
-                  </p>
-                </div>
 
-                <div className="pca-row">
-                  <label className="pca-switch">
-                    <input
-                      type="checkbox"
-                      checked={keep}
-                      onChange={(e) => setKeep(e.target.checked)}
-                    />
-                    <span className="pca-track">
-                      <span className="pca-knob" />
-                    </span>
-                    Keep me signed in
-                  </label>
+                  <form onSubmit={handleResetSubmit} noValidate className="space-y-3.5">
+                    <div>
+                      <label htmlFor="reset-id" className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                        Employee Code or Work Email
+                      </label>
+                      <input
+                        id="reset-id"
+                        type="text"
+                        placeholder="EMP-101 or name@coreenact.com"
+                        value={resetForm.identifier}
+                        readOnly={urlLockedIdentity.isLockedLink}
+                        onChange={(e) => setResetForm((prev) => ({ ...prev, identifier: e.target.value }))}
+                        className="w-full px-3.5 py-2.5 text-sm font-medium rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600"
+                      />
+                    </div>
 
-                  <button
-                    type="button"
-                    className="pca-link"
-                    onClick={() => {
-                      setResetForm({
-                        identifier: values.empId,
-                        currentPassword: '',
-                        newPassword: '',
-                        confirmPassword: '',
-                      });
-                      setStatus({ text: '', ok: false });
-                      setIsResetMode(true);
-                    }}
-                  >
-                    Change password?
-                  </button>
-                </div>
+                    <div>
+                      <label htmlFor="reset-curr-pw" className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                        Current Password
+                      </label>
+                      <input
+                        id="reset-curr-pw"
+                        type={showPw ? 'text' : 'password'}
+                        placeholder="Password set by Admin"
+                        value={resetForm.currentPassword}
+                        onChange={(e) => setResetForm((prev) => ({ ...prev, currentPassword: e.target.value }))}
+                        className="w-full px-3.5 py-2.5 text-sm font-medium rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600"
+                      />
+                    </div>
 
-                <button className="pca-go" type="submit" disabled={loading}>
-                  <span>{loading ? 'Signing in' : 'Sign in'}</span>
-                  {loading && <span className="pca-spin" />}
-                </button>
+                    <div>
+                      <label htmlFor="reset-pw" className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                        New Password (Min 4 chars)
+                      </label>
+                      <div className="relative">
+                        <input
+                          id="reset-pw"
+                          type={showPw ? 'text' : 'password'}
+                          placeholder="Enter new password"
+                          value={resetForm.newPassword}
+                          onChange={(e) => setResetForm((prev) => ({ ...prev, newPassword: e.target.value }))}
+                          className="w-full px-3.5 pr-10 py-2.5 text-sm font-medium rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPw((s) => !s)}
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-700 cursor-pointer"
+                        >
+                          {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
 
-                {status.text && (
-                  <p
-                    className={`pca-status${status.ok ? ' ok' : ' bad'}`}
-                    role="status"
-                    aria-live="polite"
-                  >
-                    {status.text}
-                  </p>
-                )}
-              </form>
-            </>
-          ) : (
-            <>
-              <h2 id="login-title">Change password</h2>
-              <p className="pca-sub">
-                Verify your current password set by Admin to update your ESS portal login password.
-              </p>
+                    <div>
+                      <label htmlFor="reset-confirm" className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                        Confirm New Password
+                      </label>
+                      <input
+                        id="reset-confirm"
+                        type={showPw ? 'text' : 'password'}
+                        placeholder="Re-enter new password"
+                        value={resetForm.confirmPassword}
+                        onChange={(e) => setResetForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                        className="w-full px-3.5 py-2.5 text-sm font-medium rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600"
+                      />
+                    </div>
 
-              <form onSubmit={handleResetSubmit} noValidate>
-                <div className="pca-field">
-                  <label htmlFor="reset-id">Employee code or work email</label>
-                  <div className="pca-input-wrap">
-                    <input
-                      id="reset-id"
-                      type="text"
-                      placeholder="EMP-001 or employee@company.com"
-                      value={resetForm.identifier}
-                      readOnly={urlLockedIdentity.isLockedLink}
-                      onChange={(e) =>
-                        setResetForm((prev) => ({ ...prev, identifier: e.target.value }))
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="pca-field">
-                  <label htmlFor="reset-curr-pw">Current password</label>
-                  <div className="pca-input-wrap">
-                    <input
-                      id="reset-curr-pw"
-                      type={showPw ? 'text' : 'password'}
-                      placeholder="Password set by Admin or current password"
-                      value={resetForm.currentPassword}
-                      onChange={(e) =>
-                        setResetForm((prev) => ({ ...prev, currentPassword: e.target.value }))
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="pca-field">
-                  <label htmlFor="reset-pw">New password</label>
-                  <div className="pca-input-wrap pca-has-peek">
-                    <input
-                      id="reset-pw"
-                      type={showPw ? 'text' : 'password'}
-                      placeholder="Minimum 4 characters"
-                      value={resetForm.newPassword}
-                      onChange={(e) =>
-                        setResetForm((prev) => ({ ...prev, newPassword: e.target.value }))
-                      }
-                    />
                     <button
-                      type="button"
-                      className="pca-peek"
-                      onClick={() => setShowPw((s) => !s)}
+                      type="submit"
+                      className="w-full mt-2 py-3 px-4 rounded-xl text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 transition-colors cursor-pointer"
                     >
-                      {showPw ? 'Hide' : 'Show'}
+                      Update Password & Return
                     </button>
-                  </div>
-                </div>
 
-                <div className="pca-field">
-                  <label htmlFor="reset-confirm">Confirm new password</label>
-                  <div className="pca-input-wrap">
-                    <input
-                      id="reset-confirm"
-                      type={showPw ? 'text' : 'password'}
-                      placeholder="Re-enter new password"
-                      value={resetForm.confirmPassword}
-                      onChange={(e) =>
-                        setResetForm((prev) => ({ ...prev, confirmPassword: e.target.value }))
-                      }
-                    />
-                  </div>
-                </div>
+                    {status.text && (
+                      <div
+                        className={`p-3 rounded-xl text-xs font-semibold flex items-start gap-2 ${
+                          status.ok
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            : 'bg-red-50 text-red-800 border border-red-200'
+                        }`}
+                        role="status"
+                      >
+                        {status.ok ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                        )}
+                        <span>{status.text}</span>
+                      </div>
+                    )}
+                  </form>
+                </>
+              )}
 
-                <div className="pca-row">
-                  <button
-                    type="button"
-                    className="pca-link"
-                    onClick={() => {
-                      setIsResetMode(false);
-                      setStatus({ text: '', ok: false });
-                    }}
-                  >
-                    ← Back to sign in
-                  </button>
-                </div>
+              {/* Security & Assistance Footnote */}
+              <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+                <span className="flex items-center gap-1.5 font-medium text-slate-600">
+                  <Shield className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>256-bit AES Zero-Trust Encryption</span>
+                </span>
+                <span>HR Helpdesk</span>
+              </div>
+            </div>
+          </div>
 
-                <button className="pca-go" type="submit">
-                  <span>Update password</span>
-                </button>
-
-                {status.text && (
-                  <p
-                    className={`pca-status${status.ok ? ' ok' : ' bad'}`}
-                    role="status"
-                    aria-live="polite"
-                  >
-                    {status.text}
-                  </p>
-                )}
-              </form>
-            </>
-          )}
-
-          <p className="pca-foot">
-            Payroll data is encrypted in transit. Contact HR if your code is not recognised.
-          </p>
-        </section>
+        </div>
       </main>
+
+      {/* Footer - Clean Architectural Baseline */}
+      <footer className="relative z-10 w-full border-t border-slate-200/70 bg-white/70 backdrop-blur-md px-4 sm:px-8 lg:px-14 xl:px-18 py-3.5 text-xs text-slate-400">
+        <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-2.5 text-center sm:text-left">
+          <p>© {new Date().getFullYear()} PayChakra by Coreenact Solutions. All rights reserved.</p>
+          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-xs font-medium text-slate-500">
+            <span>Statutory Compliant</span>
+            <span className="text-slate-300">·</span>
+            <span>EPFO / ESIC Aligned</span>
+            <span className="text-slate-300">·</span>
+            <span>End-to-End Encrypted</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };

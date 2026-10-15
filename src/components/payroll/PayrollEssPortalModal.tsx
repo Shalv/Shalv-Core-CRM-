@@ -3215,7 +3215,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                             setAdminPolicyMaster(reset);
                             saveAdminPolicyMaster(reset, true);
                             setStatusBanner(
-                              'Reset all policies to official CoreEnact Solutions Policy CS-HR-POL-001 v1.0 defaults.'
+                              'Reset all policies to official Coreenact Solutions Policy CS-HR-POL-001 v1.0 defaults.'
                             );
                           }}
                           className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 font-semibold text-xs cursor-pointer"

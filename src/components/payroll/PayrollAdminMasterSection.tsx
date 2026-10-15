@@ -3924,7 +3924,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                   setAdminPolicyMaster(resetPolicy);
                   saveAdminPolicyMaster(resetPolicy, true);
                   setStatusBanner(
-                    'Reset all policy parameters to official CoreEnact Solutions Policy CS-HR-POL-001 v1.0 defaults.'
+                    'Reset all policy parameters to official Coreenact Solutions Policy CS-HR-POL-001 v1.0 defaults.'
                   );
                 }}
                 className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs whitespace-nowrap cursor-pointer"
