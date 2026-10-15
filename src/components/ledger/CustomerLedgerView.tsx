@@ -434,7 +434,7 @@ export const CustomerLedgerView: React.FC<CustomerLedgerViewProps> = ({
           {/* Statement Table */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
+              <table className="table-modern w-full text-left text-xs border-collapse">
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
                   <tr>
                     <th className="p-3.5">Posting Date</th>
@@ -554,7 +554,7 @@ export const CustomerLedgerView: React.FC<CustomerLedgerViewProps> = ({
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+            <table className="table-modern w-full text-left text-xs border-collapse">
               <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
                 <tr>
                   <th className="p-3">Customer</th>

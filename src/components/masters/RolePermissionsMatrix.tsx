@@ -929,7 +929,7 @@ export const RolePermissionsMatrix: React.FC<RolePermissionsMatrixProps> = ({
 
         {/* Main Permissions Matrix Table */}
         <div className="overflow-x-auto border border-slate-200 rounded-xl">
-          <table className="w-full text-left text-xs">
+          <table className="table-modern w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
               <tr>
                 <th className="p-3 w-1/3">CRM Module & Purpose</th>

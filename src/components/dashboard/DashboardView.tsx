@@ -582,7 +582,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         key={stage.label}
                         type="button"
                         onClick={() => onNavigate('leads', `STAGE:${stage.label}`)}
-                        className="w-full text-left group hover:bg-slate-50 p-2 -mx-2 rounded-xl transition cursor-pointer"
+                        className="table-modern w-full text-left group hover:bg-slate-50 p-2 -mx-2 rounded-xl transition cursor-pointer"
                       >
                         <div className="flex items-center justify-between text-xs mb-1">
                           <span className="font-semibold text-slate-800 group-hover:text-indigo-600 flex items-center gap-1.5">
@@ -646,7 +646,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       key={src.source}
                       type="button"
                       onClick={() => onNavigate('leads', `SOURCE:${src.source}`)}
-                      className="w-full text-left group flex items-center justify-between py-2.5 px-2 rounded-lg hover:bg-slate-50 transition cursor-pointer"
+                      className="table-modern w-full text-left group flex items-center justify-between py-2.5 px-2 rounded-lg hover:bg-slate-50 transition cursor-pointer"
                     >
                       <div className="min-w-0 flex-1 pr-4">
                         <div className="flex items-center justify-between text-xs mb-1">
@@ -715,7 +715,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       key={opp.id}
                       type="button"
                       onClick={() => onNavigate('opportunities', opp.id)}
-                      className="w-full text-left group p-3.5 rounded-xl border border-slate-200/80 hover:border-indigo-300 hover:bg-indigo-50/20 transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                      className="table-modern w-full text-left group p-3.5 rounded-xl border border-slate-200/80 hover:border-indigo-300 hover:bg-indigo-50/20 transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2"
                     >
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 text-xs">
@@ -763,7 +763,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       key={lead.id}
                       type="button"
                       onClick={() => onNavigate('leads', lead.id)}
-                      className="w-full text-left group p-3 rounded-xl border border-slate-200/80 hover:border-indigo-300 hover:bg-slate-50 transition cursor-pointer flex items-center justify-between gap-2"
+                      className="table-modern w-full text-left group p-3 rounded-xl border border-slate-200/80 hover:border-indigo-300 hover:bg-slate-50 transition cursor-pointer flex items-center justify-between gap-2"
                     >
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5 text-xs">
@@ -1121,7 +1121,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         key={inv.id}
                         type="button"
                         onClick={() => onNavigate('invoices', inv.id)}
-                        className="w-full text-left group p-3.5 rounded-xl border border-slate-200/80 hover:border-indigo-300 hover:bg-slate-50 transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                        className="table-modern w-full text-left group p-3.5 rounded-xl border border-slate-200/80 hover:border-indigo-300 hover:bg-slate-50 transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2"
                       >
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 text-xs">
@@ -1174,7 +1174,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       key={ms.id}
                       type="button"
                       onClick={() => onNavigate('milestones', ms.id)}
-                      className="w-full text-left group p-3 rounded-xl border border-slate-200/80 hover:border-indigo-300 hover:bg-slate-50 transition cursor-pointer flex items-center justify-between gap-2"
+                      className="table-modern w-full text-left group p-3 rounded-xl border border-slate-200/80 hover:border-indigo-300 hover:bg-slate-50 transition cursor-pointer flex items-center justify-between gap-2"
                     >
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5 text-xs">
@@ -1711,7 +1711,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       key={src.source}
                       type="button"
                       onClick={() => onNavigate('leads', `SOURCE:${src.source}`)}
-                      className="w-full text-left group flex items-center justify-between py-2.5 px-2 rounded-lg hover:bg-slate-50 transition cursor-pointer"
+                      className="table-modern w-full text-left group flex items-center justify-between py-2.5 px-2 rounded-lg hover:bg-slate-50 transition cursor-pointer"
                     >
                       <div className="min-w-0 flex-1 pr-4">
                         <div className="flex items-center justify-between text-xs mb-1">
@@ -1795,7 +1795,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       key={stage.label}
                       type="button"
                       onClick={() => onNavigate('leads', `STAGE:${stage.label}`)}
-                      className="w-full text-left group hover:bg-slate-50 p-2 -mx-2 rounded-xl transition cursor-pointer"
+                      className="table-modern w-full text-left group hover:bg-slate-50 p-2 -mx-2 rounded-xl transition cursor-pointer"
                     >
                       <div className="flex items-center justify-between text-xs mb-1">
                         <span className="font-semibold text-slate-800 group-hover:text-indigo-600 flex items-center gap-1.5">
@@ -1926,7 +1926,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <button
             type="button"
             onClick={() => onNavigate('milestones', 'FILTER:UPCOMING')}
-            className="w-full text-left group bg-white hover:bg-slate-50/70 p-4 rounded-2xl border border-slate-200/90 shadow-xs transition cursor-pointer"
+            className="table-modern w-full text-left group bg-white hover:bg-slate-50/70 p-4 rounded-2xl border border-slate-200/90 shadow-xs transition cursor-pointer"
           >
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-600">
@@ -1947,7 +1947,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <button
             type="button"
             onClick={() => onNavigate('orders')}
-            className="w-full text-left group bg-white hover:bg-slate-50/70 p-4 rounded-2xl border border-slate-200/90 shadow-xs transition cursor-pointer"
+            className="table-modern w-full text-left group bg-white hover:bg-slate-50/70 p-4 rounded-2xl border border-slate-200/90 shadow-xs transition cursor-pointer"
           >
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs font-bold text-slate-800 group-hover:text-emerald-600">
@@ -1968,7 +1968,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <button
             type="button"
             onClick={() => onNavigate('ledger')}
-            className="w-full text-left group bg-white hover:bg-slate-50/70 p-4 rounded-2xl border border-slate-200/90 shadow-xs transition cursor-pointer"
+            className="table-modern w-full text-left group bg-white hover:bg-slate-50/70 p-4 rounded-2xl border border-slate-200/90 shadow-xs transition cursor-pointer"
           >
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-600">
@@ -2053,7 +2053,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       else if (act.salesOrderId) onNavigate('orders', act.salesOrderId);
                       else onNavigate('activities');
                     }}
-                    className="w-full text-left group p-3 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-slate-50/70 transition cursor-pointer block"
+                    className="table-modern w-full text-left group p-3 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-slate-50/70 transition cursor-pointer block"
                   >
                     <div className="flex items-center justify-between text-xs mb-1">
                       <div className="flex items-center gap-1.5 font-semibold text-slate-800 group-hover:text-indigo-600 truncate pr-2">
@@ -2123,7 +2123,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   key={order.id}
                   type="button"
                   onClick={() => onNavigate('orders', order.id)}
-                  className="w-full text-left group p-3 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-slate-50/70 transition cursor-pointer flex items-center justify-between gap-3"
+                  className="table-modern w-full text-left group p-3 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-slate-50/70 transition cursor-pointer flex items-center justify-between gap-3"
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">

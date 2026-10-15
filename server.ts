@@ -2220,7 +2220,7 @@ app.post('/api/state', async (req: Request, res: Response) => {
       const hasOtherUserPassword = Array.from(explicitIncomingPasswordByUserId.keys()).some(
         (uid) => String(uid) !== String(actor.id)
       );
-      if (hasOtherUserPassword || !same(protectedUsers(sanitizedIncoming.users || []), protectedUsers(current.users || [])) || !same(sanitizedIncoming.rolePermissions, current.rolePermissions)) {
+      if (hasOtherUserPassword || !same(protectedUsers(sanitizedIncoming.users || []), protectedUsers(current.users || [])) || !same(sanitizedIncoming.rolePermissions, current.rolePermissions) || !same(sanitizedIncoming.payrollRolePermissions, current.payrollRolePermissions)) {
         return res.status(403).json({success:false,message:'User accounts and permissions require an administrator.'});
       }
     }
@@ -3584,7 +3584,7 @@ app.post('/api/sync/push', async (req: Request, res: Response) => {
     deletedMasterUserIds,
   } = req.body || {};
   const actor=(req as any).account;
-  if(actor && !['Super Admin','Administrator'].includes(actor.role) && (pushedUsers || pushedMasters || pushedCrmSlices || sliceKey === 'rolePermissions' || replaceUsers || replacePayrollMasters || deletedMasterUserIds || pushedPolicy || pushedOrgMasters || pushedLoans || pushedIntegrationConfig)) {
+  if(actor && !['Super Admin','Administrator'].includes(actor.role) && (pushedUsers || pushedMasters || pushedCrmSlices || sliceKey === 'rolePermissions' || sliceKey === 'payrollRolePermissions' || replaceUsers || replacePayrollMasters || deletedMasterUserIds || pushedPolicy || pushedOrgMasters || pushedLoans || pushedIntegrationConfig)) {
     return res.status(403).json({success:false,message:'Administrator permission required.'});
   }
   if(pushedCrmSlices || sliceKey) {

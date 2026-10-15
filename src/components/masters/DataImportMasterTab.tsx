@@ -1488,7 +1488,7 @@ export const DataImportMasterTab: React.FC<DataImportMasterTabProps> = ({
             </div>
 
             <div className="overflow-x-auto max-h-96">
-              <table className="w-full text-left border-collapse">
+              <table className="table-modern w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                     <th className="py-2.5 px-4">Target Schema Field</th>
@@ -1631,7 +1631,7 @@ export const DataImportMasterTab: React.FC<DataImportMasterTabProps> = ({
             </div>
 
             <div className="overflow-x-auto max-h-96">
-              <table className="w-full text-left border-collapse">
+              <table className="table-modern w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                     <th className="py-2.5 px-3">Row</th>

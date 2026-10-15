@@ -44,6 +44,7 @@ import {
   Award,
   ArrowUpRight,
 } from 'lucide-react';
+import { EmptyState } from '../ui/EmptyState';
 
 interface LeadsViewProps {
   initialFilter?: string;
@@ -1083,7 +1084,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
+            <table className="table-modern w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-50/70 border-b border-slate-200 text-[11px] font-semibold text-slate-500">
                   <th className="py-3 px-4">Company & Contact</th>
@@ -1100,8 +1101,13 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
               <tbody className="divide-y divide-slate-100">
                 {filteredLeads.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="p-10 text-center text-slate-400">
-                      No leads match the selected filters.
+                    <td colSpan={9} className="p-4">
+                      <EmptyState
+                        compact
+                        illustration="leads"
+                        title="No leads match these filters"
+                        message="Try clearing the search or widening the date range."
+                      />
                     </td>
                   </tr>
                 ) : (

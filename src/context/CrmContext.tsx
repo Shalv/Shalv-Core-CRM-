@@ -45,6 +45,9 @@ import {
   SupportChangeRequest,
   ChangeRequestStatus,
   LicenseTypeMasterItem,
+  PayrollModuleKey,
+  PayrollPermissionAction,
+  PayrollPermissionsMap,
 } from '../types';
 import {
   INITIAL_STATES,
@@ -68,6 +71,8 @@ import {
   SUPPLIER_COMPANY,
   DEFAULT_ROLE_PERMISSIONS,
   ALL_CRM_MODULES,
+  PAYROLL_MODULES,
+  DEFAULT_PAYROLL_ROLE_PERMISSIONS,
 } from '../data/initialData';
 import {
   INITIAL_AMC_CONTRACTS,
@@ -126,6 +131,12 @@ interface CrmContextType {
   rolePermissions: Record<UserRole, RolePermissionsMap>;
   updateRolePermission: (role: UserRole, module: CrmModuleKey, action: PermissionAction, value: boolean) => void;
   resetRolePermissions: (role?: UserRole) => void;
+  payrollRolePermissions: Record<UserRole, PayrollPermissionsMap>;
+  updatePayrollRolePermission: (role: UserRole, module: PayrollModuleKey, action: PayrollPermissionAction, value: boolean) => void;
+  resetPayrollRolePermissions: (role?: UserRole) => void;
+  hasPayrollPermission: (module: PayrollModuleKey, action: PayrollPermissionAction) => boolean;
+  canPayrollView: (module: PayrollModuleKey) => boolean;
+  canPayrollApprove: (module: PayrollModuleKey) => boolean;
   hasPermission: (module: CrmModuleKey, action: PermissionAction) => boolean;
   canView: (module: CrmModuleKey) => boolean;
   canCreate: (module: CrmModuleKey) => boolean;
@@ -485,6 +496,7 @@ const STORAGE_KEYS = {
   CURRENT_USER: 'corecrm_v2_current_user',
   IS_AUTHENTICATED: 'corecrm_v2_is_authenticated',
   ROLE_PERMISSIONS: 'corecrm_v2_role_permissions',
+  PAYROLL_ROLE_PERMISSIONS: 'corecrm_v2_payroll_role_permissions',
   USERS: 'corecrm_v2_users',
   STATES: 'corecrm_v2_states',
   PRODUCTS: 'corecrm_v2_products',
@@ -696,6 +708,26 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem(STORAGE_KEYS.ROLE_PERMISSIONS, JSON.stringify(rolePermissions));
     } catch (e) { /* ignore */ }
   }, [rolePermissions]);
+
+  // Payroll (PayChakra) RBAC matrix — parallel to rolePermissions above.
+  const [payrollRolePermissions, setPayrollRolePermissions] = useState<Record<UserRole, PayrollPermissionsMap>>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.PAYROLL_ROLE_PERMISSIONS);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') {
+          return { ...DEFAULT_PAYROLL_ROLE_PERMISSIONS, ...parsed };
+        }
+      } catch (e) { /* ignore */ }
+    }
+    return DEFAULT_PAYROLL_ROLE_PERMISSIONS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.PAYROLL_ROLE_PERMISSIONS, JSON.stringify(payrollRolePermissions));
+    } catch (e) { /* ignore */ }
+  }, [payrollRolePermissions]);
 
   const [currentUser, setCurrentUser] = useState<User>(() => {
     let activeUsersList = INITIAL_USERS.map(sanitizeClientUser);
@@ -1110,6 +1142,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Cross-tab BroadcastChannel, localStorage event, and remote server state synchronization
   const currentSnapshot: Snapshot = React.useMemo(() => ({
     rolePermissions,
+    payrollRolePermissions,
     users,
     states,
     products,
@@ -1136,6 +1169,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     auditLogs,
   }), [
     rolePermissions,
+    payrollRolePermissions,
     users,
     states,
     products,
@@ -1206,6 +1240,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const applySnapshot = React.useCallback((s: Snapshot) => {
     if (!s) return;
     if (s.rolePermissions) setRolePermissions(s.rolePermissions);
+    if (s.payrollRolePermissions) setPayrollRolePermissions({ ...DEFAULT_PAYROLL_ROLE_PERMISSIONS, ...s.payrollRolePermissions });
     if (s.users) {
       setUsers((_prev) => {
         const next = s.users.filter((u: any) => !isRemovedPredefinedUser(u)).map(sanitizeClientUser);
@@ -3003,6 +3038,52 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
       }));
     } else {
       setRolePermissions(DEFAULT_ROLE_PERMISSIONS);
+    }
+  };
+
+  // ---- Payroll (PayChakra) RBAC helpers — parallel to the CRM ones above ----
+  const hasPayrollPermission = (module: PayrollModuleKey, action: PayrollPermissionAction): boolean => {
+    if (currentUser.role === 'Super Admin') return true;
+    const roleMap = payrollRolePermissions[currentUser.role] || DEFAULT_PAYROLL_ROLE_PERMISSIONS[currentUser.role];
+    if (roleMap?.[module]?.[action] !== undefined) return !!roleMap[module][action];
+    return !!DEFAULT_PAYROLL_ROLE_PERMISSIONS[currentUser.role]?.[module]?.[action];
+  };
+
+  const canPayrollView = (module: PayrollModuleKey) => hasPayrollPermission(module, 'view');
+  const canPayrollApprove = (module: PayrollModuleKey) => hasPayrollPermission(module, 'approve');
+
+  const updatePayrollRolePermission = (
+    role: UserRole,
+    module: PayrollModuleKey,
+    action: PayrollPermissionAction,
+    value: boolean
+  ) => {
+    setPayrollRolePermissions((prev) => {
+      const currentRoleObj = prev[role] || DEFAULT_PAYROLL_ROLE_PERMISSIONS[role];
+      const currentModuleObj = currentRoleObj[module] || { view: false, create: false, edit: false, approve: false };
+      return {
+        ...prev,
+        [role]: { ...currentRoleObj, [module]: { ...currentModuleObj, [action]: value } },
+      };
+    });
+
+    addAuditLog({
+      entityType: 'User',
+      entityId: `payroll-role-${role}`,
+      entityNumber: role,
+      action: 'Updated',
+      description: `Payroll permission updated for role ${role}: ${module}.${action} = ${value ? 'Allowed' : 'Denied'}`,
+    });
+  };
+
+  const resetPayrollRolePermissions = (role?: UserRole) => {
+    if (role) {
+      setPayrollRolePermissions((prev) => ({
+        ...prev,
+        [role]: DEFAULT_PAYROLL_ROLE_PERMISSIONS[role],
+      }));
+    } else {
+      setPayrollRolePermissions(DEFAULT_PAYROLL_ROLE_PERMISSIONS);
     }
   };
 
@@ -8427,6 +8508,12 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
         rolePermissions,
         updateRolePermission,
         resetRolePermissions,
+        payrollRolePermissions,
+        updatePayrollRolePermission,
+        resetPayrollRolePermissions,
+        hasPayrollPermission,
+        canPayrollView,
+        canPayrollApprove,
         hasPermission,
         canView,
         canCreate,

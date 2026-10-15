@@ -2136,7 +2136,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
 
                   {alsoCreateInCrm && showCustomPermMatrix && (
                     <div className="bg-white rounded-lg border border-indigo-200 overflow-hidden max-h-48 overflow-y-auto">
-                      <table className="w-full text-left text-[11px] whitespace-nowrap">
+                      <table className="table-modern w-full text-left text-[11px] whitespace-nowrap">
                         <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 sticky top-0">
                           <tr>
                             <th className="py-1.5 px-2.5">CRM Module</th>
@@ -3129,7 +3129,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                         }
                         return (
                           <div className="overflow-x-auto max-h-48 overflow-y-auto border border-slate-200 rounded-lg bg-white">
-                            <table className="w-full text-left text-[11px] whitespace-nowrap">
+                            <table className="table-modern w-full text-left text-[11px] whitespace-nowrap">
                               <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 sticky top-0">
                                 <tr>
                                   <th className="py-1.5 px-2.5">Timestamp</th>
@@ -3346,7 +3346,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
             )}
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+              <table className="table-modern w-full text-left border-collapse text-xs whitespace-nowrap">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                     <th className="py-2.5 px-3">Emp Code</th>
@@ -3812,7 +3812,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
 
               return (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs whitespace-nowrap">
+                  <table className="table-modern w-full text-left text-xs whitespace-nowrap">
                     <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                       <tr>
                         <th className="py-2.5 px-3">Code / ID</th>
@@ -5229,7 +5229,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+            <table className="table-modern w-full text-left border-collapse text-xs whitespace-nowrap">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                   <th className="py-2.5 px-3">Emp Code</th>

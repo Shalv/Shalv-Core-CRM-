@@ -206,7 +206,7 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="table-modern w-full text-left text-xs">
             <thead className="bg-slate-50/80 text-slate-500 uppercase tracking-wider text-[10px] border-y border-slate-200/80">
               <tr>
                 <th className="py-2.5 px-3">Sales Executive</th>

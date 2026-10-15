@@ -634,7 +634,7 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
 
             {/* Table */}
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="table-modern w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-100 text-[11px] font-semibold text-slate-500 uppercase tracking-wider bg-white">
                     <th className="py-3 px-5">Employee</th>
@@ -1553,7 +1553,7 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
 
                   {/* Employees Table */}
                   <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
-                    <table className="w-full text-left text-xs">
+                    <table className="table-modern w-full text-left text-xs">
                       <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10.5px]">
                         <tr>
                           <th className="py-2.5 px-4">Employee</th>
@@ -1861,7 +1861,7 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
                     </div>
 
                     <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs">
+                      <table className="table-modern w-full text-left text-xs">
                         <thead className="bg-slate-50/70 text-slate-600 font-bold text-[10.5px] uppercase border-b border-slate-100">
                           <tr>
                             <th className="py-2.5 px-3">Employee</th>

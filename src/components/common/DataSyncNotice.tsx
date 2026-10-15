@@ -16,6 +16,6 @@ export function DataSyncNotice({status,retry,reload,showIssues}:{status:SyncStat
       {status.state==='conflict' && <button className="underline" onClick={()=>void reload()}>Load saved data</button>}
       {count>0 && <button className="underline" onClick={()=>setOpen(!open)}>{count} records need review</button>}
     </div>
-    {open && count>0 && <div className="mt-3 max-h-60 overflow-auto text-xs"><p className="mb-2">These links were already inconsistent in saved data. Open the listed records and correct or reassign them.</p><table className="w-full text-left"><thead><tr><th>Module</th><th>Record</th><th>Issue</th></tr></thead><tbody>{status.issues.map((i,index)=><tr key={`${i.key}-${index}`} className="border-t border-amber-200"><td className="py-1 pr-2">{i.slice}</td><td className="pr-2">{i.id}</td><td>{i.field}: {i.message}</td></tr>)}</tbody></table></div>}
+    {open && count>0 && <div className="mt-3 max-h-60 overflow-auto text-xs"><p className="mb-2">These links were already inconsistent in saved data. Open the listed records and correct or reassign them.</p><table className="table-modern w-full text-left"><thead><tr><th>Module</th><th>Record</th><th>Issue</th></tr></thead><tbody>{status.issues.map((i,index)=><tr key={`${i.key}-${index}`} className="border-t border-amber-200"><td className="py-1 pr-2">{i.slice}</td><td className="pr-2">{i.id}</td><td>{i.field}: {i.message}</td></tr>)}</tbody></table></div>}
   </aside>;
 }

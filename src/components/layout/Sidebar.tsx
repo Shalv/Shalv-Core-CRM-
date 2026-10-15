@@ -305,12 +305,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-68 max-w-[85vw] sm:w-68 xl:w-72 bg-white text-slate-700 flex flex-col shrink-0 border-r border-slate-200 transition-transform duration-200 ease-in-out ${
+        className={`fixed inset-y-0 left-0 z-50 w-68 max-w-[85vw] sm:w-68 xl:w-72 bg-white/95 backdrop-blur-xl text-slate-700 flex flex-col shrink-0 border-r border-slate-200/80 shadow-[0_0_50px_-28px_rgba(15,23,42,0.45)] transition-transform duration-200 ease-in-out ${
           isPinned ? 'lg:static lg:translate-x-0' : ''
         } ${isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}
       >
         {/* Top Brand Header displaying logo uploaded from Company Setup + Pin / Hide Controls */}
-        <div className="px-3.5 py-3 border-b border-slate-200 flex items-center justify-between gap-1.5 min-w-0">
+        <div className="px-3.5 py-3.5 border-b border-slate-200/80 flex items-center justify-between gap-1.5 min-w-0">
           <div className="min-w-0 flex-1 overflow-hidden">
             <BrandLogo
               variant="full"

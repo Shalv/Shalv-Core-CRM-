@@ -19,8 +19,10 @@ import {
   Layers,
   ChevronRight,
   FileSpreadsheet,
+  Briefcase,
 } from 'lucide-react';
 import { RolePermissionsMatrix } from './RolePermissionsMatrix';
+import { PayrollPermissionsMatrix } from './PayrollPermissionsMatrix';
 import { UserPermissionsModal } from './UserPermissionsModal';
 import { UsersMasterTab } from './UsersMasterTab';
 import { StatesMasterTab } from './StatesMasterTab';
@@ -35,6 +37,7 @@ import { DataImportMasterTab } from './DataImportMasterTab';
 export type MasterTab =
   | 'users'
   | 'permissions'
+  | 'payroll_permissions'
   | 'states'
   | 'products'
   | 'tax_rates'
@@ -81,6 +84,7 @@ export const MastersView: React.FC<MastersViewProps> = ({
     if (
       initialTab === 'users' ||
       initialTab === 'permissions' ||
+      initialTab === 'payroll_permissions' ||
       initialTab === 'states' ||
       initialTab === 'products' ||
       initialTab === 'tax_rates' ||
@@ -95,7 +99,7 @@ export const MastersView: React.FC<MastersViewProps> = ({
   }, [initialTab]);
 
   const getCategoryForTab = (tab: MasterTab): MasterCategory => {
-    if (tab === 'users' || tab === 'permissions' || tab === 'audit') return 'access';
+    if (tab === 'users' || tab === 'permissions' || tab === 'payroll_permissions' || tab === 'audit') return 'access';
     if (tab === 'products' || tab === 'tax_rates' || tab === 'payment_terms' || tab === 'states')
       return 'commercial';
     return 'organization';
@@ -343,6 +347,7 @@ export const MastersView: React.FC<MastersViewProps> = ({
                   <optgroup label="Access & Security">
                     <option value="users">👤 Users & Login Profiles ({crmUsers.length})</option>
                     <option value="permissions">🛡️ User-Wise Permissions (RBAC Matrix)</option>
+                    <option value="payroll_permissions">💼 Payroll Permission Matrix (PayChakra RBAC)</option>
                     <option value="audit">🕒 Audit Trail Log ({auditLogs.length})</option>
                   </optgroup>
                   <optgroup label="Commercial & Tax">
@@ -410,6 +415,28 @@ export const MastersView: React.FC<MastersViewProps> = ({
                     }`}
                   >
                     Matrix
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('payroll_permissions')}
+                  className={`py-2 px-3.5 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
+                    activeTab === 'payroll_permissions'
+                      ? 'sidebar-tab-active-depth text-slate-900'
+                      : 'bg-slate-100/80 hover:bg-slate-200/70 text-slate-700 border border-transparent'
+                  }`}
+                >
+                  <Briefcase className="w-4 h-4 shrink-0" />
+                  <span className="whitespace-nowrap">Payroll Permission Matrix</span>
+                  <span
+                    className={`text-[9px] font-bold px-1.5 py-0.2 rounded whitespace-nowrap ${
+                      activeTab === 'payroll_permissions'
+                        ? 'bg-white text-slate-800 border border-slate-200/80 shadow-2xs'
+                        : 'bg-white text-slate-600'
+                    }`}
+                  >
+                    PayChakra
                   </span>
                 </button>
 
@@ -667,6 +694,10 @@ export const MastersView: React.FC<MastersViewProps> = ({
 
       {activeTab === 'permissions' && (
         <RolePermissionsMatrix initialUserId={userForPermissionsModal?.id} />
+      )}
+
+      {activeTab === 'payroll_permissions' && (
+        <PayrollPermissionsMatrix searchQuery={searchQuery} />
       )}
 
       {activeTab === 'states' && <StatesMasterTab searchQuery={searchQuery} />}
