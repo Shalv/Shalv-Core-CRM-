@@ -104,23 +104,89 @@ export const PayChakraHeader: React.FC<PayChakraHeaderProps> = ({
             className="flex items-center gap-2.5 cursor-pointer group"
             title="PayChakra - Workforce Overview"
           >
-            {/* Stylized PayChakra Spiral Chakra Icon */}
-            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-teal-600 via-teal-500 to-cyan-400 p-0.5 shadow-sm group-hover:scale-105 transition-transform flex items-center justify-center">
-              <svg className="w-7 h-7 text-white" viewBox="0 0 36 36" fill="none">
-                <circle cx="18" cy="18" r="14" stroke="currentColor" strokeWidth="2.5" strokeDasharray="32 10" className="text-teal-200" />
-                <path
-                  d="M18 9C13.0294 9 9 13.0294 9 18C9 22.9706 13.0294 27 18 27C21.5 27 24.5 25 26 22"
-                  stroke="white"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                />
-                <circle cx="18" cy="18" r="4.5" fill="white" />
-                <circle cx="23" cy="13" r="2" fill="#38bdf8" />
+            {/* Official PayChakra Brand Logo from Picture 1.png */}
+            <div className="w-10 h-10 shrink-0 group-hover:scale-105 transition-transform drop-shadow-sm flex items-center justify-center">
+              <svg className="w-10 h-10" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="pchk-swirl-cyan" x1="25" y1="110" x2="120" y2="20" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#00E5FF" />
+                    <stop offset="45%" stopColor="#00A0FF" />
+                    <stop offset="100%" stopColor="#0052FF" />
+                  </linearGradient>
+                  <linearGradient id="pchk-swirl-pink" x1="100" y1="20" x2="175" y2="105" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#2563EB" />
+                    <stop offset="35%" stopColor="#7C3AED" />
+                    <stop offset="70%" stopColor="#D946EF" />
+                    <stop offset="100%" stopColor="#FF007A" />
+                  </linearGradient>
+                  <linearGradient id="pchk-swirl-magenta" x1="170" y1="90" x2="90" y2="175" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#FF1493" />
+                    <stop offset="40%" stopColor="#E11D48" />
+                    <stop offset="75%" stopColor="#C026D3" />
+                    <stop offset="100%" stopColor="#7C3AED" />
+                  </linearGradient>
+                  <linearGradient id="pchk-swirl-purple" x1="110" y1="175" x2="20" y2="85" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#6D28D9" />
+                    <stop offset="50%" stopColor="#2563EB" />
+                    <stop offset="100%" stopColor="#00D4FF" />
+                  </linearGradient>
+                  <linearGradient id="pchk-employee" x1="65" y1="65" x2="125" y2="140" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#3B82F6" />
+                    <stop offset="40%" stopColor="#1D4ED8" />
+                    <stop offset="100%" stopColor="#0F172A" />
+                  </linearGradient>
+                  <linearGradient id="pchk-coin" x1="105" y1="105" x2="142" y2="145" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#FF2A85" />
+                    <stop offset="55%" stopColor="#E11D48" />
+                    <stop offset="100%" stopColor="#9F1239" />
+                  </linearGradient>
+                  <linearGradient id="pchk-node-top" x1="85" y1="0" x2="115" y2="30" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#00D2FF" />
+                    <stop offset="100%" stopColor="#0066FF" />
+                  </linearGradient>
+                  <linearGradient id="pchk-node-right" x1="160" y1="80" x2="188" y2="112" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#FF4081" />
+                    <stop offset="100%" stopColor="#E11D48" />
+                  </linearGradient>
+                  <linearGradient id="pchk-node-bottom" x1="80" y1="155" x2="115" y2="190" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#C026D3" />
+                    <stop offset="100%" stopColor="#4F46E5" />
+                  </linearGradient>
+                  <linearGradient id="pchk-node-left" x1="0" y1="80" x2="30" y2="112" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#00F5FF" />
+                    <stop offset="100%" stopColor="#0284C7" />
+                  </linearGradient>
+                </defs>
+                <g id="chakra-emblem">
+                  <path d="M 32 108 C 16 80, 24 45, 52 25 C 72 10, 94 8, 114 12 C 86 16, 60 30, 48 54 C 36 78, 42 102, 54 120 C 44 118, 37 114, 32 108 Z" fill="url(#pchk-swirl-cyan)" />
+                  <path d="M 98 14 C 132 12, 164 28, 178 58 C 188 78, 185 102, 176 122 C 174 94, 160 70, 136 56 C 112 42, 88 46, 70 56 C 76 44, 86 28, 98 14 Z" fill="url(#pchk-swirl-pink)" />
+                  <path d="M 174 92 C 188 122, 178 156, 150 174 C 130 188, 106 189, 86 184 C 114 180, 138 166, 150 142 C 162 118, 156 94, 144 76 C 154 78, 166 84, 174 92 Z" fill="url(#pchk-swirl-magenta)" />
+                  <path d="M 106 184 C 70 186, 38 170, 24 140 C 14 120, 16 96, 26 76 C 28 104, 42 128, 66 142 C 90 156, 114 152, 132 142 C 126 154, 116 170, 106 184 Z" fill="url(#pchk-swirl-purple)" />
+
+                  <circle cx="106" cy="18" r="14.5" fill="url(#pchk-node-top)" />
+                  <circle cx="180" cy="98" r="14.5" fill="url(#pchk-node-right)" />
+                  <circle cx="102" cy="178" r="14.5" fill="url(#pchk-node-bottom)" />
+                  <circle cx="24" cy="98" r="14.5" fill="url(#pchk-node-left)" />
+
+                  <circle cx="98" cy="74" r="17.5" fill="url(#pchk-employee)" />
+                  <path d="M 68 136 C 66 116, 80 102, 98 102 C 116 102, 130 116, 128 136 C 124 140, 72 140, 68 136 Z" fill="url(#pchk-employee)" />
+
+                  <circle cx="124" cy="128" r="18.5" fill="url(#pchk-coin)" stroke="#ffffff" strokeWidth="2.5" />
+                  <g transform="translate(116, 117)" stroke="#ffffff" fill="#ffffff">
+                    <line x1="1" y1="3" x2="14" y2="3" strokeWidth="2.2" strokeLinecap="round" />
+                    <line x1="1" y1="7.2" x2="11.5" y2="7.2" strokeWidth="2.2" strokeLinecap="round" />
+                    <path d="M 4 3 L 4 12 C 7 12, 11 11, 11 7.2 C 11 4, 8 3, 4 3 Z" fill="none" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                    <line x1="4.5" y1="12" x2="13.5" y2="20.5" strokeWidth="2.4" strokeLinecap="round" />
+                  </g>
+                </g>
               </svg>
             </div>
             <div className="flex flex-col leading-tight">
-              <span className="text-white font-bold text-lg tracking-tight flex items-center gap-1">
-                PayChakra
+              <span className="font-extrabold text-xl tracking-tight flex items-center">
+                <span className="text-white">Pay</span>
+                <span className="bg-gradient-to-r from-blue-400 via-purple-300 to-pink-400 bg-clip-text text-transparent">
+                  Chakra
+                </span>
               </span>
               <span className="text-slate-400 text-[10.5px] font-medium tracking-wide">
                 Payroll &amp; HRMS

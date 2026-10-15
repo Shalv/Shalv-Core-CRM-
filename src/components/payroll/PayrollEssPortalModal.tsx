@@ -1984,7 +1984,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
             onSignOut={onClose}
             searchFilter={globalPayrollSearch}
             pendingLeavesCount={leaves.filter((l) => l.status === 'Pending Approval').length}
-            pendingClaimsCount={claims.filter((c) => c.status === 'Pending Approval').length}
+            pendingClaimsCount={claims.filter((c) => c.status === 'Under Verification').length}
             pendingLoansCount={0}
           />
         )}
@@ -2047,8 +2047,9 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
           </div>
         )}
 
-        {/* MAIN PORTAL BODY */}
-        <div className="p-5 overflow-y-auto flex-1 space-y-4 bg-slate-50/50">
+        {/* MAIN PORTAL BODY (SHOWN FOR DETAILED SUB-TABS) */}
+        {payChakraTab !== 'overview' && (
+          <div className="p-5 overflow-y-auto flex-1 space-y-4 bg-slate-50/50">
           {/* Helper: No Enrolled Employees Empty State */}
           {(() => null)()}
 
@@ -5894,6 +5895,10 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
             />
           )}
         </div>
+        )}
+
+        {/* PAYCHAKRA SYSTEM FOOTER */}
+        <PayChakraFooter />
       </div>
 
       {/* SELF-SERVICE CHANGE PASSWORD MODAL */}

@@ -336,7 +336,7 @@ function MainAppContent() {
     currentUser.accessScope !== 'payroll_only';
 
   if (isPayrollSession) {
-    const defaultPayrollTab = isPayrollAdmin ? 'admin_dashboard' : 'overview';
+    const defaultPayrollTab = 'overview';
 
     const handlePayrollPortalSignOut = () => {
       try {

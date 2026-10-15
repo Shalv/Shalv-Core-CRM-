@@ -27,6 +27,7 @@ import {
   Building2,
   AlertCircle,
   ExternalLink,
+  BarChart2,
 } from 'lucide-react';
 import { useCrm } from '../../context/CrmContext';
 import {
@@ -991,24 +992,35 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
 
               {/* Embedded Google Map */}
               <div className="w-full h-72 rounded-xl overflow-hidden border border-slate-200 relative bg-slate-100 shadow-inner">
-                <APIProvider
-                  apiKey={process.env.GOOGLE_MAPS_API_KEY || ''}
-                  libraries={GMP_LIBRARIES as any}
-                  attributionIds={GMP_ATTRIBUTION_IDS}
-                >
-                  <Map
-                    defaultCenter={selectedLocationEmployee.locationCoords || { lat: 28.4089, lng: 77.3178 }}
-                    defaultZoom={15}
-                    gestureHandling="greedy"
-                    disableDefaultUI={false}
-                    className="w-full h-full"
+                {((typeof import.meta !== 'undefined' && import.meta.env?.VITE_GOOGLE_MAPS_API_KEY) || (typeof process !== 'undefined' && process.env?.GOOGLE_MAPS_API_KEY)) ? (
+                  <APIProvider
+                    apiKey={(typeof import.meta !== 'undefined' && import.meta.env?.VITE_GOOGLE_MAPS_API_KEY) || (typeof process !== 'undefined' && process.env?.GOOGLE_MAPS_API_KEY) || ''}
+                    libraries={GMP_LIBRARIES as any}
                   >
-                    <AdvancedMarker
-                      position={selectedLocationEmployee.locationCoords || { lat: 28.4089, lng: 77.3178 }}
-                      title={`${selectedLocationEmployee.name} - ${selectedLocationEmployee.checkInTime}`}
-                    />
-                  </Map>
-                </APIProvider>
+                    <Map
+                      mapId="DEMO_MAP_ID"
+                      internalUsageAttributionIds={GMP_ATTRIBUTION_IDS}
+                      defaultCenter={selectedLocationEmployee.locationCoords || { lat: 28.4089, lng: 77.3178 }}
+                      defaultZoom={15}
+                      gestureHandling="greedy"
+                      disableDefaultUI={false}
+                      className="w-full h-full"
+                    >
+                      <AdvancedMarker
+                        position={selectedLocationEmployee.locationCoords || { lat: 28.4089, lng: 77.3178 }}
+                        title={`${selectedLocationEmployee.name} - ${selectedLocationEmployee.checkInTime}`}
+                      />
+                    </Map>
+                  </APIProvider>
+                ) : (
+                  <iframe
+                    title="Employee Location Map"
+                    src={`https://maps.google.com/maps?q=${selectedLocationEmployee.locationCoords?.lat || 28.4089},${selectedLocationEmployee.locationCoords?.lng || 77.3178}&z=15&output=embed`}
+                    className="w-full h-full border-0"
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
+                )}
               </div>
 
               <div className="flex items-center justify-between text-xs text-slate-500 pt-2">
