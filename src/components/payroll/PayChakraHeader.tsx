@@ -356,9 +356,31 @@ export const PayChakraHeader: React.FC<PayChakraHeaderProps> = ({
         </div>
       </div>
 
-      {/* 2. SUB-NAVIGATION TAB BAR (White bar with clean icons & dropdowns) */}
-      <div className="w-full bg-white border-b border-slate-200/90 shadow-2xs px-4 sm:px-6 flex items-center justify-between overflow-x-auto scrollbar-none" ref={navDropdownRef}>
-        <nav className="flex items-center gap-1 sm:gap-2">
+      {/* 2. SUB-NAVIGATION TAB BAR (Responsive dropdown for small screens, clean desktop navigation) */}
+      <div className="w-full bg-white border-b border-slate-200/90 shadow-2xs px-4 sm:px-6 flex flex-col xl:flex-row xl:items-center justify-between" ref={navDropdownRef}>
+        {/* Mobile / Tablet Dropdown Selector — Zero Header Scrolling */}
+        <div className="block xl:hidden w-full py-2.5">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xs font-bold text-slate-700 whitespace-nowrap">Active Section:</span>
+            <select
+              value={activeTab}
+              onChange={(e) => onSelectTab(e.target.value as PayChakraTab)}
+              aria-label="Select Payroll Section"
+              className="w-full header-dropdown-select bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 shadow-2xs focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 cursor-pointer transition"
+            >
+              <option value="overview">🏠 Overview Dashboard</option>
+              <option value="employees">👥 Employees Directory & Masters</option>
+              <option value="attendance">📅 Attendance & Clock In/Out</option>
+              <option value="leaves">📄 Leave Management & Approvals</option>
+              <option value="payroll">💰 Monthly Payroll & Salary Slips</option>
+              <option value="expenses">🧾 Expense Claims & Reimbursements</option>
+              <option value="reports">📊 Reports & Analytics</option>
+              <option value="administration">⚙️ Administration & HR Policies</option>
+            </select>
+          </div>
+        </div>
+
+        <nav className="hidden xl:flex items-center gap-1 sm:gap-2">
           {/* Tab 1: Overview */}
           <button
             type="button"

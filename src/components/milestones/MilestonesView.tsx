@@ -14,6 +14,9 @@ import {
   Check,
   X,
   ArrowUpRight,
+  Clock,
+  AlertCircle,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 interface MilestonesViewProps {
@@ -158,7 +161,7 @@ export const MilestonesView: React.FC<MilestonesViewProps> = ({
         </div>
       )}
 
-      {/* Clickable KPI Strip */}
+      {/* Clickable KPI Strip with Modern Icon Depth */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-3.5">
         <button
           type="button"
@@ -166,17 +169,19 @@ export const MilestonesView: React.FC<MilestonesViewProps> = ({
             setStatusFilter('ALL');
             setSearchQuery('');
           }}
-          className={`text-left p-3.5 rounded-xl border transition group cursor-pointer ${
+          className={`text-left p-3.5 rounded-xl border transition group cursor-pointer card-depth ${
             statusFilter === 'ALL' && !searchQuery
               ? 'bg-indigo-50/70 border-indigo-300 ring-2 ring-indigo-500/15'
-              : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-xs'
+              : 'hover:border-indigo-300'
           }`}
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
               All Milestones
             </span>
-            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 transition" />
+            <div className="icon-depth icon-depth-slate w-6 h-6 shrink-0">
+              <CalendarCheck className="w-3.5 h-3.5 text-slate-700" />
+            </div>
           </div>
           <div className="text-base font-extrabold font-mono tabular-nums text-slate-900 mt-1 truncate">
             {formatCurrency(milestones.reduce((s, m) => s + m.amount, 0))}
@@ -189,17 +194,19 @@ export const MilestonesView: React.FC<MilestonesViewProps> = ({
         <button
           type="button"
           onClick={() => setStatusFilter('Overdue')}
-          className={`text-left p-3.5 rounded-xl border transition group cursor-pointer ${
+          className={`text-left p-3.5 rounded-xl border transition group cursor-pointer card-depth ${
             statusFilter === 'Overdue'
               ? 'bg-rose-50 border-rose-400 ring-2 ring-rose-500/15'
-              : 'bg-white border-slate-200 hover:border-rose-300 hover:shadow-xs'
+              : 'hover:border-rose-300'
           }`}
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600">
               Overdue Milestones
             </span>
-            <ArrowUpRight className="w-3.5 h-3.5 text-rose-400 group-hover:text-rose-700 transition" />
+            <div className="icon-depth icon-depth-rose w-6 h-6 shrink-0">
+              <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+            </div>
           </div>
           <div className="text-base font-extrabold font-mono tabular-nums text-rose-700 mt-1 truncate">
             {milestones.filter((m) => m.status !== 'Paid' && m.dueDate < today).length} Overdue
@@ -212,17 +219,19 @@ export const MilestonesView: React.FC<MilestonesViewProps> = ({
         <button
           type="button"
           onClick={() => setStatusFilter('Upcoming')}
-          className={`text-left p-3.5 rounded-xl border transition group cursor-pointer ${
+          className={`text-left p-3.5 rounded-xl border transition group cursor-pointer card-depth ${
             statusFilter === 'Upcoming'
               ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-500/15'
-              : 'bg-white border-slate-200 hover:border-amber-300 hover:shadow-xs'
+              : 'hover:border-amber-300'
           }`}
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
               Upcoming / Unbilled
             </span>
-            <ArrowUpRight className="w-3.5 h-3.5 text-amber-400 group-hover:text-amber-700 transition" />
+            <div className="icon-depth icon-depth-amber w-6 h-6 shrink-0">
+              <Clock className="w-3.5 h-3.5 text-amber-600" />
+            </div>
           </div>
           <div className="text-base font-extrabold font-mono tabular-nums text-amber-800 mt-1 truncate">
             {milestones.filter((m) => !m.invoiceId).length} Unbilled
@@ -235,17 +244,19 @@ export const MilestonesView: React.FC<MilestonesViewProps> = ({
         <button
           type="button"
           onClick={() => setStatusFilter('Paid')}
-          className={`text-left p-3.5 rounded-xl border transition group cursor-pointer ${
+          className={`text-left p-3.5 rounded-xl border transition group cursor-pointer card-depth ${
             statusFilter === 'Paid'
               ? 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-500/15'
-              : 'bg-white border-slate-200 hover:border-emerald-300 hover:shadow-xs'
+              : 'hover:border-emerald-300'
           }`}
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
               Paid Milestones
             </span>
-            <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400 group-hover:text-emerald-700 transition" />
+            <div className="icon-depth icon-depth-emerald w-6 h-6 shrink-0">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            </div>
           </div>
           <div className="text-base font-extrabold font-mono tabular-nums text-emerald-800 mt-1 truncate">
             {formatCurrency(milestones.reduce((s, m) => s + m.paidAmount, 0))}
@@ -258,13 +269,15 @@ export const MilestonesView: React.FC<MilestonesViewProps> = ({
         <button
           type="button"
           onClick={() => onNavigateToReport?.('gst_tax_register')}
-          className="text-left p-3.5 rounded-xl border bg-white border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 hover:shadow-xs transition group cursor-pointer"
+          className="text-left p-3.5 rounded-xl border bg-white hover:border-indigo-300 hover:bg-indigo-50/30 transition group cursor-pointer card-depth"
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700">
-              Billing & Tax Report
+              Billing &amp; Tax Report
             </span>
-            <ArrowUpRight className="w-3.5 h-3.5 text-indigo-400 group-hover:text-indigo-700 transition" />
+            <div className="icon-depth icon-depth-sky w-6 h-6 shrink-0">
+              <Receipt className="w-3.5 h-3.5 text-sky-600" />
+            </div>
           </div>
           <div className="text-base font-extrabold text-indigo-900 mt-1 truncate">
             GST Register

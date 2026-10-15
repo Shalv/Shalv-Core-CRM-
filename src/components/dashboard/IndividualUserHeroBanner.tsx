@@ -395,10 +395,46 @@ export const IndividualUserHeroBanner: React.FC<IndividualUserHeroBannerProps> =
         </div>
       </div>
 
-      {/* Dynamic Role-Based Perspective Tabs Navigation */}
-      <div className="relative z-10 mt-6 pt-4 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex items-center p-1 bg-white/90 backdrop-blur-md border border-slate-200/80 shadow-2xs rounded-xl text-xs font-medium text-slate-600 overflow-x-auto max-w-full">
-          {/* Executive 360 Tab (Only if user has access to either Admin or both Sales & Finance) */}
+      {/* Dynamic Role-Based Perspective Tabs Navigation — Zero Header Scrolling via Responsive Dropdown List */}
+      <div className="relative z-10 mt-6 pt-4 border-t border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        {/* Mobile / Compact Dropdown List Selector: No horizontal scrolling! */}
+        <div className="block lg:hidden w-full sm:w-auto">
+          <label htmlFor="dashboard-workspace-select" className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            Active Workspace Perspective
+          </label>
+          <div className="relative">
+            <select
+              id="dashboard-workspace-select"
+              value={currentPerspective}
+              onChange={(e) => onSelectPerspective(e.target.value as DashboardPerspectiveKey)}
+              className="w-full header-dropdown-select bg-white/95 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 shadow-2xs focus:ring-2 focus:ring-[#1f7e9e]/30 focus:border-[#1f7e9e] cursor-pointer"
+            >
+              {(isAdmin || (hasSalesAccess && hasFinanceAccess) || currentUser.role === 'Management/Viewer') && (
+                <option value="overview">✨ Executive 360°</option>
+              )}
+              {hasSalesAccess && (
+                <option value="my_sales">
+                  💼 {isSalesExec ? 'My Sales Workspace' : 'Sales Rep View'}
+                </option>
+              )}
+              {(isSalesMgr || isAdmin) && hasSalesAccess && (
+                <option value="team_sales">🏆 Sales Team Leaderboard</option>
+              )}
+              {hasFinanceAccess && (
+                <option value="my_finance">
+                  💳 {isFinanceRole ? 'Finance & Collections Desk' : 'Finance & GST Command'}
+                </option>
+              )}
+              {isAdmin && (
+                <option value="admin_hr">👤 Admin HR &amp; GPS Attendance</option>
+              )}
+            </select>
+          </div>
+        </div>
+
+        {/* Desktop Viewport Tabs (Flex-wrap without overflow-x-auto scrolling) */}
+        <div className="hidden lg:inline-flex flex-wrap items-center p-1 bg-white/90 backdrop-blur-md border border-slate-200/80 shadow-2xs rounded-xl text-xs font-medium text-slate-600 gap-1">
+          {/* Executive 360 Tab */}
           {(isAdmin || (hasSalesAccess && hasFinanceAccess) || currentUser.role === 'Management/Viewer') && (
             <button
               type="button"
@@ -409,12 +445,14 @@ export const IndividualUserHeroBanner: React.FC<IndividualUserHeroBannerProps> =
                   : 'hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5 text-[#1f7e9e]" />
+              <div className="icon-depth icon-depth-sky w-5 h-5 rounded-md">
+                <Sparkles className="w-3 h-3 text-[#1f7e9e]" />
+              </div>
               <span>Executive 360°</span>
             </button>
           )}
 
-          {/* Individual Sales Rep Workspace (For Sales Execs, Reps, Managers, or Admins) */}
+          {/* Individual Sales Rep Workspace */}
           {hasSalesAccess && (
             <button
               type="button"
@@ -425,14 +463,16 @@ export const IndividualUserHeroBanner: React.FC<IndividualUserHeroBannerProps> =
                   : 'hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
-              <Briefcase className="w-3.5 h-3.5 text-blue-600" />
+              <div className="icon-depth icon-depth-indigo w-5 h-5 rounded-md">
+                <Briefcase className="w-3 h-3 text-indigo-600" />
+              </div>
               <span>
                 {isSalesExec ? 'My Sales Workspace' : 'Sales Rep View'}
               </span>
             </button>
           )}
 
-          {/* Sales Management & Team Leaderboard Tab (For Managers and Admins) */}
+          {/* Sales Management & Team Leaderboard Tab */}
           {(isSalesMgr || isAdmin) && hasSalesAccess && (
             <button
               type="button"
@@ -443,12 +483,14 @@ export const IndividualUserHeroBanner: React.FC<IndividualUserHeroBannerProps> =
                   : 'hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
-              <Award className="w-3.5 h-3.5 text-cyan-600" />
+              <div className="icon-depth icon-depth-cyan w-5 h-5 rounded-md">
+                <Award className="w-3 h-3 text-cyan-600" />
+              </div>
               <span>Sales Team Leaderboard</span>
             </button>
           )}
 
-          {/* Finance & Invoicing Desk Tab (Strictly if user has finance rights) */}
+          {/* Finance & Invoicing Desk Tab */}
           {hasFinanceAccess && (
             <button
               type="button"
@@ -459,14 +501,16 @@ export const IndividualUserHeroBanner: React.FC<IndividualUserHeroBannerProps> =
                   : 'hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
-              <Wallet className="w-3.5 h-3.5 text-emerald-600" />
+              <div className="icon-depth icon-depth-emerald w-5 h-5 rounded-md">
+                <Wallet className="w-3 h-3 text-emerald-600" />
+              </div>
               <span>
                 {isFinanceRole ? 'Finance & Collections Desk' : 'Finance & GST Command'}
               </span>
             </button>
           )}
 
-          {/* Admin Employee & Attendance Tab (Admins only) */}
+          {/* Admin Employee & Attendance Tab */}
           {isAdmin && (
             <button
               type="button"
@@ -477,7 +521,9 @@ export const IndividualUserHeroBanner: React.FC<IndividualUserHeroBannerProps> =
                   : 'hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
-              <UserCheck className="w-3.5 h-3.5 text-purple-600" />
+              <div className="icon-depth icon-depth-purple w-5 h-5 rounded-md">
+                <UserCheck className="w-3 h-3 text-purple-600" />
+              </div>
               <span>Admin HR &amp; GPS Attendance</span>
             </button>
           )}
@@ -485,8 +531,8 @@ export const IndividualUserHeroBanner: React.FC<IndividualUserHeroBannerProps> =
 
         {/* Status pill showing which login ID is actively linked to this session */}
         <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-          <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
-          <span>
+          <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+          <span className="truncate">
             Logged in as <strong className="text-slate-800">{currentUser.name}</strong> (@
             {currentUser.username || currentUser.email.split('@')[0]})
           </span>

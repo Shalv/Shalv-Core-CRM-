@@ -212,14 +212,14 @@ export const MastersView: React.FC<MastersViewProps> = ({
               className={`p-3.5 rounded-xl border text-left transition flex items-start gap-3.5 cursor-pointer min-w-0 ${
                 activeCategory === 'access'
                   ? 'sidebar-tab-active-depth'
-                  : 'bg-slate-50/50 border-slate-200 hover:bg-slate-100/80 hover:border-slate-300'
+                  : 'bg-slate-50/50 border-slate-200 hover:bg-slate-100/80 hover:border-slate-300 card-depth'
               }`}
             >
               <div
-                className={`p-2 rounded-xl shrink-0 ${
+                className={`w-10 h-10 rounded-xl shrink-0 flex items-center justify-center ${
                   activeCategory === 'access'
                     ? 'sidebar-tab-icon-depth'
-                    : 'bg-white border border-slate-200'
+                    : 'icon-depth icon-depth-indigo'
                 }`}
               >
                 <ShieldCheck className="w-5 h-5" />
@@ -250,14 +250,14 @@ export const MastersView: React.FC<MastersViewProps> = ({
               className={`p-3.5 rounded-xl border text-left transition flex items-start gap-3.5 cursor-pointer min-w-0 ${
                 activeCategory === 'commercial'
                   ? 'sidebar-tab-active-depth'
-                  : 'bg-slate-50/50 border-slate-200 hover:bg-slate-100/80 hover:border-slate-300'
+                  : 'bg-slate-50/50 border-slate-200 hover:bg-slate-100/80 hover:border-slate-300 card-depth'
               }`}
             >
               <div
-                className={`p-2 rounded-xl shrink-0 ${
+                className={`w-10 h-10 rounded-xl shrink-0 flex items-center justify-center ${
                   activeCategory === 'commercial'
                     ? 'sidebar-tab-icon-depth'
-                    : 'bg-white border border-slate-200'
+                    : 'icon-depth icon-depth-emerald'
                 }`}
               >
                 <Package className="w-5 h-5" />
@@ -288,14 +288,14 @@ export const MastersView: React.FC<MastersViewProps> = ({
               className={`p-3.5 rounded-xl border text-left transition flex items-start gap-3.5 cursor-pointer min-w-0 ${
                 activeCategory === 'organization'
                   ? 'sidebar-tab-active-depth'
-                  : 'bg-slate-50/50 border-slate-200 hover:bg-slate-100/80 hover:border-slate-300'
+                  : 'bg-slate-50/50 border-slate-200 hover:bg-slate-100/80 hover:border-slate-300 card-depth'
               }`}
             >
               <div
-                className={`p-2 rounded-xl shrink-0 ${
+                className={`w-10 h-10 rounded-xl shrink-0 flex items-center justify-center ${
                   activeCategory === 'organization'
                     ? 'sidebar-tab-icon-depth'
-                    : 'bg-white border border-slate-200'
+                    : 'icon-depth icon-depth-sky'
                 }`}
               >
                 <Building2 className="w-5 h-5" />
@@ -321,10 +321,52 @@ export const MastersView: React.FC<MastersViewProps> = ({
           </div>
         </div>
 
-        {/* Sub-Tabs Pills Strip & Quick Jump Dropdown */}
-        <div className="pt-3 border-t border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          {/* Sub-Tabs for active category */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 lg:pb-0 max-w-full">
+        {/* Sub-Tabs Pills Strip & Quick Jump Dropdown — Zero Header Scrolling */}
+        <div className="pt-3 border-t border-slate-100 flex flex-col gap-3">
+          {/* Responsive Dropdown Selector for all sizes / extended tables: NEVER scroll header */}
+          <div className="w-full flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <span className="text-xs font-bold text-slate-700 whitespace-nowrap shrink-0">
+                Active Master Table:
+              </span>
+              <div className="relative flex-1 max-w-md">
+                <select
+                  value={activeTab}
+                  onChange={(e) => {
+                    const nextTab = e.target.value as MasterTab;
+                    setActiveTab(nextTab);
+                    setActiveCategory(getCategoryForTab(nextTab));
+                  }}
+                  aria-label="Select Master Table"
+                  className="w-full header-dropdown-select bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 shadow-2xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 cursor-pointer transition"
+                >
+                  <optgroup label="Access & Security">
+                    <option value="users">👤 Users & Login Profiles ({crmUsers.length})</option>
+                    <option value="permissions">🛡️ User-Wise Permissions (RBAC Matrix)</option>
+                    <option value="audit">🕒 Audit Trail Log ({auditLogs.length})</option>
+                  </optgroup>
+                  <optgroup label="Commercial & Tax">
+                    <option value="products">📦 Products & Services ({products.length})</option>
+                    <option value="tax_rates">📊 Tax Rates & GST Slabs ({taxRates.length})</option>
+                    <option value="payment_terms">💳 Payment Terms ({paymentTerms.length})</option>
+                    <option value="states">🗺️ State Master / GST Codes ({states.length})</option>
+                  </optgroup>
+                  <optgroup label="Directory & Organization">
+                    <option value="customers_contacts">🏢 Customers & Contacts Directory</option>
+                    <option value="company">🏛️ Organization Legal Profile</option>
+                    <option value="data_import">📥 Bulk CSV Data Import</option>
+                  </optgroup>
+                </select>
+              </div>
+            </div>
+
+            <div className="text-[11px] text-slate-500 font-medium whitespace-nowrap">
+              Active Category: <strong className="text-slate-800">{activeCategory.toUpperCase()}</strong>
+            </div>
+          </div>
+
+          {/* Sub-Tabs for active category: flex-wrap without overflow-x-auto scrolling */}
+          <div className="hidden sm:flex flex-wrap items-center gap-2 pt-1">
             {activeCategory === 'access' && (
               <>
                 <button

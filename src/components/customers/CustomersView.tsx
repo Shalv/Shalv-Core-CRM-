@@ -514,25 +514,30 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
                 </div>
               </div>
 
-              {/* Clickable Financial Dashboard Tiles */}
+              {/* Clickable Financial Dashboard Tiles with Modern Icon Depth */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
                 <button
                   type="button"
                   onClick={() => setActiveTab('orders')}
-                  className={`text-left p-3 rounded-xl border transition cursor-pointer min-w-0 overflow-hidden ${
+                  className={`text-left p-3.5 rounded-xl border transition cursor-pointer min-w-0 overflow-hidden group card-depth ${
                     activeTab === 'orders'
-                      ? 'bg-indigo-50/70 border-indigo-400 shadow-2xs'
-                      : 'bg-slate-50 hover:bg-slate-100 border-slate-100'
+                      ? 'bg-indigo-50/70 border-indigo-400 ring-2 ring-indigo-500/15'
+                      : 'bg-white hover:bg-slate-50 border-slate-200/90'
                   }`}
                 >
-                  <span className="text-slate-500 block text-[11px] truncate">Total Sales</span>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-slate-500 block text-[11px] font-semibold truncate">Total Sales</span>
+                    <div className="icon-depth icon-depth-indigo w-7 h-7 shrink-0">
+                      <FileSpreadsheet className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
                   <span
-                    className="text-sm font-bold font-mono tabular-nums text-slate-900 mt-0.5 block truncate"
+                    className="text-base font-extrabold font-mono tabular-nums text-slate-900 mt-0.5 block truncate"
                     title={formatCurrency(balance.totalInvoiced)}
                   >
                     {formatCurrency(balance.totalInvoiced)}
                   </span>
-                  <span className="text-[10px] text-indigo-600 font-medium truncate block">
+                  <span className="text-[10px] text-indigo-600 font-semibold truncate block mt-1">
                     {customerOrders.length} Orders · View Tab →
                   </span>
                 </button>
@@ -540,20 +545,25 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveTab('payments')}
-                  className={`text-left p-3 rounded-xl border transition cursor-pointer min-w-0 overflow-hidden ${
+                  className={`text-left p-3.5 rounded-xl border transition cursor-pointer min-w-0 overflow-hidden group card-depth ${
                     activeTab === 'payments'
-                      ? 'bg-emerald-100/70 border-emerald-400 shadow-2xs'
-                      : 'bg-emerald-50/60 hover:bg-emerald-100/50 border-emerald-100'
+                      ? 'bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-500/15'
+                      : 'bg-white hover:bg-slate-50 border-slate-200/90'
                   }`}
                 >
-                  <span className="text-emerald-700 block text-[11px] truncate">Total Collected</span>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-emerald-700 block text-[11px] font-semibold truncate">Total Collected</span>
+                    <div className="icon-depth icon-depth-emerald w-7 h-7 shrink-0">
+                      <CreditCard className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
                   <span
-                    className="text-sm font-bold font-mono tabular-nums text-emerald-800 mt-0.5 block truncate"
+                    className="text-base font-extrabold font-mono tabular-nums text-emerald-800 mt-0.5 block truncate"
                     title={formatCurrency(balance.totalReceived)}
                   >
                     {formatCurrency(balance.totalReceived)}
                   </span>
-                  <span className="text-[10px] text-emerald-700 font-medium truncate block">
+                  <span className="text-[10px] text-emerald-700 font-semibold truncate block mt-1">
                     {customerPayments.length} Receipts · View Tab →
                   </span>
                 </button>
@@ -561,20 +571,25 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveTab('ledger')}
-                  className={`text-left p-3 rounded-xl border transition cursor-pointer min-w-0 overflow-hidden ${
+                  className={`text-left p-3.5 rounded-xl border transition cursor-pointer min-w-0 overflow-hidden group card-depth ${
                     activeTab === 'ledger'
-                      ? 'bg-rose-100/70 border-rose-400 shadow-2xs'
-                      : 'bg-rose-50/60 hover:bg-rose-100/50 border-rose-100'
+                      ? 'bg-rose-50/80 border-rose-400 ring-2 ring-rose-500/15'
+                      : 'bg-white hover:bg-slate-50 border-slate-200/90'
                   }`}
                 >
-                  <span className="text-rose-700 block text-[11px] truncate">Outstanding Balance</span>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-rose-700 block text-[11px] font-semibold truncate">Outstanding Balance</span>
+                    <div className="icon-depth icon-depth-rose w-7 h-7 shrink-0">
+                      <Receipt className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
                   <span
-                    className="text-sm font-bold font-mono tabular-nums text-rose-800 mt-0.5 block truncate"
+                    className="text-base font-extrabold font-mono tabular-nums text-rose-800 mt-0.5 block truncate"
                     title={formatCurrency(balance.outstanding)}
                   >
                     {formatCurrency(balance.outstanding)}
                   </span>
-                  <span className="text-[10px] text-rose-700 font-medium truncate block">
+                  <span className="text-[10px] text-rose-700 font-semibold truncate block mt-1">
                     AR Statement · View Tab →
                   </span>
                 </button>
@@ -582,16 +597,21 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
                 <button
                   type="button"
                   onClick={openEditSelectedCustomer}
-                  className="text-left p-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-100 hover:border-indigo-300 transition cursor-pointer min-w-0 overflow-hidden"
+                  className="text-left p-3.5 bg-white hover:bg-slate-50 rounded-xl border border-slate-200/90 hover:border-indigo-300 transition cursor-pointer min-w-0 overflow-hidden group card-depth"
                 >
-                  <span className="text-slate-500 block text-[11px] truncate">Credit Limit</span>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-slate-500 block text-[11px] font-semibold truncate">Credit Limit</span>
+                    <div className="icon-depth icon-depth-purple w-7 h-7 shrink-0">
+                      <BookOpen className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
                   <span
-                    className="text-sm font-bold font-mono tabular-nums text-slate-800 mt-0.5 block truncate"
+                    className="text-base font-extrabold font-mono tabular-nums text-slate-800 mt-0.5 block truncate"
                     title={formatCurrency(balance.creditLimit)}
                   >
                     {formatCurrency(balance.creditLimit)}
                   </span>
-                  <span className="text-[10px] text-indigo-600 font-medium truncate block">
+                  <span className="text-[10px] text-indigo-600 font-semibold truncate block mt-1">
                     Edit Credit Limit →
                   </span>
                 </button>
@@ -599,29 +619,55 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveTab('invoices')}
-                  className={`text-left p-3 rounded-xl border transition cursor-pointer min-w-0 overflow-hidden ${
+                  className={`text-left p-3.5 rounded-xl border transition cursor-pointer min-w-0 overflow-hidden group card-depth ${
                     activeTab === 'invoices'
-                      ? 'bg-indigo-100/70 border-indigo-400 shadow-2xs'
-                      : 'bg-indigo-50/60 hover:bg-indigo-100/50 border-indigo-100'
+                      ? 'bg-indigo-50/80 border-indigo-400 ring-2 ring-indigo-500/15'
+                      : 'bg-white hover:bg-slate-50 border-slate-200/90'
                   }`}
                 >
-                  <span className="text-indigo-700 block text-[11px] truncate">Available Credit</span>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-indigo-700 block text-[11px] font-semibold truncate">Available Credit</span>
+                    <div className="icon-depth icon-depth-sky w-7 h-7 shrink-0">
+                      <Shield className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
                   <span
-                    className="text-sm font-bold font-mono tabular-nums text-indigo-800 mt-0.5 block truncate"
+                    className="text-base font-extrabold font-mono tabular-nums text-indigo-800 mt-0.5 block truncate"
                     title={formatCurrency(balance.availableCredit)}
                   >
                     {formatCurrency(balance.availableCredit)}
                   </span>
-                  <span className="text-[10px] text-indigo-700 font-medium truncate block">
+                  <span className="text-[10px] text-indigo-700 font-semibold truncate block mt-1">
                     {customerInvoices.length} Invoices · View Tab →
                   </span>
                 </button>
               </div>
             </div>
 
-            {/* Interactive Tabs */}
+            {/* Interactive Tabs — Zero Header Scrolling via Responsive Dropdown List */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-              <div className="flex items-center gap-1.5 p-2 border-b border-slate-200 bg-slate-50/80 overflow-x-auto text-xs font-semibold max-w-full">
+              {/* Mobile / Tablet Dropdown Selector for Customer Detail Tables */}
+              <div className="block lg:hidden p-3 border-b border-slate-200 bg-slate-50/80">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xs font-bold text-slate-700 whitespace-nowrap">Active Table:</span>
+                  <select
+                    value={activeTab}
+                    onChange={(e) => setActiveTab(e.target.value as any)}
+                    aria-label="Select Customer Detail View"
+                    className="w-full header-dropdown-select bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 shadow-2xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 cursor-pointer"
+                  >
+                    <option value="ledger">📖 Customer Ledger Statement</option>
+                    <option value="orders">📋 Sales Orders ({customerOrders.length})</option>
+                    <option value="milestones">📅 Milestones ({customerMilestones.length})</option>
+                    <option value="invoices">🧾 Invoices ({customerInvoices.length})</option>
+                    <option value="payments">💳 Payments ({customerPayments.length})</option>
+                    <option value="contacts_addresses">📍 Addresses &amp; Contacts</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Desktop Viewport Tabs (Flex-wrap without overflow-x-auto scrolling) */}
+              <div className="hidden lg:flex flex-wrap items-center gap-1.5 p-2 border-b border-slate-200 bg-slate-50/80 text-xs font-semibold">
                 <button
                   type="button"
                   onClick={() => setActiveTab('ledger')}

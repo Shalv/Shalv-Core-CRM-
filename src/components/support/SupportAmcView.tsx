@@ -593,59 +593,77 @@ export const SupportAmcView: React.FC<SupportAmcViewProps> = ({
           </h1>
         </div>
 
-        {/* Sub-module Segmented Navigation */}
-        <div className="flex items-center gap-1.5 bg-slate-200/70 p-1 rounded-xl overflow-x-auto max-w-full">
-          <button
-            type="button"
-            onClick={() => setActiveTab('tickets')}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap shrink-0 ${
-              activeTab === 'tickets'
-                ? 'sidebar-tab-active-depth text-slate-900 font-bold'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-            }`}
-          >
-            <Headphones className="w-3.5 h-3.5 shrink-0" />
-            <span>Support Tickets ({supportTickets.length})</span>
-          </button>
+        {/* Sub-module Segmented Navigation — Zero Header Scrolling via Responsive Dropdown */}
+        <div className="w-full lg:w-auto">
+          {/* Mobile / Tablet Dropdown Selector */}
+          <div className="block lg:hidden w-full">
+            <select
+              value={activeTab}
+              onChange={(e) => setActiveTab(e.target.value as any)}
+              aria-label="Select Support Desk Module"
+              className="w-full header-dropdown-select bg-slate-100 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 shadow-2xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 cursor-pointer"
+            >
+              <option value="tickets">🎧 Support Tickets ({supportTickets.length})</option>
+              <option value="amc">🛡️ AMC Contracts ({amcContracts.length})</option>
+              <option value="cr">🔀 Change Requests ({changeRequests.length})</option>
+              <option value="licenses">🔑 License Subscriptions ({licenseTypes.length})</option>
+            </select>
+          </div>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('amc')}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap shrink-0 ${
-              activeTab === 'amc'
-                ? 'sidebar-tab-active-depth text-slate-900 font-bold'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-            }`}
-          >
-            <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-            <span>AMC Contracts ({amcContracts.length})</span>
-          </button>
+          {/* Desktop Navigation */}
+          <div className="hidden lg:flex items-center gap-1.5 bg-slate-200/70 p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setActiveTab('tickets')}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap shrink-0 ${
+                activeTab === 'tickets'
+                  ? 'sidebar-tab-active-depth text-slate-900 font-bold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+              }`}
+            >
+              <Headphones className="w-3.5 h-3.5 shrink-0" />
+              <span>Support Tickets ({supportTickets.length})</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('cr')}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap shrink-0 ${
-              activeTab === 'cr'
-                ? 'sidebar-tab-active-depth text-slate-900 font-bold'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-            }`}
-          >
-            <GitPullRequest className="w-3.5 h-3.5 shrink-0" />
-            <span>Change Requests ({changeRequests.length})</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('amc')}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap shrink-0 ${
+                activeTab === 'amc'
+                  ? 'sidebar-tab-active-depth text-slate-900 font-bold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+              }`}
+            >
+              <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+              <span>AMC Contracts ({amcContracts.length})</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('licenses')}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap shrink-0 ${
-              activeTab === 'licenses'
-                ? 'sidebar-tab-active-depth text-slate-900 font-bold'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-            }`}
-          >
-            <KeyRound className="w-3.5 h-3.5 shrink-0" />
-            <span>License Subscriptions ({licenseTypes.length})</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('cr')}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap shrink-0 ${
+                activeTab === 'cr'
+                  ? 'sidebar-tab-active-depth text-slate-900 font-bold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+              }`}
+            >
+              <GitPullRequest className="w-3.5 h-3.5 shrink-0" />
+              <span>Change Requests ({changeRequests.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('licenses')}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap shrink-0 ${
+                activeTab === 'licenses'
+                  ? 'sidebar-tab-active-depth text-slate-900 font-bold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+              }`}
+            >
+              <KeyRound className="w-3.5 h-3.5 shrink-0" />
+              <span>License Subscriptions ({licenseTypes.length})</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -666,12 +684,14 @@ export const SupportAmcView: React.FC<SupportAmcViewProps> = ({
         </div>
       )}
 
-      {/* 4-Card KPI Summary Strip */}
+      {/* 4-Card KPI Summary Strip with Modern Icon Depth */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-            <span className="font-medium">Active Support Queue</span>
-            <Headphones className="w-4 h-4 text-indigo-600" />
+        <div className="p-4 rounded-xl border border-slate-200/80 card-depth flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
+            <span className="font-semibold text-slate-600">Active Support Queue</span>
+            <div className="icon-depth icon-depth-indigo w-7 h-7 shrink-0">
+              <Headphones className="w-3.5 h-3.5 text-indigo-600" />
+            </div>
           </div>
           <div className="text-xl font-bold font-mono tabular-nums text-slate-900">
             {openTicketsCount} Open · {supportTickets.length} Total
@@ -681,10 +701,12 @@ export const SupportAmcView: React.FC<SupportAmcViewProps> = ({
           </p>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-            <span className="font-medium">Active AMC Portfolio (Incl. GST)</span>
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+        <div className="p-4 rounded-xl border border-slate-200/80 card-depth flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
+            <span className="font-semibold text-slate-600">Active AMC Portfolio (Incl. GST)</span>
+            <div className="icon-depth icon-depth-emerald w-7 h-7 shrink-0">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            </div>
           </div>
           <div className="text-xl font-bold font-mono tabular-nums text-emerald-700">
             {formatCurrency(activeAmcValue)}
@@ -695,10 +717,12 @@ export const SupportAmcView: React.FC<SupportAmcViewProps> = ({
           </p>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-            <span className="font-medium">Change Requests (CR) Pipeline</span>
-            <GitPullRequest className="w-4 h-4 text-violet-600" />
+        <div className="p-4 rounded-xl border border-slate-200/80 card-depth flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
+            <span className="font-semibold text-slate-600">Change Requests (CR) Pipeline</span>
+            <div className="icon-depth icon-depth-purple w-7 h-7 shrink-0">
+              <GitPullRequest className="w-3.5 h-3.5 text-purple-600" />
+            </div>
           </div>
           <div className="text-xl font-bold font-mono tabular-nums text-violet-700">
             {formatCurrency(totalCrValue)}
@@ -709,10 +733,12 @@ export const SupportAmcView: React.FC<SupportAmcViewProps> = ({
           </p>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-            <span className="font-medium">Support & License Invoices</span>
-            <Receipt className="w-4 h-4 text-amber-600" />
+        <div className="p-4 rounded-xl border border-slate-200/80 card-depth flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
+            <span className="font-semibold text-slate-600">Support & License Invoices</span>
+            <div className="icon-depth icon-depth-amber w-7 h-7 shrink-0">
+              <Receipt className="w-3.5 h-3.5 text-amber-600" />
+            </div>
           </div>
           <div className="text-xl font-bold font-mono tabular-nums text-slate-900">
             {formatCurrency(

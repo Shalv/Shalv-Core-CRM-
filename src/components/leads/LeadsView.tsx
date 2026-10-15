@@ -36,6 +36,13 @@ import {
   Trash2,
   X,
   FileSpreadsheet,
+  TrendingUp,
+  Users,
+  Target,
+  Flame,
+  Trophy,
+  Award,
+  ArrowUpRight,
 } from 'lucide-react';
 
 interface LeadsViewProps {
@@ -822,7 +829,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
         </div>
       </div>
 
-      {/* Clickable KPI Summary Tiles */}
+      {/* Clickable KPI Summary Tiles with Modern Icon Depth */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-3.5">
         <button
           type="button"
@@ -832,17 +839,22 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
             setRatingFilter('');
             setOwnerFilter('');
           }}
-          className={`text-left p-4 rounded-xl border transition cursor-pointer min-w-0 overflow-hidden ${
+          className={`text-left p-4 rounded-xl border transition cursor-pointer min-w-0 overflow-hidden card-depth ${
             statusFilter === '' && ratingFilter === '' && sourceFilter === ''
-              ? 'bg-indigo-50/40 border-indigo-400 shadow-xs'
-              : 'bg-white hover:bg-slate-50 border-slate-200/90 shadow-xs'
+              ? 'bg-indigo-50/40 border-indigo-400 ring-2 ring-indigo-500/15'
+              : 'hover:border-slate-300'
           }`}
         >
-          <span className="text-xs text-slate-500 font-medium block truncate">All Leads</span>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs text-slate-500 font-semibold block truncate">All Leads</span>
+            <div className="icon-depth icon-depth-slate w-7 h-7 shrink-0">
+              <Users className="w-3.5 h-3.5 text-slate-700" />
+            </div>
+          </div>
           <div className="text-xl font-bold font-mono tabular-nums text-slate-900 mt-1 truncate">
             {totalLeadsCount}
           </div>
-          <span className="text-[11px] text-indigo-600 mt-1 block truncate">
+          <span className="text-[11px] text-indigo-600 mt-1 block truncate font-medium">
             Click to show all →
           </span>
         </button>
@@ -853,13 +865,18 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
             setStatusFilter(statusFilter === 'New' ? '' : 'New');
             setRatingFilter('');
           }}
-          className={`text-left p-4 rounded-xl border transition cursor-pointer min-w-0 overflow-hidden ${
+          className={`text-left p-4 rounded-xl border transition cursor-pointer min-w-0 overflow-hidden card-depth ${
             statusFilter === 'New'
-              ? 'bg-blue-50/50 border-blue-400 shadow-xs'
-              : 'bg-white hover:bg-slate-50 border-slate-200/90 shadow-xs'
+              ? 'bg-blue-50/50 border-blue-400 ring-2 ring-blue-500/15'
+              : 'hover:border-slate-300'
           }`}
         >
-          <span className="text-xs text-slate-500 font-medium block truncate">New Inquiries</span>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs text-slate-500 font-semibold block truncate">New Inquiries</span>
+            <div className="icon-depth icon-depth-sky w-7 h-7 shrink-0">
+              <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+            </div>
+          </div>
           <div className="text-xl font-bold font-mono tabular-nums text-blue-600 mt-1 truncate">
             {newLeadsCount}
           </div>
@@ -874,13 +891,18 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
             setStatusFilter(statusFilter === 'Qualified' ? '' : 'Qualified');
             setRatingFilter('');
           }}
-          className={`text-left p-4 rounded-xl border transition cursor-pointer min-w-0 overflow-hidden ${
+          className={`text-left p-4 rounded-xl border transition cursor-pointer min-w-0 overflow-hidden card-depth ${
             statusFilter === 'Qualified'
-              ? 'bg-indigo-50/50 border-indigo-400 shadow-xs'
-              : 'bg-white hover:bg-slate-50 border-slate-200/90 shadow-xs'
+              ? 'bg-indigo-50/50 border-indigo-400 ring-2 ring-indigo-500/15'
+              : 'hover:border-slate-300'
           }`}
         >
-          <span className="text-xs text-slate-500 font-medium block truncate">Qualified Leads</span>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs text-slate-500 font-semibold block truncate">Qualified Leads</span>
+            <div className="icon-depth icon-depth-indigo w-7 h-7 shrink-0">
+              <Target className="w-3.5 h-3.5 text-indigo-600" />
+            </div>
+          </div>
           <div className="text-xl font-bold font-mono tabular-nums text-indigo-600 mt-1 truncate">
             {qualifiedLeadsCount}
           </div>
@@ -895,13 +917,18 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
             setRatingFilter(ratingFilter === 'Hot' ? '' : 'Hot');
             setStatusFilter('');
           }}
-          className={`text-left p-4 rounded-xl border transition cursor-pointer min-w-0 overflow-hidden ${
+          className={`text-left p-4 rounded-xl border transition cursor-pointer min-w-0 overflow-hidden card-depth ${
             ratingFilter === 'Hot'
-              ? 'bg-rose-50/50 border-rose-400 shadow-xs'
-              : 'bg-white hover:bg-slate-50 border-slate-200/90 shadow-xs'
+              ? 'bg-rose-50/50 border-rose-400 ring-2 ring-rose-500/15'
+              : 'hover:border-slate-300'
           }`}
         >
-          <span className="text-xs text-slate-500 font-medium block truncate">Hot Priority Leads</span>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs text-slate-500 font-semibold block truncate">Hot Priority Leads</span>
+            <div className="icon-depth icon-depth-rose w-7 h-7 shrink-0">
+              <Flame className="w-3.5 h-3.5 text-rose-600" />
+            </div>
+          </div>
           <div className="text-xl font-bold font-mono tabular-nums text-rose-600 mt-1 truncate">
             {hotLeadsCount}
           </div>
@@ -916,13 +943,18 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
             setStatusFilter(statusFilter === 'Won' ? '' : 'Won');
             setRatingFilter('');
           }}
-          className={`text-left p-4 rounded-xl border transition cursor-pointer min-w-0 overflow-hidden ${
+          className={`text-left p-4 rounded-xl border transition cursor-pointer min-w-0 overflow-hidden card-depth ${
             statusFilter === 'Won'
-              ? 'bg-emerald-50/50 border-emerald-400 shadow-xs'
-              : 'bg-white hover:bg-slate-50 border-slate-200/90 shadow-xs'
+              ? 'bg-emerald-50/50 border-emerald-400 ring-2 ring-emerald-500/15'
+              : 'hover:border-slate-300'
           }`}
         >
-          <span className="text-xs text-slate-500 font-medium block truncate">Converted / Won</span>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs text-slate-500 font-semibold block truncate">Converted / Won</span>
+            <div className="icon-depth icon-depth-emerald w-7 h-7 shrink-0">
+              <Trophy className="w-3.5 h-3.5 text-emerald-600" />
+            </div>
+          </div>
           <div className="text-xl font-bold font-mono tabular-nums text-emerald-600 mt-1 truncate">
             {wonLeadsCount}
           </div>
@@ -934,9 +966,14 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
         <button
           type="button"
           onClick={() => onNavigateToReport?.('funnel')}
-          className="text-left p-4 rounded-xl border border-slate-200/90 bg-white hover:bg-indigo-50/30 hover:border-indigo-300 shadow-xs transition cursor-pointer min-w-0 overflow-hidden"
+          className="text-left p-4 rounded-xl border border-slate-200/90 hover:bg-indigo-50/30 hover:border-indigo-300 transition cursor-pointer min-w-0 overflow-hidden card-depth"
         >
-          <span className="text-xs text-slate-500 font-medium block truncate">Est. Lead Pipeline</span>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs text-slate-500 font-semibold block truncate">Est. Lead Pipeline</span>
+            <div className="icon-depth icon-depth-amber w-7 h-7 shrink-0">
+              <TrendingUp className="w-3.5 h-3.5 text-amber-600" />
+            </div>
+          </div>
           <div
             className="text-base sm:text-lg font-bold font-mono tabular-nums text-indigo-600 mt-1 truncate"
             title={formatCurrency(totalEstimatedPipeline)}

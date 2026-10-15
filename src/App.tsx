@@ -404,7 +404,7 @@ function MainAppContent() {
 
         {/* View Container */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-5 lg:p-6 xl:p-8">
-          <div className="max-w-[1680px] w-full mx-auto min-w-0">
+          <div className="w-full min-w-0">
             {!canView(currentModule as CrmModuleKey) ? (
               <AccessRestrictedView
                 moduleKey={currentModule}

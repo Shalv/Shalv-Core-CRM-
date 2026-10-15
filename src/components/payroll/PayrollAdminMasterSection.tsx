@@ -1289,8 +1289,29 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
             <span>Clear All Payroll Data</span>
           </button>
 
-          {/* Segmented Sub-Navigation */}
-          <div className="flex flex-wrap items-center gap-1 bg-slate-800 p-1 rounded-lg border border-slate-700 shrink-0">
+          {/* Mobile / Tablet Dropdown Selector for Admin Sections */}
+          <div className="block 2xl:hidden w-full sm:w-auto">
+            <select
+              value={adminSubTab}
+              onChange={(e) => setAdminSubTab(e.target.value as typeof adminSubTab)}
+              aria-label="Select Admin Section"
+              className="w-full header-dropdown-select bg-slate-800 text-white border border-slate-700 rounded-lg px-3 py-1.5 text-xs font-semibold cursor-pointer focus:ring-2 focus:ring-[#1f7e9e]"
+            >
+              <option value="salary_master">1. Employees &amp; Full Allocation (CRUD)</option>
+              <option value="org_masters">
+                2. Org Masters ({orgMasters.roles.length + orgMasters.designations.length + orgMasters.locations.length + orgMasters.departments.length})
+              </option>
+              <option value="policy_master">3. Leave &amp; Shift Policy</option>
+              <option value="approvals">4. Leaves &amp; Claims (CRUD / Approve)</option>
+              <option value="payroll_run">5. Monthly Payroll Run</option>
+              {integrationSectionNode && (
+                <option value="external_integration">6. External Payroll Link (Admin)</option>
+              )}
+            </select>
+          </div>
+
+          {/* Large Screen Segmented Sub-Navigation */}
+          <div className="hidden 2xl:flex flex-wrap items-center gap-1 bg-slate-800 p-1 rounded-lg border border-slate-700 shrink-0">
             {[
               { id: 'salary_master', label: '1. Employees & Full Allocation (CRUD)' },
               {

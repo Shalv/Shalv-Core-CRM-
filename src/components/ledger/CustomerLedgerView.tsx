@@ -12,6 +12,9 @@ import {
   TrendingUp,
   TrendingDown,
   RotateCcw,
+  Wallet,
+  AlertCircle,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   DateRangePicker,
@@ -198,7 +201,7 @@ export const CustomerLedgerView: React.FC<CustomerLedgerViewProps> = ({
         </div>
       </div>
 
-      {/* Receivables Summary Badges (All 4 clickable) */}
+      {/* Receivables Summary Badges with Modern Icon Depth (All 4 clickable) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
         <button
           type="button"
@@ -206,15 +209,17 @@ export const CustomerLedgerView: React.FC<CustomerLedgerViewProps> = ({
             setViewTab('statement');
             setSelectedCustomerId('ALL');
           }}
-          className={`text-left bg-white p-4 rounded-xl border shadow-xs transition group cursor-pointer ${
+          className={`text-left bg-white p-4 rounded-xl border transition group cursor-pointer card-depth ${
             viewTab === 'statement' && selectedCustomerId === 'ALL'
               ? 'border-indigo-400 ring-2 ring-indigo-500/15 bg-indigo-50/20'
-              : 'border-slate-200 hover:border-indigo-300'
+              : 'hover:border-indigo-300'
           }`}
         >
-          <div className="flex items-center justify-between">
-            <span className="text-slate-500 text-[11px] font-semibold block">Total Outstanding AR</span>
-            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 transition shrink-0" />
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-slate-500 text-[11px] font-bold uppercase tracking-wider block">Total Outstanding AR</span>
+            <div className="icon-depth icon-depth-indigo w-7 h-7 shrink-0">
+              <Wallet className="w-3.5 h-3.5 text-indigo-600" />
+            </div>
           </div>
           <div className="text-xl font-extrabold font-mono tabular-nums text-slate-900 mt-1 truncate">
             {formatCurrency(totalReceivables)}
@@ -225,15 +230,17 @@ export const CustomerLedgerView: React.FC<CustomerLedgerViewProps> = ({
         <button
           type="button"
           onClick={() => setViewTab('aging')}
-          className={`text-left bg-white p-4 rounded-xl border shadow-xs transition group cursor-pointer ${
+          className={`text-left bg-white p-4 rounded-xl border transition group cursor-pointer card-depth ${
             viewTab === 'aging'
               ? 'border-rose-400 ring-2 ring-rose-500/15 bg-rose-50/40'
               : 'border-rose-200 bg-rose-50/20 hover:border-rose-400'
           }`}
         >
-          <div className="flex items-center justify-between">
-            <span className="text-rose-600 text-[11px] font-semibold block">Total Overdue Amount</span>
-            <ArrowUpRight className="w-3.5 h-3.5 text-rose-400 group-hover:text-rose-700 transition shrink-0" />
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-rose-600 text-[11px] font-bold uppercase tracking-wider block">Total Overdue Amount</span>
+            <div className="icon-depth icon-depth-rose w-7 h-7 shrink-0">
+              <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+            </div>
           </div>
           <div className="text-xl font-extrabold font-mono tabular-nums text-rose-700 mt-1 truncate">
             {formatCurrency(totalOverdue)}
@@ -244,11 +251,13 @@ export const CustomerLedgerView: React.FC<CustomerLedgerViewProps> = ({
         <button
           type="button"
           onClick={() => setViewTab('aging')}
-          className="text-left bg-white p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/20 shadow-xs transition group cursor-pointer"
+          className="text-left bg-white p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/20 transition group cursor-pointer card-depth"
         >
-          <div className="flex items-center justify-between">
-            <span className="text-slate-500 text-[11px] font-semibold block">Current (Not Yet Due)</span>
-            <ArrowUpRight className="w-3.5 h-3.5 text-indigo-400 group-hover:text-indigo-700 transition shrink-0" />
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-slate-500 text-[11px] font-bold uppercase tracking-wider block">Current (Not Yet Due)</span>
+            <div className="icon-depth icon-depth-sky w-7 h-7 shrink-0">
+              <Clock className="w-3.5 h-3.5 text-sky-600" />
+            </div>
           </div>
           <div className="text-xl font-extrabold font-mono tabular-nums text-indigo-600 mt-1 truncate">
             {formatCurrency(customerAgingData.reduce((acc, c) => acc + c.currentNotDue, 0))}
@@ -259,11 +268,13 @@ export const CustomerLedgerView: React.FC<CustomerLedgerViewProps> = ({
         <button
           type="button"
           onClick={() => onNavigateToReport?.('gst_tax_register')}
-          className="text-left bg-white p-4 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/20 shadow-xs transition group cursor-pointer"
+          className="text-left bg-white p-4 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/20 transition group cursor-pointer card-depth"
         >
-          <div className="flex items-center justify-between">
-            <span className="text-slate-500 text-[11px] font-semibold block">Accounts with Balances</span>
-            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-700 transition shrink-0" />
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-slate-500 text-[11px] font-bold uppercase tracking-wider block">Accounts with Balances</span>
+            <div className="icon-depth icon-depth-emerald w-7 h-7 shrink-0">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            </div>
           </div>
           <div className="text-xl font-extrabold font-mono tabular-nums text-slate-900 mt-1 truncate">
             {customerAgingData.filter((c) => c.totalOutstanding > 0).length} of {customers.length}
@@ -272,33 +283,49 @@ export const CustomerLedgerView: React.FC<CustomerLedgerViewProps> = ({
         </button>
       </div>
 
-      {/* View Selector Tabs */}
-      <div className="flex items-center gap-1.5 bg-white p-1.5 rounded-2xl border border-slate-200 text-xs font-semibold overflow-x-auto max-w-full shadow-2xs">
-        <button
-          type="button"
-          onClick={() => setViewTab('statement')}
-          className={`py-2 px-3.5 rounded-xl flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap shrink-0 ${
-            viewTab === 'statement'
-              ? 'sidebar-tab-active-depth text-slate-900 font-bold'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
-          }`}
-        >
-          <BookOpen className="w-4 h-4 shrink-0" />
-          <span>Ledger Statement Register</span>
-        </button>
+      {/* View Selector Tabs — Zero Header Scrolling via Responsive Dropdown List */}
+      <div>
+        {/* Mobile / Tablet Dropdown Selector */}
+        <div className="block sm:hidden w-full">
+          <select
+            value={viewTab}
+            onChange={(e) => setViewTab(e.target.value as any)}
+            aria-label="Select Ledger View"
+            className="w-full header-dropdown-select bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900 shadow-2xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 cursor-pointer"
+          >
+            <option value="statement">📖 Ledger Statement Register</option>
+            <option value="aging">🕒 Receivables Aging Schedule (0-90+ Days)</option>
+          </select>
+        </div>
 
-        <button
-          type="button"
-          onClick={() => setViewTab('aging')}
-          className={`py-2 px-3.5 rounded-xl flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap shrink-0 ${
-            viewTab === 'aging'
-              ? 'sidebar-tab-active-depth text-slate-900 font-bold'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
-          }`}
-        >
-          <Clock className="w-4 h-4 shrink-0" />
-          <span>Receivables Aging Schedule (0-90+ Days)</span>
-        </button>
+        {/* Desktop View Selector Tabs */}
+        <div className="hidden sm:flex items-center gap-1.5 bg-white p-1.5 rounded-2xl border border-slate-200 text-xs font-semibold shadow-2xs">
+          <button
+            type="button"
+            onClick={() => setViewTab('statement')}
+            className={`py-2 px-3.5 rounded-xl flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap shrink-0 ${
+              viewTab === 'statement'
+                ? 'sidebar-tab-active-depth text-slate-900 font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
+            }`}
+          >
+            <BookOpen className="w-4 h-4 shrink-0" />
+            <span>Ledger Statement Register</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setViewTab('aging')}
+            className={`py-2 px-3.5 rounded-xl flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap shrink-0 ${
+              viewTab === 'aging'
+                ? 'sidebar-tab-active-depth text-slate-900 font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
+            }`}
+          >
+            <Clock className="w-4 h-4 shrink-0" />
+            <span>Receivables Aging Schedule (0-90+ Days)</span>
+          </button>
+        </div>
       </div>
 
       {/* TAB 1: Ledger Statement */}

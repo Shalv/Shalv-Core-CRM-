@@ -1282,47 +1282,68 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
               </div>
             </div>
 
-            {/* Allocation Step / Tab Switcher */}
-            <div className="px-6 py-2.5 bg-slate-100 border-b border-slate-200 flex items-center gap-2 overflow-x-auto shrink-0 text-xs">
-              <button
-                type="button"
-                onClick={() => setModalSection('identity')}
-                className={`px-3.5 py-1.5 rounded-lg font-bold whitespace-nowrap transition cursor-pointer ${
-                  modalSection === 'identity'
-                    ? 'bg-white text-indigo-700 shadow-2xs border border-slate-200/80'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                1. CRM Profile, Role &amp; Territory Allocation
-              </button>
-              <button
-                type="button"
-                onClick={() => setModalSection('permissions')}
-                className={`px-3.5 py-1.5 rounded-lg font-bold whitespace-nowrap flex items-center gap-1.5 transition cursor-pointer ${
-                  modalSection === 'permissions'
-                    ? 'bg-white text-indigo-700 shadow-2xs border border-slate-200/80'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <SlidersHorizontal className="w-3.5 h-3.5" />
-                <span>2. CRM Module Rights Allocation (15 Modules)</span>
-              </button>
-              {alsoCreateInPayroll && (
+            {/* Allocation Step / Tab Switcher — Zero Header Scrolling via Responsive Dropdown */}
+            <div className="px-4 sm:px-6 py-2.5 bg-slate-100 border-b border-slate-200">
+              {/* Mobile / Tablet Dropdown Selector */}
+              <div className="block md:hidden w-full">
+                <select
+                  value={modalSection}
+                  onChange={(e) => setModalSection(e.target.value as any)}
+                  aria-label="Select User Allocation Step"
+                  className="w-full header-dropdown-select bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 shadow-2xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 cursor-pointer"
+                >
+                  <option value="identity">1. CRM Profile, Role &amp; Territory Allocation</option>
+                  <option value="permissions">2. CRM Module Rights Allocation (15 Modules)</option>
+                  {alsoCreateInPayroll && (
+                    <option value="payroll">
+                      3. Payroll Salary, Statutory &amp; Leave Allocation ({payrollDraft.empCode})
+                    </option>
+                  )}
+                </select>
+              </div>
+
+              {/* Desktop View Buttons */}
+              <div className="hidden md:flex flex-wrap items-center gap-2 text-xs">
                 <button
                   type="button"
-                  onClick={() => setModalSection('payroll')}
-                  className={`px-3.5 py-1.5 rounded-lg font-bold whitespace-nowrap flex items-center gap-1.5 transition cursor-pointer ${
-                    modalSection === 'payroll'
-                      ? 'bg-white text-emerald-700 shadow-2xs border border-emerald-200'
-                      : 'text-emerald-800 hover:bg-emerald-50'
+                  onClick={() => setModalSection('identity')}
+                  className={`px-3.5 py-1.5 rounded-lg font-bold whitespace-nowrap transition cursor-pointer ${
+                    modalSection === 'identity'
+                      ? 'bg-white text-indigo-700 shadow-2xs border border-slate-200/80'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  <Wallet className="w-3.5 h-3.5" />
-                  <span>
-                    3. Payroll Salary, Statutory, Bank &amp; Leave Allocation ({payrollDraft.empCode})
-                  </span>
+                  1. CRM Profile, Role &amp; Territory Allocation
                 </button>
-              )}
+                <button
+                  type="button"
+                  onClick={() => setModalSection('permissions')}
+                  className={`px-3.5 py-1.5 rounded-lg font-bold whitespace-nowrap flex items-center gap-1.5 transition cursor-pointer ${
+                    modalSection === 'permissions'
+                      ? 'bg-white text-indigo-700 shadow-2xs border border-slate-200/80'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  <span>2. CRM Module Rights Allocation (15 Modules)</span>
+                </button>
+                {alsoCreateInPayroll && (
+                  <button
+                    type="button"
+                    onClick={() => setModalSection('payroll')}
+                    className={`px-3.5 py-1.5 rounded-lg font-bold whitespace-nowrap flex items-center gap-1.5 transition cursor-pointer ${
+                      modalSection === 'payroll'
+                        ? 'bg-white text-emerald-700 shadow-2xs border border-emerald-200'
+                        : 'text-emerald-800 hover:bg-emerald-50'
+                    }`}
+                  >
+                    <Wallet className="w-3.5 h-3.5" />
+                    <span>
+                      3. Payroll Salary, Statutory, Bank &amp; Leave Allocation ({payrollDraft.empCode})
+                    </span>
+                  </button>
+                )}
+              </div>
             </div>
 
             <form onSubmit={handleSave} className="p-6 space-y-5 text-xs overflow-y-auto flex-1">
