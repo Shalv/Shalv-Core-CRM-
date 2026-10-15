@@ -1216,6 +1216,13 @@ const CITY_GOOGLE_COORDINATES: Record<
     plusCode: '7JWVGVW9+87',
     placeId: 'ChIJLbZ-NFv9DDkRzk0gTkm3wlI',
   },
+  faridabad: {
+    lat: 28.4089,
+    lng: 77.3178,
+    formattedAddress: 'Faridabad, Haryana 121002, India',
+    plusCode: '7JWVCP59+H4',
+    placeId: 'ChIJz2QzWd7tDDkR600Wb3l5v98',
+  },
   mumbai: {
     lat: 19.06598,
     lng: 72.86812,
