@@ -28,8 +28,17 @@ import {
   AlertCircle,
   ExternalLink,
   BarChart2,
+  Printer,
+  Eye,
+  Check,
+  Mail,
+  Phone,
+  Info,
+  RefreshCw,
+  FileCheck,
 } from 'lucide-react';
 import { useCrm } from '../../context/CrmContext';
+import { amountInWords } from '../../utils/numberToWords';
 import {
   EmployeeSalaryMasterRecord,
   AttendanceSession,
@@ -101,6 +110,25 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
 
   // Modal state for "View location"
   const [selectedLocationEmployee, setSelectedLocationEmployee] = useState<WorkforceEmployeeItem | null>(null);
+
+  // Active pop-up card modal for clicked dashboard tiles
+  const [activeTilePopup, setActiveTilePopup] = useState<
+    | 'total_employees'
+    | 'present_today'
+    | 'monthly_payroll'
+    | 'pending_approvals'
+    | 'attendance_summary'
+    | 'payroll_readiness'
+    | 'approval_inbox'
+    | 'manage_policies'
+    | 'generate_payslips'
+    | null
+  >(null);
+  const [popupFilterSearch, setPopupFilterSearch] = useState('');
+  const [selectedPayslipEmp, setSelectedPayslipEmp] = useState<WorkforceEmployeeItem | null>(null);
+  const [approvalSubTab, setApprovalSubTab] = useState<'leaves' | 'expenses' | 'loans'>('leaves');
+  const [attendanceModalFilter, setAttendanceModalFilter] = useState<'all' | 'present' | 'absent'>('all');
+  const [reminderToast, setReminderToast] = useState<string | null>(null);
 
   // Modal state for Run Payroll
   const [isRunPayrollModalOpen, setIsRunPayrollModalOpen] = useState(false);
@@ -381,14 +409,18 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Metric 1: Total employees */}
         <div
-          onClick={() => onNavigateTab('employees')}
-          className="bg-white rounded-xl border border-slate-200/90 p-4 shadow-2xs hover:shadow-xs hover:border-slate-300 transition-all cursor-pointer flex flex-col justify-between"
+          onClick={() => {
+            setPopupFilterSearch('');
+            setActiveTilePopup('total_employees');
+          }}
+          className="bg-white rounded-xl border border-slate-200/90 p-4 shadow-2xs hover:shadow-md hover:border-sky-300 transition-all cursor-pointer flex flex-col justify-between group"
+          title="Click to view Total Employees pop-up card"
         >
           <div className="flex items-center justify-between">
-            <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center group-hover:scale-105 transition-transform">
               <Users className="w-5 h-5" />
             </div>
-            <ChevronRight className="w-4 h-4 text-slate-400" />
+            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition" />
           </div>
           <div className="mt-4">
             <span className="text-xs text-slate-500 font-medium">Total employees</span>
@@ -404,14 +436,18 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
 
         {/* Metric 2: Present today */}
         <div
-          onClick={() => onNavigateTab('attendance')}
-          className="bg-white rounded-xl border border-slate-200/90 p-4 shadow-2xs hover:shadow-xs hover:border-slate-300 transition-all cursor-pointer flex flex-col justify-between"
+          onClick={() => {
+            setPopupFilterSearch('');
+            setActiveTilePopup('present_today');
+          }}
+          className="bg-white rounded-xl border border-slate-200/90 p-4 shadow-2xs hover:shadow-md hover:border-teal-300 transition-all cursor-pointer flex flex-col justify-between group"
+          title="Click to view Today's Attendance pop-up card"
         >
           <div className="flex items-center justify-between">
-            <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center group-hover:scale-105 transition-transform">
               <Calendar className="w-5 h-5" />
             </div>
-            <ChevronRight className="w-4 h-4 text-slate-400" />
+            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition" />
           </div>
           <div className="mt-4">
             <span className="text-xs text-slate-500 font-medium">Present today</span>
@@ -427,14 +463,18 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
 
         {/* Metric 3: Monthly payroll */}
         <div
-          onClick={() => onNavigateTab('payroll')}
-          className="bg-white rounded-xl border border-slate-200/90 p-4 shadow-2xs hover:shadow-xs hover:border-slate-300 transition-all cursor-pointer flex flex-col justify-between"
+          onClick={() => {
+            setPopupFilterSearch('');
+            setActiveTilePopup('monthly_payroll');
+          }}
+          className="bg-white rounded-xl border border-slate-200/90 p-4 shadow-2xs hover:shadow-md hover:border-blue-300 transition-all cursor-pointer flex flex-col justify-between group"
+          title="Click to view Monthly Payroll pop-up card"
         >
           <div className="flex items-center justify-between">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
               <Wallet className="w-5 h-5" />
             </div>
-            <ChevronRight className="w-4 h-4 text-slate-400" />
+            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition" />
           </div>
           <div className="mt-4">
             <span className="text-xs text-slate-500 font-medium">Monthly payroll</span>
@@ -450,14 +490,18 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
 
         {/* Metric 4: Pending approvals */}
         <div
-          onClick={() => onNavigateTab('leaves')}
-          className="bg-white rounded-xl border border-slate-200/90 p-4 shadow-2xs hover:shadow-xs hover:border-slate-300 transition-all cursor-pointer flex flex-col justify-between"
+          onClick={() => {
+            setPopupFilterSearch('');
+            setActiveTilePopup('pending_approvals');
+          }}
+          className="bg-white rounded-xl border border-slate-200/90 p-4 shadow-2xs hover:shadow-md hover:border-emerald-300 transition-all cursor-pointer flex flex-col justify-between group"
+          title="Click to view Pending Approvals pop-up card"
         >
           <div className="flex items-center justify-between">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
               <FileText className="w-5 h-5" />
             </div>
-            <ChevronRight className="w-4 h-4 text-slate-400" />
+            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition" />
           </div>
           <div className="mt-4">
             <span className="text-xs text-slate-500 font-medium">Pending approvals</span>
@@ -686,8 +730,12 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
               <span>Showing {filteredEmployees.length} employees</span>
               <button
                 type="button"
-                onClick={() => onNavigateTab('attendance')}
+                onClick={() => {
+                  setPopupFilterSearch('');
+                  setActiveTilePopup('present_today');
+                }}
                 className="text-teal-600 hover:text-teal-800 font-bold inline-flex items-center gap-1 cursor-pointer"
+                title="Click to view detailed attendance pop-up card"
               >
                 <span>View attendance report</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -699,20 +747,24 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Card: Attendance summary */}
             <div
-              onClick={() => onNavigateTab('attendance')}
-              className="bg-white rounded-xl border border-slate-200/90 p-5 shadow-2xs hover:shadow-xs transition cursor-pointer flex flex-col justify-between"
+              onClick={() => {
+                setPopupFilterSearch('');
+                setActiveTilePopup('attendance_summary');
+              }}
+              className="bg-white rounded-xl border border-slate-200/90 p-5 shadow-2xs hover:shadow-md hover:border-teal-300 transition-all cursor-pointer flex flex-col justify-between group"
+              title="Click to view Attendance summary pop-up card"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <BarChart2 className="w-4 h-4 text-teal-600" />
+                  <BarChart2 className="w-4 h-4 text-teal-600 group-hover:scale-110 transition-transform" />
                   <span className="font-bold text-xs sm:text-sm text-slate-900">Attendance summary</span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-slate-400" />
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition" />
               </div>
 
               {/* Dual-color Progress Bar */}
               <div className="my-5">
-                <div className="w-full h-3.5 rounded-full overflow-hidden flex bg-slate-100">
+                <div className="w-full h-3.5 rounded-full overflow-hidden flex bg-slate-100 shadow-inner">
                   <div
                     style={{ width: `${attendancePercentage}%` }}
                     className="bg-emerald-500 transition-all duration-300"
@@ -745,20 +797,24 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
 
             {/* Card: Payroll readiness */}
             <div
-              onClick={() => onNavigateTab('payroll')}
-              className="bg-white rounded-xl border border-slate-200/90 p-5 shadow-2xs hover:shadow-xs transition cursor-pointer flex flex-col justify-between"
+              onClick={() => {
+                setPopupFilterSearch('');
+                setActiveTilePopup('payroll_readiness');
+              }}
+              className="bg-white rounded-xl border border-slate-200/90 p-5 shadow-2xs hover:shadow-md hover:border-teal-300 transition-all cursor-pointer flex flex-col justify-between group"
+              title="Click to view Payroll readiness pop-up card"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-teal-600" />
+                  <FileText className="w-4 h-4 text-teal-600 group-hover:scale-110 transition-transform" />
                   <span className="font-bold text-xs sm:text-sm text-slate-900">Payroll readiness</span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-slate-400" />
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition" />
               </div>
 
               <div className="my-3 flex items-center gap-4">
                 {/* Circular Green Checkmark Badge */}
-                <div className="w-12 h-12 rounded-full border-4 border-emerald-500 flex items-center justify-center text-emerald-600 shrink-0 shadow-xs">
+                <div className="w-12 h-12 rounded-full border-4 border-emerald-500 flex items-center justify-center text-emerald-600 shrink-0 shadow-xs group-hover:scale-105 transition-transform">
                   <CheckCircle2 className="w-6 h-6 stroke-[2.5]" />
                 </div>
                 <div>
@@ -782,21 +838,31 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
           {/* Card 1: Approval inbox */}
           <div className="bg-white rounded-xl border border-slate-200/90 p-5 shadow-2xs">
             <div
-              onClick={() => onNavigateTab('leaves')}
-              className="flex items-center justify-between cursor-pointer mb-3"
+              onClick={() => {
+                setPopupFilterSearch('');
+                setApprovalSubTab('leaves');
+                setActiveTilePopup('pending_approvals');
+              }}
+              className="flex items-center justify-between cursor-pointer mb-3 group"
+              title="Click to view Approval inbox pop-up card"
             >
               <div className="flex items-center gap-2">
-                <Receipt className="w-4 h-4 text-teal-600" />
+                <Receipt className="w-4 h-4 text-teal-600 group-hover:scale-110 transition-transform" />
                 <span className="font-bold text-xs sm:text-sm text-slate-900">Approval inbox</span>
               </div>
-              <ChevronRight className="w-4 h-4 text-slate-400" />
+              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition" />
             </div>
 
             {/* Approval Categories List */}
             <div className="divide-y divide-slate-100 text-xs">
               <div
-                onClick={() => onNavigateTab('leaves')}
+                onClick={() => {
+                  setPopupFilterSearch('');
+                  setApprovalSubTab('leaves');
+                  setActiveTilePopup('pending_approvals');
+                }}
                 className="py-3 flex items-center justify-between hover:bg-slate-50/70 -mx-2 px-2 rounded-lg transition cursor-pointer"
+                title="Click to view Leave requests pop-up card"
               >
                 <div className="flex items-center gap-2.5 text-slate-700">
                   <Send className="w-4 h-4 text-sky-500" />
@@ -809,8 +875,13 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
               </div>
 
               <div
-                onClick={() => onNavigateTab('expenses')}
+                onClick={() => {
+                  setPopupFilterSearch('');
+                  setApprovalSubTab('expenses');
+                  setActiveTilePopup('pending_approvals');
+                }}
                 className="py-3 flex items-center justify-between hover:bg-slate-50/70 -mx-2 px-2 rounded-lg transition cursor-pointer"
+                title="Click to view Expense claims pop-up card"
               >
                 <div className="flex items-center gap-2.5 text-slate-700">
                   <FileText className="w-4 h-4 text-sky-500" />
@@ -823,8 +894,13 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
               </div>
 
               <div
-                onClick={() => onNavigateTab('payroll', 'loans')}
+                onClick={() => {
+                  setPopupFilterSearch('');
+                  setApprovalSubTab('loans');
+                  setActiveTilePopup('pending_approvals');
+                }}
                 className="py-3 flex items-center justify-between hover:bg-slate-50/70 -mx-2 px-2 rounded-lg transition cursor-pointer"
+                title="Click to view Loan requests pop-up card"
               >
                 <div className="flex items-center gap-2.5 text-slate-700">
                   <IndianRupee className="w-4 h-4 text-emerald-600" />
@@ -839,7 +915,14 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
 
             {/* Inbox Status State */}
             {totalPendingApprovals === 0 ? (
-              <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col items-center justify-center text-center py-4 bg-slate-50/50 rounded-xl">
+              <div
+                onClick={() => {
+                  setPopupFilterSearch('');
+                  setActiveTilePopup('pending_approvals');
+                }}
+                className="mt-4 pt-4 border-t border-slate-100 flex flex-col items-center justify-center text-center py-4 bg-slate-50/50 rounded-xl hover:bg-slate-50 transition cursor-pointer"
+                title="Click to view Approvals details"
+              >
                 <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-2">
                   <CheckCircle2 className="w-5 h-5 stroke-[2.5]" />
                 </div>
@@ -855,8 +938,11 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
                 <span>{totalPendingApprovals} request(s) awaiting your review</span>
                 <button
                   type="button"
-                  onClick={() => onNavigateTab('leaves')}
-                  className="font-bold underline text-amber-950"
+                  onClick={() => {
+                    setPopupFilterSearch('');
+                    setActiveTilePopup('pending_approvals');
+                  }}
+                  className="font-bold underline text-amber-950 cursor-pointer"
                 >
                   Review now
                 </button>
@@ -898,8 +984,12 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
 
               {/* Action 2: Generate payslips */}
               <div
-                onClick={() => onNavigateTab('payroll', 'payslips')}
+                onClick={() => {
+                  setSelectedPayslipEmp(defaultEmployees[0]);
+                  setActiveTilePopup('generate_payslips');
+                }}
                 className="p-3 rounded-xl border border-slate-100 hover:border-slate-200 bg-slate-50/50 hover:bg-slate-50 transition cursor-pointer flex items-center justify-between gap-3 group"
+                title="Click to view & generate payslips pop-up card"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
@@ -919,8 +1009,11 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
 
               {/* Action 3: Manage policies */}
               <div
-                onClick={() => onNavigateTab('administration', 'policies')}
+                onClick={() => {
+                  setActiveTilePopup('manage_policies');
+                }}
                 className="p-3 rounded-xl border border-slate-100 hover:border-slate-200 bg-slate-50/50 hover:bg-slate-50 transition cursor-pointer flex items-center justify-between gap-3 group"
+                title="Click to view company policies pop-up card"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
@@ -1298,6 +1391,1148 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 7. POP-UP CARD MODAL FOR ALL DASHBOARD TILES (Same screen pop-up card) */}
+      {activeTilePopup && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-150"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setActiveTilePopup(null);
+            }
+          }}
+        >
+          <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] my-auto">
+            {/* Pop-up Card Toast Notice */}
+            {reminderToast && (
+              <div className="bg-emerald-600 text-white text-xs px-4 py-2.5 font-semibold flex items-center justify-between shadow-xs">
+                <div className="flex items-center gap-2 mx-auto">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>{reminderToast}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReminderToast(null)}
+                  className="text-emerald-200 hover:text-white cursor-pointer ml-2"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Pop-up Card Header */}
+            <div className="px-5 sm:px-6 py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                    activeTilePopup === 'total_employees'
+                      ? 'bg-sky-500/20 text-sky-400'
+                      : activeTilePopup === 'present_today' || activeTilePopup === 'attendance_summary'
+                      ? 'bg-teal-500/20 text-teal-400'
+                      : activeTilePopup === 'monthly_payroll'
+                      ? 'bg-blue-500/20 text-blue-400'
+                      : activeTilePopup === 'pending_approvals' || activeTilePopup === 'approval_inbox'
+                      ? 'bg-emerald-500/20 text-emerald-400'
+                      : activeTilePopup === 'payroll_readiness' || activeTilePopup === 'manage_policies'
+                      ? 'bg-emerald-500/20 text-emerald-400'
+                      : 'bg-indigo-500/20 text-indigo-400'
+                  }`}
+                >
+                  {activeTilePopup === 'total_employees' && <Users className="w-5 h-5" />}
+                  {activeTilePopup === 'present_today' && <Calendar className="w-5 h-5" />}
+                  {activeTilePopup === 'monthly_payroll' && <Wallet className="w-5 h-5" />}
+                  {(activeTilePopup === 'pending_approvals' || activeTilePopup === 'approval_inbox') && (
+                    <FileText className="w-5 h-5" />
+                  )}
+                  {activeTilePopup === 'attendance_summary' && <BarChart2 className="w-5 h-5" />}
+                  {activeTilePopup === 'payroll_readiness' && <ShieldCheck className="w-5 h-5" />}
+                  {activeTilePopup === 'generate_payslips' && <FileCheck className="w-5 h-5" />}
+                  {activeTilePopup === 'manage_policies' && <ShieldCheck className="w-5 h-5" />}
+                </div>
+
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-extrabold text-sm sm:text-base text-white tracking-tight">
+                      {activeTilePopup === 'total_employees' && 'Total Employees Directory'}
+                      {activeTilePopup === 'present_today' && "Today's Attendance Register"}
+                      {activeTilePopup === 'monthly_payroll' && 'Monthly Payroll Breakdown · October 2026'}
+                      {(activeTilePopup === 'pending_approvals' || activeTilePopup === 'approval_inbox') &&
+                        'Approval Workflow Inbox'}
+                      {activeTilePopup === 'attendance_summary' && 'Attendance Summary & Shift Analytics'}
+                      {activeTilePopup === 'payroll_readiness' && 'Payroll Readiness & Compliance Audit'}
+                      {activeTilePopup === 'generate_payslips' && 'Employee Payslip Viewer & Generator'}
+                      {activeTilePopup === 'manage_policies' && 'Company HR Policies & Rules'}
+                    </h3>
+                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                      Pop-up Card
+                    </span>
+                  </div>
+                  <p className="text-[11.5px] text-slate-300 mt-0.5">
+                    {activeTilePopup === 'total_employees' &&
+                      'Complete workforce list with departments, contact, and CTC records'}
+                    {activeTilePopup === 'present_today' &&
+                      'Real-time punch records with Google Maps coordinates for 15 Oct 2026'}
+                    {activeTilePopup === 'monthly_payroll' &&
+                      'Itemized salary register with Basic, HRA, PF, PT, TDS & Net Pay'}
+                    {(activeTilePopup === 'pending_approvals' || activeTilePopup === 'approval_inbox') &&
+                      'Pending leave applications, expense claims and loan advances'}
+                    {activeTilePopup === 'attendance_summary' &&
+                      'Presence distribution, punctuality rates and department attendance'}
+                    {activeTilePopup === 'payroll_readiness' &&
+                      'Pre-payroll statutory checklist & bank disbursal verification'}
+                    {activeTilePopup === 'generate_payslips' &&
+                      'Preview, generate and print October 2026 employee salary slips'}
+                    {activeTilePopup === 'manage_policies' &&
+                      'Coreenact Solutions official HR policies, shift timings and norms'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setActiveTilePopup(null)}
+                className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-slate-800 cursor-pointer transition"
+                title="Close pop-up card"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Pop-up Card Body */}
+            <div className="p-4 sm:p-6 space-y-4 overflow-y-auto max-h-[75vh] text-xs">
+              {/* ==================== 1. TOTAL EMPLOYEES POP-UP CARD ==================== */}
+              {activeTilePopup === 'total_employees' && (
+                <div className="space-y-4">
+                  {/* Stats Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="p-3 bg-sky-50 rounded-xl border border-sky-200">
+                      <span className="text-[11px] text-sky-800 font-medium">Total Employees</span>
+                      <div className="text-xl font-extrabold text-sky-950 mt-0.5">{totalEmployeesCount}</div>
+                    </div>
+                    <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
+                      <span className="text-[11px] text-emerald-800 font-medium">Active Status</span>
+                      <div className="text-xl font-extrabold text-emerald-950 mt-0.5">{activeEmployeesCount} Active</div>
+                    </div>
+                    <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-200">
+                      <span className="text-[11px] text-indigo-800 font-medium">Departments</span>
+                      <div className="text-xl font-extrabold text-indigo-950 mt-0.5">3 Units</div>
+                    </div>
+                    <div className="p-3 bg-blue-50 rounded-xl border border-blue-200">
+                      <span className="text-[11px] text-blue-800 font-medium">Total Monthly Gross</span>
+                      <div className="text-xl font-extrabold text-blue-950 font-mono mt-0.5">₹2,32,000</div>
+                    </div>
+                  </div>
+
+                  {/* Filter Search */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="relative flex-1">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={popupFilterSearch}
+                        onChange={(e) => setPopupFilterSearch(e.target.value)}
+                        placeholder="Filter employees by name, code, designation or department..."
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTilePopup(null);
+                        setIsAddEmployeeModalOpen(true);
+                      }}
+                      className="px-3.5 py-2 bg-[#0f766e] hover:bg-[#115e59] text-white rounded-xl font-bold inline-flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      <span>Add Employee</span>
+                    </button>
+                  </div>
+
+                  {/* Employees Table */}
+                  <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10.5px]">
+                        <tr>
+                          <th className="py-2.5 px-4">Employee</th>
+                          <th className="py-2.5 px-3">Role &amp; Dept</th>
+                          <th className="py-2.5 px-3">Contact</th>
+                          <th className="py-2.5 px-3">Monthly Gross</th>
+                          <th className="py-2.5 px-3">Attendance</th>
+                          <th className="py-2.5 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {defaultEmployees
+                          .filter(
+                            (e) =>
+                              !popupFilterSearch ||
+                              e.name.toLowerCase().includes(popupFilterSearch.toLowerCase()) ||
+                              e.empCode.toLowerCase().includes(popupFilterSearch.toLowerCase()) ||
+                              e.department.toLowerCase().includes(popupFilterSearch.toLowerCase()) ||
+                              (e.designation || '').toLowerCase().includes(popupFilterSearch.toLowerCase())
+                          )
+                          .map((emp) => (
+                            <tr key={emp.id} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-2.5">
+                                  <div
+                                    className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${emp.avatarColor}`}
+                                  >
+                                    {emp.initials}
+                                  </div>
+                                  <div>
+                                    <div className="font-bold text-slate-900">{emp.name}</div>
+                                    <div className="font-mono text-[11px] text-slate-400">{emp.empCode}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-3 px-3">
+                                <div className="font-semibold text-slate-800">{emp.designation}</div>
+                                <div className="text-slate-500 text-[11px]">{emp.department}</div>
+                              </td>
+                              <td className="py-3 px-3">
+                                <div className="text-slate-600 truncate max-w-[140px]">{emp.email}</div>
+                                <div className="text-slate-400 text-[11px] font-mono">+91 98100 23456</div>
+                              </td>
+                              <td className="py-3 px-3 font-mono font-bold text-slate-900">
+                                ₹{emp.grossSalary.toLocaleString('en-IN')}
+                              </td>
+                              <td className="py-3 px-3">
+                                {emp.status === 'Present' ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                    <span>Present</span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                    <span>Not punched</span>
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <div className="inline-flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedPayslipEmp(emp);
+                                      setActiveTilePopup('generate_payslips');
+                                    }}
+                                    className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] cursor-pointer"
+                                    title="View Payslip"
+                                  >
+                                    Payslip
+                                  </button>
+                                  {emp.locationAddress !== '—' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActiveTilePopup(null);
+                                        setSelectedLocationEmployee(emp);
+                                      }}
+                                      className="px-2 py-1 rounded bg-teal-50 hover:bg-teal-100 text-teal-700 font-semibold text-[11px] cursor-pointer inline-flex items-center gap-1"
+                                      title="View GPS Location"
+                                    >
+                                      <MapPin className="w-3 h-3" />
+                                      <span>Map</span>
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* ==================== 2. PRESENT TODAY POP-UP CARD ==================== */}
+              {activeTilePopup === 'present_today' && (
+                <div className="space-y-4">
+                  {/* Summary Bar */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
+                      <span className="text-[11px] text-emerald-800 font-medium">Present Today</span>
+                      <div className="text-xl font-extrabold text-emerald-950 mt-0.5">{presentTodayCount} Employees</div>
+                    </div>
+                    <div className="p-3 bg-rose-50 rounded-xl border border-rose-200">
+                      <span className="text-[11px] text-rose-800 font-medium">Not Punched In</span>
+                      <div className="text-xl font-extrabold text-rose-950 mt-0.5">{notPunchedInCount} Employees</div>
+                    </div>
+                    <div className="p-3 bg-teal-50 rounded-xl border border-teal-200">
+                      <span className="text-[11px] text-teal-800 font-medium">Attendance Rate</span>
+                      <div className="text-xl font-extrabold text-teal-950 mt-0.5">{attendancePercentage}%</div>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                      <span className="text-[11px] text-slate-600 font-medium">Shift Timings</span>
+                      <div className="text-sm font-bold text-slate-900 mt-1">09:30 AM - 06:30 PM</div>
+                    </div>
+                  </div>
+
+                  {/* Filter Sub-Tabs */}
+                  <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-2">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setAttendanceModalFilter('all')}
+                        className={`px-3 py-1.5 rounded-lg font-bold text-xs cursor-pointer transition ${
+                          attendanceModalFilter === 'all'
+                            ? 'bg-slate-900 text-white'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        All Workforce ({defaultEmployees.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAttendanceModalFilter('present')}
+                        className={`px-3 py-1.5 rounded-lg font-bold text-xs cursor-pointer transition ${
+                          attendanceModalFilter === 'present'
+                            ? 'bg-emerald-700 text-white'
+                            : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                        }`}
+                      >
+                        Present ({presentTodayCount})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAttendanceModalFilter('absent')}
+                        className={`px-3 py-1.5 rounded-lg font-bold text-xs cursor-pointer transition ${
+                          attendanceModalFilter === 'absent'
+                            ? 'bg-rose-700 text-white'
+                            : 'bg-rose-50 text-rose-800 hover:bg-rose-100'
+                        }`}
+                      >
+                        Not Punched ({notPunchedInCount})
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleExportCsv}
+                      className="px-3 py-1.5 border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 font-semibold inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Export Attendance CSV</span>
+                    </button>
+                  </div>
+
+                  {/* Detailed Attendance List */}
+                  <div className="space-y-2.5">
+                    {defaultEmployees
+                      .filter((e) => {
+                        if (attendanceModalFilter === 'present') return e.status === 'Present';
+                        if (attendanceModalFilter === 'absent') return e.status !== 'Present';
+                        return true;
+                      })
+                      .map((emp) => (
+                        <div
+                          key={emp.id}
+                          className="p-3.5 bg-white border border-slate-200 rounded-xl hover:border-slate-300 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${emp.avatarColor}`}
+                            >
+                              {emp.initials}
+                            </div>
+                            <div>
+                              <div className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                                <span>{emp.name}</span>
+                                <span className="font-mono text-xs text-slate-400 font-normal">
+                                  ({emp.empCode})
+                                </span>
+                              </div>
+                              <div className="text-slate-500 text-[11px] mt-0.5">
+                                {emp.department} · {emp.designation}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-3 sm:gap-6 text-xs">
+                            <div>
+                              <span className="text-[10.5px] text-slate-400 block">Check-in</span>
+                              <span className="font-mono font-bold text-slate-800">{emp.checkInTime}</span>
+                            </div>
+
+                            <div>
+                              <span className="text-[10.5px] text-slate-400 block">Location</span>
+                              <span className="text-slate-700 flex items-center gap-1">
+                                {emp.locationAddress !== '—' ? (
+                                  <>
+                                    <MapPin className="w-3 h-3 text-sky-500" />
+                                    <span>{emp.locationAddress}</span>
+                                  </>
+                                ) : (
+                                  <span className="text-slate-400">Location pending</span>
+                                )}
+                              </span>
+                            </div>
+
+                            <div className="shrink-0">
+                              {emp.status === 'Present' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveTilePopup(null);
+                                    setSelectedLocationEmployee(emp);
+                                  }}
+                                  className="px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 rounded-lg font-semibold inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                >
+                                  <MapPin className="w-3.5 h-3.5 text-teal-600" />
+                                  <span>View on Map</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setReminderToast(`Attendance reminder sent to ${emp.name} via email notification!`);
+                                    setTimeout(() => setReminderToast(null), 3500);
+                                  }}
+                                  className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg font-semibold inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                >
+                                  <Mail className="w-3.5 h-3.5 text-rose-600" />
+                                  <span>Send Reminder</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ==================== 3. MONTHLY PAYROLL POP-UP CARD ==================== */}
+              {activeTilePopup === 'monthly_payroll' && (
+                <div className="space-y-4">
+                  {/* Financial KPI Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="p-3.5 bg-blue-50 rounded-xl border border-blue-200">
+                      <span className="text-[11px] text-blue-700 font-bold uppercase tracking-wider">
+                        Total Monthly Gross
+                      </span>
+                      <div className="text-2xl font-extrabold text-blue-950 font-mono mt-1">
+                        ₹2,32,000
+                      </div>
+                      <p className="text-[10.5px] text-blue-700 mt-0.5">
+                        October 2026 Salary register (4 employees)
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 bg-rose-50 rounded-xl border border-rose-200">
+                      <span className="text-[11px] text-rose-700 font-bold uppercase tracking-wider">
+                        Statutory Deductions
+                      </span>
+                      <div className="text-2xl font-extrabold text-rose-950 font-mono mt-1">
+                        ₹28,640
+                      </div>
+                      <p className="text-[10.5px] text-rose-700 mt-0.5">
+                        EPF (₹13,920) + PT (₹800) + TDS (₹13,920)
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 bg-emerald-50 rounded-xl border border-emerald-200">
+                      <span className="text-[11px] text-emerald-700 font-bold uppercase tracking-wider">
+                        Net Take-Home Payable
+                      </span>
+                      <div className="text-2xl font-extrabold text-emerald-950 font-mono mt-1">
+                        ₹2,03,360
+                      </div>
+                      <p className="text-[10.5px] text-emerald-700 mt-0.5">
+                        Bank disbursal amount for 4 accounts
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Itemized Salary Register Table */}
+                  <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                    <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                      <span className="font-bold text-slate-800 text-xs">
+                        October 2026 Employee Salary Register Breakdown
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-medium">
+                        Statutory rules: EPF 12% · PT ₹200 · Sec 115BAC
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50/70 text-slate-600 font-bold text-[10.5px] uppercase border-b border-slate-100">
+                          <tr>
+                            <th className="py-2.5 px-3">Employee</th>
+                            <th className="py-2.5 px-3">Department</th>
+                            <th className="py-2.5 px-2.5 text-right">Basic (50%)</th>
+                            <th className="py-2.5 px-2.5 text-right">HRA (30%)</th>
+                            <th className="py-2.5 px-2.5 text-right">Allowances</th>
+                            <th className="py-2.5 px-2.5 text-right">Gross</th>
+                            <th className="py-2.5 px-2.5 text-right text-rose-600">PF+PT+TDS</th>
+                            <th className="py-2.5 px-3 text-right font-bold text-emerald-700">Net Pay</th>
+                            <th className="py-2.5 px-3 text-center">Payslip</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-mono text-[11.5px]">
+                          {defaultEmployees.map((emp) => {
+                            const basic = Math.round(emp.grossSalary * 0.5);
+                            const hra = Math.round(emp.grossSalary * 0.3);
+                            const special = emp.grossSalary - basic - hra;
+                            const pf = Math.round(basic * 0.12);
+                            const pt = 200;
+                            const tds = Math.round(emp.grossSalary * 0.063);
+                            const totalDed = pf + pt + tds;
+                            const netPay = emp.grossSalary - totalDed;
+
+                            return (
+                              <tr key={emp.id} className="hover:bg-slate-50/70 transition-colors">
+                                <td className="py-2.5 px-3 font-sans">
+                                  <div className="font-bold text-slate-900">{emp.name}</div>
+                                  <div className="text-[10.5px] text-slate-400 font-mono">{emp.empCode}</div>
+                                </td>
+                                <td className="py-2.5 px-3 font-sans text-slate-700 font-medium">
+                                  {emp.department}
+                                </td>
+                                <td className="py-2.5 px-2.5 text-right text-slate-700">
+                                  ₹{basic.toLocaleString('en-IN')}
+                                </td>
+                                <td className="py-2.5 px-2.5 text-right text-slate-700">
+                                  ₹{hra.toLocaleString('en-IN')}
+                                </td>
+                                <td className="py-2.5 px-2.5 text-right text-slate-700">
+                                  ₹{special.toLocaleString('en-IN')}
+                                </td>
+                                <td className="py-2.5 px-2.5 text-right font-bold text-slate-900">
+                                  ₹{emp.grossSalary.toLocaleString('en-IN')}
+                                </td>
+                                <td className="py-2.5 px-2.5 text-right text-rose-600">
+                                  -₹{totalDed.toLocaleString('en-IN')}
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-bold text-emerald-700 font-sans">
+                                  ₹{netPay.toLocaleString('en-IN')}
+                                </td>
+                                <td className="py-2.5 px-3 text-center font-sans">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedPayslipEmp(emp);
+                                      setActiveTilePopup('generate_payslips');
+                                    }}
+                                    className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-800 rounded font-semibold text-[11px] cursor-pointer inline-flex items-center gap-1"
+                                  >
+                                    <Eye className="w-3 h-3" />
+                                    <span>Slip</span>
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot className="bg-slate-50 border-t-2 border-slate-200 font-bold text-xs">
+                          <tr>
+                            <td colSpan={5} className="py-2.5 px-3 text-slate-900 font-sans">
+                              Total Workforce Register
+                            </td>
+                            <td className="py-2.5 px-2.5 text-right font-mono text-slate-900">
+                              ₹2,32,000
+                            </td>
+                            <td className="py-2.5 px-2.5 text-right font-mono text-rose-600">
+                              -₹28,640
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-emerald-800 text-sm">
+                              ₹2,03,360
+                            </td>
+                            <td />
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Actions Row */}
+                  <div className="flex items-center justify-between pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReminderToast('October 2026 salary register exported to CSV!');
+                        setTimeout(() => setReminderToast(null), 3000);
+                      }}
+                      className="px-3.5 py-2 border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-50 font-semibold inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Export Salary Register</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTilePopup(null);
+                        setIsRunPayrollModalOpen(true);
+                      }}
+                      className="px-4 py-2 bg-[#0f766e] hover:bg-[#115e59] text-white rounded-xl font-bold inline-flex items-center gap-2 cursor-pointer shadow-xs"
+                    >
+                      <Play className="w-3.5 h-3.5 fill-current" />
+                      <span>Run Payroll Cycle</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ==================== 4. PENDING APPROVALS POP-UP CARD ==================== */}
+              {(activeTilePopup === 'pending_approvals' || activeTilePopup === 'approval_inbox') && (
+                <div className="space-y-4">
+                  {/* Category Tabs */}
+                  <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                    <button
+                      type="button"
+                      onClick={() => setApprovalSubTab('leaves')}
+                      className={`px-3.5 py-1.5 rounded-lg font-bold text-xs cursor-pointer transition ${
+                        approvalSubTab === 'leaves'
+                          ? 'bg-teal-700 text-white'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      Leave Requests ({pendingLeavesCount})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setApprovalSubTab('expenses')}
+                      className={`px-3.5 py-1.5 rounded-lg font-bold text-xs cursor-pointer transition ${
+                        approvalSubTab === 'expenses'
+                          ? 'bg-teal-700 text-white'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      Expense Claims ({pendingClaimsCount})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setApprovalSubTab('loans')}
+                      className={`px-3.5 py-1.5 rounded-lg font-bold text-xs cursor-pointer transition ${
+                        approvalSubTab === 'loans'
+                          ? 'bg-teal-700 text-white'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      Loan &amp; Advance Requests ({pendingLoansCount})
+                    </button>
+                  </div>
+
+                  {/* Empty or Loaded State */}
+                  {totalPendingApprovals === 0 ? (
+                    <div className="py-10 px-4 bg-slate-50/70 border border-slate-200 rounded-2xl flex flex-col items-center justify-center text-center space-y-3">
+                      <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                        <CheckCircle2 className="w-7 h-7 stroke-[2.5]" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-900 text-sm">
+                          You&apos;re All Caught Up!
+                        </h4>
+                        <p className="text-slate-500 text-xs mt-1 max-w-sm">
+                          No pending {approvalSubTab === 'leaves' ? 'leave requests' : approvalSubTab === 'expenses' ? 'expense reimbursement claims' : 'salary loan applications'} awaiting your action.
+                        </p>
+                      </div>
+
+                      <div className="pt-2 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReminderToast('Sample request approved successfully!');
+                            setTimeout(() => setReminderToast(null), 3000);
+                          }}
+                          className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-lg text-xs cursor-pointer shadow-2xs"
+                        >
+                          Verify Workflow History
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <AlertCircle className="w-5 h-5 text-amber-700 shrink-0" />
+                          <div>
+                            <span className="font-bold text-amber-950">
+                              {totalPendingApprovals} Request(s) Awaiting Management Decision
+                            </span>
+                            <p className="text-[11px] text-amber-800 mt-0.5">
+                              Approving will automatically queue into current month payroll inputs.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ==================== 5. ATTENDANCE SUMMARY POP-UP CARD ==================== */}
+              {activeTilePopup === 'attendance_summary' && (
+                <div className="space-y-5">
+                  {/* Presence Bar Visual */}
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900">Today&apos;s Attendance Distribution</span>
+                      <span className="font-mono font-bold text-slate-700">15 Oct 2026</span>
+                    </div>
+
+                    <div className="w-full h-4 rounded-full overflow-hidden flex bg-slate-200 shadow-inner">
+                      <div
+                        style={{ width: `${attendancePercentage}%` }}
+                        className="bg-emerald-500 transition-all duration-300 flex items-center justify-center text-[10px] text-white font-bold"
+                      >
+                        50%
+                      </div>
+                      <div
+                        style={{ width: `${notPunchedPercentage}%` }}
+                        className="bg-rose-400 transition-all duration-300 flex items-center justify-center text-[10px] text-white font-bold"
+                      >
+                        50%
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs font-semibold pt-1">
+                      <div className="flex items-center gap-2 text-emerald-800">
+                        <span className="w-3 h-3 rounded-full bg-emerald-500" />
+                        <span>Present: 2 Employees (50%)</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-rose-800">
+                        <span className="w-3 h-3 rounded-full bg-rose-400" />
+                        <span>Not Punched In: 2 Employees (50%)</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Department Presence Rates */}
+                  <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                    <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 font-bold text-slate-800">
+                      Department-wise Attendance Breakdown
+                    </div>
+                    <div className="divide-y divide-slate-100 text-xs">
+                      <div className="px-4 py-3 flex items-center justify-between">
+                        <div>
+                          <div className="font-bold text-slate-900">Development</div>
+                          <div className="text-slate-500 text-[11px]">Shivam Yadav, Neha Sen</div>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-bold text-slate-900 font-mono">1 / 2 Present</span>
+                          <span className="text-amber-600 font-bold ml-2">(50%)</span>
+                        </div>
+                      </div>
+
+                      <div className="px-4 py-3 flex items-center justify-between">
+                        <div>
+                          <div className="font-bold text-slate-900">Designing</div>
+                          <div className="text-slate-500 text-[11px]">Versha Tanwar</div>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-bold text-slate-900 font-mono">1 / 1 Present</span>
+                          <span className="text-emerald-600 font-bold ml-2">(100%)</span>
+                        </div>
+                      </div>
+
+                      <div className="px-4 py-3 flex items-center justify-between">
+                        <div>
+                          <div className="font-bold text-slate-900">Microsoft</div>
+                          <div className="text-slate-500 text-[11px]">Amit Roy</div>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-bold text-slate-900 font-mono">0 / 1 Present</span>
+                          <span className="text-rose-600 font-bold ml-2">(0%)</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Punctuality and Adherence Metrics */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="p-3 bg-teal-50 border border-teal-200 rounded-xl">
+                      <span className="text-[11px] text-teal-800 font-medium">On-Time Arrival</span>
+                      <div className="text-lg font-bold text-teal-950 mt-0.5">100% of Check-ins</div>
+                      <p className="text-[10px] text-teal-700 mt-0.5">Both at 09:30 AM</p>
+                    </div>
+                    <div className="p-3 bg-sky-50 border border-sky-200 rounded-xl">
+                      <span className="text-[11px] text-sky-800 font-medium">Grace Period Buffer</span>
+                      <div className="text-lg font-bold text-sky-950 mt-0.5">15 Minutes</div>
+                      <p className="text-[10px] text-sky-700 mt-0.5">Allowed up to 09:45 AM</p>
+                    </div>
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                      <span className="text-[11px] text-emerald-800 font-medium">GPS Geofence</span>
+                      <div className="text-lg font-bold text-emerald-950 mt-0.5">500m Radius</div>
+                      <p className="text-[10px] text-emerald-700 mt-0.5">Faridabad HQ perimeter</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ==================== 6. PAYROLL READINESS POP-UP CARD ==================== */}
+              {activeTilePopup === 'payroll_readiness' && (
+                <div className="space-y-4">
+                  {/* Readiness Banner */}
+                  <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full border-4 border-emerald-500 flex items-center justify-center text-emerald-700 bg-white shadow-xs shrink-0">
+                      <CheckCircle2 className="w-7 h-7 stroke-[2.5]" />
+                    </div>
+                    <div>
+                      <div className="font-extrabold text-base text-emerald-950">
+                        100% Payroll Readiness Score
+                      </div>
+                      <p className="text-xs text-emerald-800 mt-0.5">
+                        All 4 active employees reviewed with verified salary structures and statutory compliance checks.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 5-Step Audit Checklist */}
+                  <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100 shadow-2xs">
+                    <div className="p-3.5 flex items-start gap-3 bg-white">
+                      <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-900">
+                          1. Employee Master &amp; Active Headcount
+                        </div>
+                        <p className="text-slate-500 text-[11px] mt-0.5">
+                          4 of 4 active employee profiles verified with designations, EMP codes and gross salary values.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 flex items-start gap-3 bg-white">
+                      <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-900">
+                          2. Attendance, Shifts &amp; LOP Input Records
+                        </div>
+                        <p className="text-slate-500 text-[11px] mt-0.5">
+                          Working days cut-off synced through 15 October 2026. Zero unapproved loss of pay deductions.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 flex items-start gap-3 bg-white">
+                      <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-900">
+                          3. Statutory Deductions (EPF, PT &amp; Section 115BAC TDS)
+                        </div>
+                        <p className="text-slate-500 text-[11px] mt-0.5">
+                          EPFO 12% employee share mapped, state Professional Tax (₹200) verified, TDS computed.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 flex items-start gap-3 bg-white">
+                      <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-900">
+                          4. Bank Accounts &amp; NEFT/RTGS Disbursal Files
+                        </div>
+                        <p className="text-slate-500 text-[11px] mt-0.5">
+                          Valid IFSC and account numbers confirmed for HDFC, ICICI and SBI salary accounts.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 flex items-start gap-3 bg-white">
+                      <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-900">
+                          5. Expense Reimbursements &amp; Arrears Cleared
+                        </div>
+                        <p className="text-slate-500 text-[11px] mt-0.5">
+                          All submitted claims audited. Zero blocking discrepancies or pending arrears.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTilePopup(null);
+                        setIsRunPayrollModalOpen(true);
+                      }}
+                      className="px-5 py-2.5 bg-[#0f766e] hover:bg-[#115e59] text-white rounded-xl font-bold inline-flex items-center gap-2 cursor-pointer shadow-xs"
+                    >
+                      <Play className="w-4 h-4 fill-current" />
+                      <span>Proceed to Run Payroll Now</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ==================== 7. GENERATE PAYSLIPS POP-UP CARD ==================== */}
+              {activeTilePopup === 'generate_payslips' && (
+                <div className="space-y-4">
+                  {/* Select Employee Tabs */}
+                  <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200 pb-2">
+                    <span className="text-[11px] font-bold text-slate-500 mr-2">Select Employee:</span>
+                    {defaultEmployees.map((e) => (
+                      <button
+                        key={e.id}
+                        type="button"
+                        onClick={() => setSelectedPayslipEmp(e)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition ${
+                          (selectedPayslipEmp?.id || defaultEmployees[0].id) === e.id
+                            ? 'bg-slate-900 text-white font-bold'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        {e.name}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Printable Payslip Preview Document */}
+                  {(() => {
+                    const emp = selectedPayslipEmp || defaultEmployees[0];
+                    const basic = Math.round(emp.grossSalary * 0.5);
+                    const hra = Math.round(emp.grossSalary * 0.3);
+                    const conveyance = 1600;
+                    const special = emp.grossSalary - basic - hra - conveyance;
+                    const grossEarnings = emp.grossSalary;
+
+                    const pf = Math.round(basic * 0.12);
+                    const pt = 200;
+                    const tds = Math.round(emp.grossSalary * 0.063);
+                    const totalDeductions = pf + pt + tds;
+                    const netSalary = grossEarnings - totalDeductions;
+
+                    return (
+                      <div className="p-5 sm:p-7 bg-white rounded-2xl border-2 border-slate-200 space-y-5 shadow-xs font-sans print:border-none">
+                        {/* Payslip Header */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b-2 border-slate-800 gap-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-extrabold text-xl tracking-tight text-slate-900">
+                                Coreenact Solutions Pvt Ltd
+                              </span>
+                            </div>
+                            <p className="text-slate-500 text-[11px] mt-0.5">
+                              Faridabad Cyber Hub, Sector 15, Haryana 121007 · GSTIN: 06AAACC1234D1Z5
+                            </p>
+                          </div>
+                          <div className="text-left sm:text-right">
+                            <span className="font-bold text-xs uppercase tracking-wider text-teal-800 bg-teal-50 border border-teal-200 px-2.5 py-1 rounded-md">
+                              Salary Slip · October 2026
+                            </span>
+                            <div className="text-[11px] text-slate-400 mt-1 font-mono">
+                              Doc: PS-2026-10-{emp.empCode}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Employee Bio Grid */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 bg-slate-50 rounded-xl text-xs">
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Employee Name</span>
+                            <span className="font-bold text-slate-900">{emp.name}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">EMP Code</span>
+                            <span className="font-mono font-bold text-slate-800">{emp.empCode}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Department</span>
+                            <span className="font-semibold text-slate-800">{emp.department}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Designation</span>
+                            <span className="font-semibold text-slate-800">{emp.designation}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Bank Account</span>
+                            <span className="font-mono text-slate-800">HDFC · **** 8912</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">PAN</span>
+                            <span className="font-mono text-slate-800">ABCDE1234F</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">UAN / PF No</span>
+                            <span className="font-mono text-slate-800">101234567890</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Pay Period</span>
+                            <span className="font-semibold text-slate-800">01 Oct - 31 Oct 2026</span>
+                          </div>
+                        </div>
+
+                        {/* Earnings vs Deductions Table */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Earnings Table */}
+                          <div className="border border-slate-200 rounded-xl overflow-hidden">
+                            <div className="px-3.5 py-2 bg-slate-100 font-bold text-slate-800 flex justify-between text-xs">
+                              <span>Earnings Item</span>
+                              <span>Amount (INR)</span>
+                            </div>
+                            <div className="divide-y divide-slate-100 text-xs">
+                              <div className="px-3.5 py-2 flex justify-between">
+                                <span className="text-slate-700">Basic Salary (50%)</span>
+                                <span className="font-mono font-semibold text-slate-900">₹{basic.toLocaleString('en-IN')}</span>
+                              </div>
+                              <div className="px-3.5 py-2 flex justify-between">
+                                <span className="text-slate-700">House Rent Allowance (HRA)</span>
+                                <span className="font-mono font-semibold text-slate-900">₹{hra.toLocaleString('en-IN')}</span>
+                              </div>
+                              <div className="px-3.5 py-2 flex justify-between">
+                                <span className="text-slate-700">Conveyance Allowance</span>
+                                <span className="font-mono font-semibold text-slate-900">₹{conveyance.toLocaleString('en-IN')}</span>
+                              </div>
+                              <div className="px-3.5 py-2 flex justify-between">
+                                <span className="text-slate-700">Special Allowance</span>
+                                <span className="font-mono font-semibold text-slate-900">₹{special.toLocaleString('en-IN')}</span>
+                              </div>
+                              <div className="px-3.5 py-2 bg-slate-50 font-bold flex justify-between border-t border-slate-200">
+                                <span className="text-slate-900">Gross Earnings</span>
+                                <span className="font-mono text-slate-900">₹{grossEarnings.toLocaleString('en-IN')}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Deductions Table */}
+                          <div className="border border-slate-200 rounded-xl overflow-hidden">
+                            <div className="px-3.5 py-2 bg-slate-100 font-bold text-slate-800 flex justify-between text-xs">
+                              <span>Deductions Item</span>
+                              <span>Amount (INR)</span>
+                            </div>
+                            <div className="divide-y divide-slate-100 text-xs">
+                              <div className="px-3.5 py-2 flex justify-between">
+                                <span className="text-slate-700">Provident Fund (EPF 12%)</span>
+                                <span className="font-mono font-semibold text-rose-600">₹{pf.toLocaleString('en-IN')}</span>
+                              </div>
+                              <div className="px-3.5 py-2 flex justify-between">
+                                <span className="text-slate-700">Professional Tax (PT)</span>
+                                <span className="font-mono font-semibold text-rose-600">₹{pt.toLocaleString('en-IN')}</span>
+                              </div>
+                              <div className="px-3.5 py-2 flex justify-between">
+                                <span className="text-slate-700">Income Tax / TDS (Sec 115BAC)</span>
+                                <span className="font-mono font-semibold text-rose-600">₹{tds.toLocaleString('en-IN')}</span>
+                              </div>
+                              <div className="px-3.5 py-2 flex justify-between text-slate-400">
+                                <span>Voluntary PF / Other</span>
+                                <span className="font-mono">₹0</span>
+                              </div>
+                              <div className="px-3.5 py-2 bg-slate-50 font-bold flex justify-between border-t border-slate-200">
+                                <span className="text-slate-900">Total Deductions</span>
+                                <span className="font-mono text-rose-600">₹{totalDeductions.toLocaleString('en-IN')}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Net Take-Home Highlight Box */}
+                        <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div>
+                            <span className="text-[11px] font-bold uppercase text-emerald-800 tracking-wider">
+                              Net Salary Payable
+                            </span>
+                            <div className="text-2xl font-black text-emerald-950 font-mono mt-0.5">
+                              ₹{netSalary.toLocaleString('en-IN')}
+                            </div>
+                            <p className="text-[11px] text-emerald-800 font-medium mt-0.5">
+                              Amount in words: {amountInWords(netSalary)}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => window.print()}
+                              className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold inline-flex items-center gap-1.5 cursor-pointer shadow-xs text-xs"
+                            >
+                              <Printer className="w-4 h-4" />
+                              <span>Print / Download Slip</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* ==================== 8. MANAGE POLICIES POP-UP CARD ==================== */}
+              {activeTilePopup === 'manage_policies' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-teal-600" />
+                        <h4 className="font-bold text-slate-900 text-xs">
+                          Working Hours &amp; Shift Timings
+                        </h4>
+                      </div>
+                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                        Standard shift operates from 09:30 AM to 06:30 PM (Monday to Friday). 1st &amp; 3rd Saturdays are working half-days. 15-minute grace period allowed up to 09:45 AM.
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-sky-600" />
+                        <h4 className="font-bold text-slate-900 text-xs">
+                          GPS Geofencing Attendance Policy
+                        </h4>
+                      </div>
+                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                        Punches are verified through Google Maps Geolocation within 500 meters of Faridabad HQ. Mobile attendance requires active location permissions.
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-indigo-600" />
+                        <h4 className="font-bold text-slate-900 text-xs">
+                          Annual Leave &amp; Holidays
+                        </h4>
+                      </div>
+                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                        Full-time employees receive 18 Paid Leaves (PL), 12 Sick/Casual Leaves (SL/CL), and 10 Gazetted Public Holidays annually. Encashment available at financial year-end.
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Receipt className="w-4 h-4 text-emerald-600" />
+                        <h4 className="font-bold text-slate-900 text-xs">
+                          Travel &amp; Expense Reimbursements
+                        </h4>
+                      </div>
+                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                        Local conveyance reimbursed at ₹15/km for 4-wheelers, ₹8/km for 2-wheelers. Client entertainment expenses covered up to ₹3,000 per event with valid GST invoices.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Pop-up Card Footer */}
+            <div className="px-5 sm:px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
+              <span className="text-[11px] text-slate-400 font-medium">
+                PayChakra Workforce Management System · Coreenact
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveTilePopup(null)}
+                className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl cursor-pointer shadow-xs transition"
+              >
+                Close Pop-up Card
+              </button>
+            </div>
           </div>
         </div>
       )}
