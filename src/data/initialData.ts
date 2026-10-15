@@ -7,6 +7,9 @@ import {
   UserRole,
   CrmModuleKey,
   RolePermissionsMap,
+  PayrollModuleKey,
+  PayrollModulePermission,
+  PayrollPermissionsMap,
   Lead,
   Opportunity,
   Customer,
@@ -238,6 +241,92 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, RolePermissionsMap> = {
     masters: { view: false, create: false, edit: false, delete: false },
     database: { view: false, create: false, edit: false, delete: false },
   },
+};
+
+/* ----------------------------------------------------------------------------
+ * Payroll (PayChakra) permission matrix — modules and default role grants.
+ * Mirrors ALL_CRM_MODULES / DEFAULT_ROLE_PERMISSIONS above.
+ * -------------------------------------------------------------------------- */
+export const PAYROLL_MODULES: { id: PayrollModuleKey; label: string; section: string; description: string }[] = [
+  { id: 'payroll_overview', label: 'Payroll Dashboard', section: 'Payroll Core', description: 'Company payroll KPIs, headcount and monthly cost overview' },
+  { id: 'employees', label: 'Employee Masters', section: 'Payroll Core', description: 'Employee records, salary structure, onboarding and ESS enrolment' },
+  { id: 'attendance', label: 'Monthly Attendance', section: 'Payroll Operations', description: 'Attendance capture, shifts and monthly day-logs' },
+  { id: 'leaves', label: 'Leave Management', section: 'Payroll Operations', description: 'Leave balances, applications and approvals' },
+  { id: 'reimbursements', label: 'Reimbursements & Claims', section: 'Payroll Operations', description: 'Expense claims, verification and settlement' },
+  { id: 'loans', label: 'Loans & Advances', section: 'Payroll Operations', description: 'Employee loan applications, EMI schedules and recovery' },
+  { id: 'payslips', label: 'Payslips & Salary Run', section: 'Payroll Operations', description: 'Monthly salary computation, payslip generation and disbursement' },
+  { id: 'tax', label: 'Tax & Statutory', section: 'Payroll Admin', description: 'PF, ESI, Professional Tax and TDS statutory computation' },
+  { id: 'reports', label: 'Payroll Reports', section: 'Payroll Admin', description: 'Payroll registers, cost reports and statutory returns' },
+  { id: 'policy', label: 'Payroll Policy & Org Masters', section: 'Payroll Admin', description: 'Payroll policy, salary components and organisation structure' },
+  { id: 'integration', label: 'Payroll Integration', section: 'Payroll Admin', description: 'External payroll/bank integration and API configuration' },
+];
+
+const payrollAll = (): PayrollModulePermission => ({ view: true, create: true, edit: true, approve: true });
+const payrollNone = (): PayrollModulePermission => ({ view: false, create: false, edit: false, approve: false });
+const payrollPerm = (view: boolean, create = false, edit = false, approve = false): PayrollModulePermission => ({ view, create, edit, approve });
+
+const payrollMap = (fn: (module: PayrollModuleKey) => PayrollModulePermission): PayrollPermissionsMap =>
+  PAYROLL_MODULES.reduce((acc, module) => {
+    acc[module.id] = fn(module.id);
+    return acc;
+  }, {} as PayrollPermissionsMap);
+
+export const DEFAULT_PAYROLL_ROLE_PERMISSIONS: Record<UserRole, PayrollPermissionsMap> = {
+  'Super Admin': payrollMap(() => payrollAll()),
+  'Administrator': payrollMap(() => payrollAll()),
+  'Sales Manager': payrollMap((m) => {
+    switch (m) {
+      case 'payroll_overview': return payrollPerm(true);
+      case 'employees': return payrollPerm(true, false, true, false);
+      case 'attendance': return payrollPerm(true, true, true, true);
+      case 'leaves': return payrollPerm(true, true, true, true);
+      case 'reimbursements': return payrollPerm(true, false, false, true);
+      case 'loans': return payrollPerm(true, false, false, true);
+      case 'payslips': return payrollPerm(true);
+      case 'reports': return payrollPerm(true);
+      default: return payrollNone();
+    }
+  }),
+  'Sales Executive': payrollMap((m) => {
+    switch (m) {
+      case 'payroll_overview': return payrollPerm(true);
+      case 'employees': return payrollPerm(true);
+      case 'attendance': return payrollPerm(true);
+      case 'leaves': return payrollPerm(true, true);
+      case 'reimbursements': return payrollPerm(true, true);
+      case 'payslips': return payrollPerm(true);
+      default: return payrollNone();
+    }
+  }),
+  'Finance Manager': payrollMap((m) => {
+    switch (m) {
+      case 'integration': return payrollPerm(false);
+      default: return payrollAll();
+    }
+  }),
+  'Finance Executive': payrollMap((m) => {
+    switch (m) {
+      case 'payroll_overview': return payrollPerm(true);
+      case 'employees': return payrollPerm(true, false, true, false);
+      case 'attendance': return payrollPerm(true, true, true, false);
+      case 'leaves': return payrollPerm(true, true, true, false);
+      case 'reimbursements': return payrollPerm(true, true, true, false);
+      case 'loans': return payrollPerm(true, true, true, false);
+      case 'payslips': return payrollPerm(true, true, true, false);
+      case 'tax': return payrollPerm(true, false, true, false);
+      case 'reports': return payrollPerm(true);
+      default: return payrollNone();
+    }
+  }),
+  'Management/Viewer': payrollMap((m) => {
+    switch (m) {
+      case 'policy':
+      case 'integration':
+        return payrollNone();
+      default:
+        return payrollPerm(true);
+    }
+  }),
 };
 
 export const INITIAL_PRODUCTS: ProductMasterItem[] = [
