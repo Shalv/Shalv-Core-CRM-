@@ -60,7 +60,15 @@ export const PayChakraHeader: React.FC<PayChakraHeaderProps> = ({
   onOpenAddEmployee,
   notificationsCount = 0,
 }) => {
-  const { currentUser } = useCrm();
+  const { currentUser, canEdit } = useCrm();
+  // Employees / non-admin users get a self-service-only navigation: no admin sections are shown.
+  const isAdminUser =
+    (currentUser.role === 'Super Admin' ||
+      currentUser.role === 'Administrator' ||
+      currentUser.role?.toLowerCase().includes('admin') ||
+      currentUser.role?.toLowerCase().includes('hr') ||
+      canEdit('masters')) &&
+    currentUser.accessScope !== 'payroll_only';
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
@@ -301,7 +309,7 @@ export const PayChakraHeader: React.FC<PayChakraHeaderProps> = ({
                   <div className="text-[11px] text-slate-500 truncate">{currentUser?.email}</div>
                   <div className="flex items-center gap-1.5 mt-1.5">
                     <span className="text-[10px] font-semibold text-teal-800 bg-teal-50 px-2 py-0.5 rounded">
-                      {currentUser?.role || 'Super Admin'}
+                      {currentUser?.role || 'User'}
                     </span>
                     <span className="text-[10px] font-mono text-slate-500">
                       {currentUser?.empCode || 'EMP-107'}
@@ -369,13 +377,13 @@ export const PayChakraHeader: React.FC<PayChakraHeaderProps> = ({
               className="w-full header-dropdown-select bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 shadow-2xs focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 cursor-pointer transition"
             >
               <option value="overview">🏠 Overview Dashboard</option>
-              <option value="employees">👥 Employees Directory & Masters</option>
+              {isAdminUser && <option value="employees">👥 Employees Directory & Masters</option>}
               <option value="attendance">📅 Attendance & Clock In/Out</option>
               <option value="leaves">📄 Leave Management & Approvals</option>
               <option value="payroll">💰 Monthly Payroll & Salary Slips</option>
               <option value="expenses">🧾 Expense Claims & Reimbursements</option>
-              <option value="reports">📊 Reports & Analytics</option>
-              <option value="administration">⚙️ Administration & HR Policies</option>
+              {isAdminUser && <option value="reports">📊 Reports & Analytics</option>}
+              {isAdminUser && <option value="administration">⚙️ Administration & HR Policies</option>}
             </select>
           </div>
         </div>
@@ -395,8 +403,8 @@ export const PayChakraHeader: React.FC<PayChakraHeaderProps> = ({
             <span>Overview</span>
           </button>
 
-          {/* Tab 2: Employees with dropdown */}
-          <div className="relative">
+          {/* Tab 2: Employees with dropdown — admin only */}
+          <div className={`relative ${isAdminUser ? '' : 'hidden'}`}>
             <button
               type="button"
               onClick={() => {
@@ -521,7 +529,7 @@ export const PayChakraHeader: React.FC<PayChakraHeaderProps> = ({
                     if (onOpenRunPayroll) onOpenRunPayroll();
                     else onSelectTab('payroll', 'run_payroll');
                   }}
-                  className="w-full px-3.5 py-2 text-left text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer font-medium"
+                  className={`w-full px-3.5 py-2 text-left text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer font-medium ${isAdminUser ? '' : 'hidden'}`}
                 >
                   <IndianRupee className="w-3.5 h-3.5 text-teal-600" />
                   <span>Run Payroll / Process</span>
@@ -581,7 +589,7 @@ export const PayChakraHeader: React.FC<PayChakraHeaderProps> = ({
           <button
             type="button"
             onClick={() => onSelectTab('reports')}
-            className={`py-3.5 px-3 text-xs font-semibold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+            className={`${isAdminUser ? '' : 'hidden '}py-3.5 px-3 text-xs font-semibold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'reports'
                 ? 'border-teal-600 text-teal-700 font-bold'
                 : 'border-transparent text-slate-600 hover:text-slate-900 hover:border-slate-300'
@@ -591,8 +599,8 @@ export const PayChakraHeader: React.FC<PayChakraHeaderProps> = ({
             <span>Reports</span>
           </button>
 
-          {/* Tab 8: Administration with dropdown */}
-          <div className="relative">
+          {/* Tab 8: Administration with dropdown — admin only */}
+          <div className={`relative ${isAdminUser ? '' : 'hidden'}`}>
             <button
               type="button"
               onClick={() => {

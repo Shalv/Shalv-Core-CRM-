@@ -90,6 +90,7 @@ import { PayrollIntegrationSection } from './PayrollIntegrationSection';
 import { PayrollLoanManagementSection } from './PayrollLoanManagementSection';
 import { PayChakraHeader, type PayChakraTab } from './PayChakraHeader';
 import { PayChakraOverviewView } from './PayChakraOverviewView';
+import { EssPersonalOverview } from './EssPersonalOverview';
 import { PayChakraFooter } from './PayChakraFooter';
 
 export type { EssTabKey };
@@ -1917,6 +1918,23 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
     </div>
   );
 
+  // Personal overview for non-admin employees — their own records only, never company or admin data.
+  const personalOverview = (
+    <EssPersonalOverview
+      employee={activeUserMaster}
+      attendance={attendance}
+      leaves={leaves}
+      claims={claims}
+      formatCurrency={formatCurrency}
+      onNavigate={(tab) => {
+        if (tab === 'payslips') { setPayChakraTab('payroll'); setActiveTab('payslips'); }
+        else if (tab === 'leaves') { setPayChakraTab('leaves'); setActiveTab('leaves'); }
+        else if (tab === 'reimbursements') { setPayChakraTab('expenses'); setActiveTab('reimbursements'); }
+        else if (tab === 'profile') { setPayChakraTab('profile'); setActiveTab('profile'); }
+      }}
+    />
+  );
+
   return (
     <div className={asDedicatedPage ? "fixed inset-0 z-50 flex flex-col bg-[#f8fafc] overflow-hidden text-xs" : "fixed inset-0 z-50 flex items-center justify-center bg-slate-900/65 backdrop-blur-xs p-2 sm:p-3 overflow-hidden text-xs"}>
       {/* WIDE CONTAINER */}
@@ -1955,8 +1973,11 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
           notificationsCount={3}
         />
 
-        {/* WORKFORCE OVERVIEW (EXACT SCREENSHOT LAYOUT & CARDS) */}
-        {payChakraTab === 'overview' && (
+        {/* SELF-SERVICE OVERVIEW — employees see only their own information */}
+        {payChakraTab === 'overview' && !isAdminUser && personalOverview}
+
+        {/* WORKFORCE OVERVIEW (admin only — company-wide workforce data) */}
+        {payChakraTab === 'overview' && isAdminUser && (
           <PayChakraOverviewView
             onNavigateTab={(tab, sub) => {
               setPayChakraTab(tab as PayChakraTab);
@@ -5825,6 +5846,9 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
               </div>
             )
           )}
+
+          {/* Employees must never see admin screens: if a non-admin reaches an admin tab, show their own overview */}
+          {!isAdminUser && (activeTab === 'admin_dashboard' || activeTab === 'admin_master' || activeTab === 'reports' || activeTab === 'integration') && personalOverview}
 
           {/* TAB: ADMIN DASHBOARD & REPORTS (ALL EMPLOYEE INFO, REQUESTS & ATTENDANCE WITH GOOGLE COORDINATES) */}
           {activeTab === 'admin_dashboard' && isAdminUser && (
