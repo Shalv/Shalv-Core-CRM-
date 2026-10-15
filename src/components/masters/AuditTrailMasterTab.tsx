@@ -209,7 +209,7 @@ export const AuditTrailMasterTab: React.FC<AuditTrailMasterTabProps> = ({
                   key={log.id}
                   type="button"
                   onClick={handleLogClick}
-                  className="w-full text-left p-3.5 bg-slate-50/50 hover:bg-indigo-50/40 rounded-xl border border-slate-200/80 hover:border-indigo-300 flex items-center justify-between text-xs transition group cursor-pointer"
+                  className="table-modern w-full text-left p-3.5 bg-slate-50/50 hover:bg-indigo-50/40 rounded-xl border border-slate-200/80 hover:border-indigo-300 flex items-center justify-between text-xs transition group cursor-pointer"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div

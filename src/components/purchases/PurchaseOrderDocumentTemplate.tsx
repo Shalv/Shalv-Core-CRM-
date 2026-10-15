@@ -447,7 +447,7 @@ export const PurchaseOrderDocumentTemplate: React.FC<PurchaseOrderDocumentTempla
         {/* ===================== ROW 4: ITEMIZED PURCHASE TABLE (ZERO OVERLAP) ===================== */}
         <div className="border border-slate-200 rounded-xl overflow-hidden mb-5 bg-white">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-[10.5px] leading-snug">
+            <table className="table-modern w-full text-left border-collapse text-[10.5px] leading-snug">
               <thead>
                 <tr className="bg-slate-100/90 text-slate-800 font-extrabold border-b border-slate-300 divide-x divide-slate-200 text-[10px] uppercase tracking-wider">
                   <th className="py-2.5 px-2 text-center w-[4%]">#</th>

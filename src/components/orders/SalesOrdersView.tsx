@@ -765,7 +765,7 @@ export const SalesOrdersView: React.FC<SalesOrdersViewProps> = ({
                   Order Line Items
                 </h4>
                 <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                  <table className="w-full text-left text-xs">
+                  <table className="table-modern w-full text-left text-xs">
                     <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
                       <tr>
                         <th className="p-3">Item / Service</th>
@@ -874,7 +874,7 @@ export const SalesOrdersView: React.FC<SalesOrdersViewProps> = ({
                 </div>
 
                 <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                  <table className="w-full text-left text-xs">
+                  <table className="table-modern w-full text-left text-xs">
                     <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
                       <tr>
                         <th className="p-3">Milestone</th>

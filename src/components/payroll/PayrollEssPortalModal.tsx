@@ -2713,7 +2713,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                   </div>
 
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
+                    <table className="table-modern w-full text-left border-collapse">
                       <thead>
                         <tr className="border-b border-slate-200 text-[11px] text-slate-500 uppercase whitespace-nowrap">
                           <th className="py-2 px-3">Date</th>
@@ -4180,7 +4180,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
+                  <table className="table-modern w-full text-left border-collapse">
                     <thead>
                       <tr className="border-b border-slate-200 text-[11px] text-slate-500 uppercase whitespace-nowrap">
                         <th className="py-2 px-3">Ref ID</th>
@@ -4548,7 +4548,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
+                  <table className="table-modern w-full text-left border-collapse">
                     <thead>
                       <tr className="border-b border-slate-200 text-[11px] text-slate-500 uppercase whitespace-nowrap">
                         <th className="py-2 px-3">Claim #</th>

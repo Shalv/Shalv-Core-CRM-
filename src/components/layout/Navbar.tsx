@@ -252,7 +252,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-3 sm:px-6 py-2.5">
+      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-xl border-b border-slate-200/80 px-3 sm:px-6 py-2.5 shadow-[0_8px_24px_-22px_rgba(15,23,42,0.5)]">
       <div className="flex items-center justify-between gap-2 sm:gap-4 min-w-0">
         {/* Show compact menu icon button only when sidebar is hidden/closed */}
         {onToggleSidebar && !isSidebarOpen && (
@@ -282,7 +282,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 setShowSearchResults(true);
               }}
               onFocus={() => setShowSearchResults(true)}
-              className="w-full pl-9 pr-4 py-1.5 text-xs bg-slate-100 hover:bg-slate-50 focus:bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition text-slate-800 placeholder-slate-400"
+              className="w-full pl-9 pr-4 py-1.5 text-xs bg-slate-100/80 hover:bg-slate-50 focus:bg-white border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition text-slate-800 placeholder-slate-400"
             />
             {searchQuery && (
               <button
@@ -433,7 +433,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         setShowQuickMenu(false);
                         onOpenCreateLead();
                       }}
-                      className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2.5 text-slate-700"
+                      className="table-modern w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2.5 text-slate-700"
                     >
                       <UserCheck className="w-4 h-4 text-blue-600" />
                       <span>Create Lead</span>
@@ -445,7 +445,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         setShowQuickMenu(false);
                         onOpenCreateOrder();
                       }}
-                      className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2.5 text-slate-700"
+                      className="table-modern w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2.5 text-slate-700"
                     >
                       <FileSpreadsheet className="w-4 h-4 text-amber-600" />
                       <span>New Sales Order</span>
@@ -457,7 +457,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         setShowQuickMenu(false);
                         onOpenRecordPayment();
                       }}
-                      className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2.5 text-slate-700"
+                      className="table-modern w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2.5 text-slate-700"
                     >
                       <CreditCard className="w-4 h-4 text-emerald-600" />
                       <span>Record Payment</span>
@@ -469,7 +469,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         setShowQuickMenu(false);
                         onOpenScheduleActivity();
                       }}
-                      className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2.5 text-slate-700"
+                      className="table-modern w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2.5 text-slate-700"
                     >
                       <Calendar className="w-4 h-4 text-purple-600" />
                       <span>Log / Schedule Activity</span>

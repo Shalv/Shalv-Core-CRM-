@@ -2657,7 +2657,7 @@ export const PayrollLoanManagementSection: React.FC<PayrollLoanManagementSection
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+                  <table className="table-modern w-full text-left border-collapse text-xs whitespace-nowrap">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase">
                         <th className="py-2.5 px-3">Inst #</th>
@@ -2774,7 +2774,7 @@ export const PayrollLoanManagementSection: React.FC<PayrollLoanManagementSection
                     </p>
                   </div>
                   <div className="overflow-x-auto max-h-80">
-                    <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+                    <table className="table-modern w-full text-left border-collapse text-xs whitespace-nowrap">
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase">
                           <th className="py-2 px-3">Date</th>
@@ -2895,7 +2895,7 @@ export const PayrollLoanManagementSection: React.FC<PayrollLoanManagementSection
 
           {reportView === 'active_loans' && (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+              <table className="table-modern w-full text-left border-collapse text-xs whitespace-nowrap">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase">
                     <th className="py-2.5 px-3">Loan No</th>
@@ -2970,7 +2970,7 @@ export const PayrollLoanManagementSection: React.FC<PayrollLoanManagementSection
 
           {reportView === 'pending_approvals' && (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+              <table className="table-modern w-full text-left border-collapse text-xs whitespace-nowrap">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase">
                     <th className="py-2.5 px-3">Loan No</th>
@@ -3039,7 +3039,7 @@ export const PayrollLoanManagementSection: React.FC<PayrollLoanManagementSection
 
           {reportView === 'monthly_recoveries' && (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+              <table className="table-modern w-full text-left border-collapse text-xs whitespace-nowrap">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase">
                     <th className="py-2.5 px-3">Loan No</th>
@@ -3093,7 +3093,7 @@ export const PayrollLoanManagementSection: React.FC<PayrollLoanManagementSection
 
           {reportView === 'employee_balances' && (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+              <table className="table-modern w-full text-left border-collapse text-xs whitespace-nowrap">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase">
                     <th className="py-2.5 px-3">Emp Code</th>
@@ -3143,7 +3143,7 @@ export const PayrollLoanManagementSection: React.FC<PayrollLoanManagementSection
 
           {reportView === 'audit_trail' && (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+              <table className="table-modern w-full text-left border-collapse text-xs whitespace-nowrap">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase">
                     <th className="py-2.5 px-3">Timestamp</th>

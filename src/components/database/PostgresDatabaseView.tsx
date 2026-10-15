@@ -522,7 +522,7 @@ export const PostgresDatabaseView: React.FC = () => {
 
               {/* Column definitions table */}
               <div className="mt-4 overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="table-modern w-full text-left text-xs">
                   <thead>
                     <tr className="bg-slate-50 text-slate-600 border-b border-slate-200">
                       <th className="py-2.5 px-3 font-semibold">Column Name</th>
@@ -649,7 +649,7 @@ export const PostgresDatabaseView: React.FC = () => {
                 Query Result ({queryResult.length} rows)
               </h4>
               <div className="overflow-x-auto max-h-96">
-                <table className="w-full text-left text-xs">
+                <table className="table-modern w-full text-left text-xs">
                   <thead className="sticky top-0 bg-slate-100 z-10">
                     <tr className="border-b border-slate-200 text-slate-700">
                       {Object.keys(queryResult[0] || {}).map((key) => (

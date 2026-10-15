@@ -725,7 +725,7 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs">
+                  <table className="table-modern w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="border-b border-slate-200 text-[11px] text-slate-500">
                         <th className="py-1.5 pr-2 font-semibold">Task</th>
@@ -1271,7 +1271,7 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({
       {viewMode === 'table' && (
         <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
+            <table className="table-modern w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-500">
                   <th className="py-3 px-4">Opportunity #</th>

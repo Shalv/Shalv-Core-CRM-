@@ -468,7 +468,7 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
         {/* Scrollable Matrix Table */}
         <div className="overflow-y-auto flex-1 p-6">
           <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
-            <table className="w-full text-left text-xs">
+            <table className="table-modern w-full text-left text-xs">
               <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                 <tr>
                   <th className="p-3 w-1/3">CRM Module</th>

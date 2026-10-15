@@ -520,7 +520,7 @@ export const LifecycleTraceModal: React.FC<LifecycleTraceModalProps> = ({
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border border-slate-100 rounded-lg">
+                <table className="table-modern w-full text-left text-xs border border-slate-100 rounded-lg">
                   <thead className="bg-slate-100 text-slate-600 font-semibold">
                     <tr>
                       <th className="p-2">Code</th>

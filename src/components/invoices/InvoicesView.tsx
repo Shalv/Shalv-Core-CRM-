@@ -2738,7 +2738,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                   </div>
                 ) : (
                   <div className="border border-slate-200 rounded-xl overflow-x-auto">
-                    <table className="w-full text-left text-[11px] border-collapse">
+                    <table className="table-modern w-full text-left text-[11px] border-collapse">
                       <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
                         <tr>
                           <th className="p-2.5">Receipt #</th>
