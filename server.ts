@@ -1,5 +1,6 @@
 import initialStore from './backend/initial-store.json' with { type: 'json' };
 import { postgresStateMiddleware } from './backend/postgresState.ts';
+import { aiChat, aiConfig, isAiConfigured } from './backend/ai.ts';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import dotenv from 'dotenv';
 import { Pool } from 'pg';
@@ -143,6 +144,55 @@ app.set('trust proxy', 1);
 // Parse JSON and URL-encoded bodies
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+
+// ---------------------------------------------------------------------------
+// Security headers. Deliberately a conservative set — no strict Content-Security-Policy,
+// because the SPA ships a large inline bundle and a wrong CSP would break it. These are the
+// cheap, high-value ones that reduce XSS/clickjacking/mime-sniffing exposure.
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-DNS-Prefetch-Control', 'off');
+  if (process.env.NODE_ENV === 'production' || isServerlessRuntime()) {
+    res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+  }
+  next();
+});
+
+// ---------------------------------------------------------------------------
+// Lightweight in-memory login throttle for the auth endpoints. Each serverless instance keeps
+// its own window, so this is a speed bump rather than a hard guarantee — but it stops a single
+// instance being used to brute-force passwords, which previously had no limit at all. Only
+// FAILED attempts count, so normal successful sign-ins are never throttled.
+const LOGIN_WINDOW_MS = 10 * 60 * 1000;
+const LOGIN_MAX_FAILURES = 40;
+const loginFailures = new Map<string, { count: number; first: number }>();
+function loginThrottleKey(req: Request) {
+  const body: any = req.body || {};
+  const id = String(body.identifier || body.username || body.email || '').trim().toLowerCase();
+  const fwd = (req.headers as any)?.['x-forwarded-for'];
+  const ip = String((Array.isArray(fwd) ? fwd[0] : fwd) || (req as any).ip || '').split(',')[0].trim();
+  return `${ip}|${id}`;
+}
+function isLoginThrottled(req: Request): boolean {
+  if (isTestMode()) return false;
+  const rec = loginFailures.get(loginThrottleKey(req));
+  if (!rec) return false;
+  if (Date.now() - rec.first > LOGIN_WINDOW_MS) { loginFailures.delete(loginThrottleKey(req)); return false; }
+  return rec.count >= LOGIN_MAX_FAILURES;
+}
+function noteLoginFailure(req: Request) {
+  if (isTestMode()) return;
+  const key = loginThrottleKey(req);
+  const now = Date.now();
+  const rec = loginFailures.get(key);
+  if (!rec || now - rec.first > LOGIN_WINDOW_MS) loginFailures.set(key, { count: 1, first: now });
+  else rec.count += 1;
+}
+function clearLoginFailures(req: Request) {
+  if (isTestMode()) return;
+  loginFailures.delete(loginThrottleKey(req));
+}
 
 // Database connection with in-memory mock fallback for AI Studio environment
 const MOCK_TABLES: Record<string, any[]> = {
@@ -1190,13 +1240,22 @@ app.use('/api', (req, res, next) => {
   if (!account && id === 'usr-1') {
     account = { id: 'usr-1', name: 'Admin', username: 'admin', email: 'admin@coreenact.com', passwordHash: DEFAULT_SEED_PASSWORD_HASH, role: 'Super Admin', status: 'Active' };
   }
-  if (!account && !isServerlessRuntime() && req.headers['x-crm-logged-out'] !== 'true') {
-    account = MOCK_TABLES.users[0] || { id: 'usr-1', name: 'Admin', username: 'admin', email: 'admin@coreenact.com', passwordHash: DEFAULT_SEED_PASSWORD_HASH, role: 'Super Admin', status: 'Active' };
-  }
+  // SECURITY: there is deliberately no anonymous fallback here. A request without a valid,
+  // signed session is rejected in every runtime. Previously a non-serverless runtime (Render,
+  // local `npm start`/`npm run dev`, Docker) executed anonymous requests as the first user
+  // (the Super Admin), which was a complete authentication bypass.
   if (!account || String(account.status).toLowerCase() === 'inactive') return res.status(401).json({success:false,message:'Please sign in again.'});
   (req as any).account = account;
   const admin = ['Super Admin','Administrator'].includes(account.role);
-  if ((req.path.startsWith('/database') || ((req.path.startsWith('/users') || req.path === '/notifications/email-config' || req.path.startsWith('/payroll/masters')) && req.method !== 'GET')) && !admin) return res.status(403).json({success:false,message:'Administrator permission required.'});
+  const pathIsDatabase = req.path.startsWith('/database');
+  const pathIsAdminWrite =
+    req.path.startsWith('/users') ||
+    req.path === '/notifications/email-config' ||
+    req.path.startsWith('/payroll/masters') ||
+    req.path.startsWith('/payroll/policy') ||
+    req.path.startsWith('/payroll/org-masters') ||
+    req.path.startsWith('/payroll/loans');
+  if ((pathIsDatabase || (pathIsAdminWrite && req.method !== 'GET')) && !admin) return res.status(403).json({success:false,message:'Administrator permission required.'});
   if (isServerlessRuntime() && req.method !== 'GET' && req.headers.origin && new URL(req.headers.origin).host !== req.get('host')) return res.status(403).json({success:false,message:'Request origin is not allowed.'});
   next();
 });
@@ -1500,6 +1559,15 @@ async function handleAuthLogin(req: Request, res: Response) {
       });
     }
 
+    // SECURITY: block repeated failed sign-ins for this IP+identifier pair.
+    if (isLoginThrottled(req)) {
+      return res.status(429).json({
+        success: false,
+        authenticated: false,
+        message: 'Too many failed sign-in attempts. Please wait a few minutes and try again.',
+      });
+    }
+
     // The hardcoded default password "password123" is strictly disabled for all users (both employee and admin)
     if (password === 'password123') {
       return res.status(401).json({
@@ -1511,6 +1579,7 @@ async function handleAuthLogin(req: Request, res: Response) {
 
     const { user, master } = findAccountByIdentifier(identifier);
     if (!user && !master) {
+      noteLoginFailure(req);
       return res.status(401).json({
         success: false,
         authenticated: false,
@@ -1594,29 +1663,15 @@ async function handleAuthLogin(req: Request, res: Response) {
     let passwordMatches = Boolean(storedHash && verifyPasswordHash(password, storedHash)) || Boolean(bootstrapAdminPass);
 
     if (!passwordMatches && isAdminAccount) {
+      // SECURITY: the hardcoded admin-password alias list (Coreenact@321#, Admin@123, admin,
+      // Shalv@123, …) has been removed. It let anyone who could read the public repo or the
+      // deployment notes authenticate as Super Admin and also rewrote the stored hash to the
+      // seed, silently resetting a real admin's password. An admin may still recover through
+      // the operator-configured ADMIN_PASSWORD env value, or the one-time BOOTSTRAP_ADMIN_PASSWORD
+      // reset flow; every other string must match the account's stored bcrypt hash.
       const cleanPass = String(password || '').trim();
-      const lowerPass = cleanPass.toLowerCase();
-      const isRecognizedAdminPass =
-        cleanPass === ADMIN_DEFAULT_PASSWORD ||
-        cleanPass === 'Coreenact@2026#' ||
-        lowerPass === 'coreenact@2026#' ||
-        cleanPass === 'Coreenact@321#' ||
-        lowerPass === 'coreenact@321#' ||
-        cleanPass === 'Coreenact@321' ||
-        lowerPass === 'coreenact@321' ||
-        cleanPass === 'CoreEnact@321#' ||
-        cleanPass === LEGACY_ADMIN_PASSWORD ||
-        lowerPass === 'admin@coreenact2026' ||
-        cleanPass === 'CoreEnact@2026' ||
-        lowerPass === 'coreenact@2026' ||
-        cleanPass === 'Admin@123' ||
-        lowerPass === 'admin@123' ||
-        lowerPass === 'admin123' ||
-        lowerPass === 'admin' ||
-        cleanPass === 'Shalv@123' ||
-        lowerPass === 'shalv@123' ||
-        verifyPasswordHash(cleanPass, DEFAULT_SEED_PASSWORD_HASH) ||
-        (isAdminBootstrapEnabled() && verifyPasswordHash(cleanPass, LEGACY_SEED_PASSWORD_HASH));
+      const configuredAdminPass = (process.env.ADMIN_PASSWORD || '').trim();
+      const isRecognizedAdminPass = Boolean(configuredAdminPass) && cleanPass === configuredAdminPass;
 
       if (isRecognizedAdminPass) {
         passwordMatches = true;
@@ -1645,6 +1700,7 @@ async function handleAuthLogin(req: Request, res: Response) {
     }
 
     if (!passwordMatches) {
+      noteLoginFailure(req);
       return res.status(401).json({
         success: false,
         authenticated: false,
@@ -1652,6 +1708,8 @@ async function handleAuthLogin(req: Request, res: Response) {
       });
     }
 
+    // Successful sign-in clears any accumulated failures for this IP+identifier.
+    clearLoginFailures(req);
     const nowIso = new Date().toISOString();
     const resolvedAccessScope: 'all' | 'payroll_only' =
       !isAdminAccount && (portalMode === 'payroll' || isPayrollOnlyAccount)
@@ -3526,7 +3584,7 @@ app.post('/api/sync/push', async (req: Request, res: Response) => {
     deletedMasterUserIds,
   } = req.body || {};
   const actor=(req as any).account;
-  if(actor && !['Super Admin','Administrator'].includes(actor.role) && (pushedUsers || pushedMasters || pushedCrmSlices || sliceKey === 'rolePermissions' || replaceUsers || replacePayrollMasters || deletedMasterUserIds)) {
+  if(actor && !['Super Admin','Administrator'].includes(actor.role) && (pushedUsers || pushedMasters || pushedCrmSlices || sliceKey === 'rolePermissions' || replaceUsers || replacePayrollMasters || deletedMasterUserIds || pushedPolicy || pushedOrgMasters || pushedLoans || pushedIntegrationConfig)) {
     return res.status(403).json({success:false,message:'Administrator permission required.'});
   }
   if(pushedCrmSlices || sliceKey) {
@@ -4650,6 +4708,136 @@ app.get('/api/sync/pull', async (req: Request, res: Response) => {
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
+// ============================================================================
+// AI assistant, insights and drafting (provider-agnostic; cleanly disabled when no key)
+// ============================================================================
+
+function isPrivilegedActor(account: any): boolean {
+  return ['Super Admin','Administrator','Sales Manager','Finance Manager','Management/Viewer'].includes(account?.role);
+}
+
+/** Compact, read-only summary of the business, used to ground AI answers in live data. */
+function buildAiBusinessContext(account: any) {
+  const s: any = getCurrentSnapshot();
+  const today = new Date().toISOString().split('T')[0];
+  const money = (n: any) => Math.round(Number(n) || 0);
+  const isOpen = (status: any) => !['Cancelled','Completed','Closed'].includes(String(status));
+
+  const invoices = Array.isArray(s.invoices) ? s.invoices : [];
+  const taxInvoices = invoices.filter((i: any) => (i.invoiceType || 'Tax') === 'Tax' && i.status !== 'Cancelled');
+  const payments = Array.isArray(s.payments) ? s.payments : [];
+  const orders = Array.isArray(s.orders) ? s.orders : [];
+  const milestones = Array.isArray(s.milestones) ? s.milestones : [];
+  const leads = Array.isArray(s.leads) ? s.leads : [];
+  const customers = Array.isArray(s.customers) ? s.customers : [];
+
+  const overdue = taxInvoices.filter((i: any) => money(i.balanceAmount) > 0 && String(i.dueDate) < today);
+  const totalBilled = taxInvoices.reduce((a: number, i: any) => a + money(i.grandTotal), 0);
+  const totalCollected = payments.reduce((a: number, p: any) => a + money(p.amount), 0);
+  const totalOutstanding = taxInvoices.reduce((a: number, i: any) => a + money(i.balanceAmount), 0);
+  const overdueAmount = overdue.reduce((a: number, i: any) => a + money(i.balanceAmount), 0);
+  const openOrders = orders.filter((o: any) => isOpen(o.status));
+  const openPipeline = openOrders.reduce((a: number, o: any) => a + money(o.grandTotal), 0);
+  const pendingMilestones = milestones.filter((m: any) => money(m.amount) - money(m.paidAmount) > 0).length;
+
+  const byCustomer = new Map<string, number>();
+  for (const i of overdue) {
+    const key = i.customerName || i.customerId || 'Unknown';
+    byCustomer.set(key, (byCustomer.get(key) || 0) + money(i.balanceAmount));
+  }
+  const topOverdue = [...byCustomer.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  const lines = [
+    `Reporting date: ${today}`,
+    `Customers: ${customers.length}`,
+    `Leads: ${leads.length}`,
+    `Open sales orders: ${openOrders.length}`,
+    `Open sales order value (INR): ${openPipeline}`,
+    `Tax invoices: ${taxInvoices.length}`,
+    `Total billed (tax invoices, INR): ${totalBilled}`,
+    `Total collected (INR): ${totalCollected}`,
+    `Total outstanding receivable (INR): ${totalOutstanding}`,
+    `Overdue invoices: ${overdue.length}`,
+    `Overdue receivable (INR): ${overdueAmount}`,
+    `Milestones: ${milestones.length} (with pending balance: ${pendingMilestones})`,
+  ];
+  // Customer names only for roles that already see the whole book of business.
+  if (isPrivilegedActor(account) && topOverdue.length) {
+    lines.push('Top overdue customers (name: INR): ' + topOverdue.map(([n, v]) => `${n}: ${v}`).join('; '));
+  }
+
+  return {
+    text: lines.join('\n'),
+    metrics: {
+      totalBilled, totalCollected, totalOutstanding, overdueAmount, overdueCount: overdue.length,
+      openPipeline, customers: customers.length, leads: leads.length, taxInvoices: taxInvoices.length,
+    },
+  };
+}
+
+app.get('/api/ai/status', (_req: Request, res: Response) => {
+  const c = aiConfig();
+  res.json({ success: true, configured: isAiConfigured(), provider: c.provider || null, model: c.model || null });
+});
+
+app.post('/api/ai/assistant', async (req: Request, res: Response) => {
+  if (!isAiConfigured()) {
+    return res.status(503).json({ success: false, configured: false, message: 'AI is not configured on this server. Set AI_PROVIDER and AI_API_KEY to enable it.' });
+  }
+  const account = (req as any).account;
+  const rawMessages = Array.isArray(req.body?.messages) ? req.body.messages : [];
+  const messages = rawMessages
+    .filter((m: any) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+    .slice(-12)
+    .map((m: any) => ({ role: m.role, content: String(m.content).slice(0, 4000) }));
+  if (!messages.length) return res.status(400).json({ success: false, message: 'A message is required.' });
+
+  const ctx = buildAiBusinessContext(account);
+  const system =
+    `You are the Enact360 CRM assistant for ${account?.name || 'a user'} (role: ${account?.role || 'unknown'}). ` +
+    `Answer questions about leads, opportunities, customers, sales orders, invoices, GST, payments, collections and the customer ledger ` +
+    `using ONLY the live business summary below. Be concise and practical. If the summary does not contain the answer, say so and ` +
+    `suggest which screen to check. Never invent figures. Amounts are in Indian Rupees (INR).\n\nLIVE BUSINESS SUMMARY:\n${ctx.text}`;
+  const result = await aiChat(system, messages as any, { maxTokens: 900 });
+  if (!result.ok) return res.status(502).json({ success: false, configured: true, message: result.error || 'The AI provider is unavailable.' });
+  res.json({ success: true, answer: result.text, provider: result.provider, model: result.model, metrics: ctx.metrics });
+});
+
+app.post('/api/ai/insights', async (req: Request, res: Response) => {
+  const account = (req as any).account;
+  const ctx = buildAiBusinessContext(account);
+  if (!isAiConfigured()) {
+    return res.status(503).json({ success: false, configured: false, message: 'AI is not configured on this server.', metrics: ctx.metrics });
+  }
+  const system =
+    `You are a financial and sales analyst for a company using the Enact360 CRM. Using ONLY the metrics below, produce 3 to 5 short, ` +
+    `specific, actionable insights or risks (collections, overdue receivables, pipeline, customer concentration). One sentence each, ` +
+    `plain text, no preamble, no markdown. Amounts are INR.\n\nMETRICS:\n${ctx.text}`;
+  const result = await aiChat(system, [{ role: 'user', content: 'Generate the insights.' }], { maxTokens: 700 });
+  if (!result.ok) return res.status(502).json({ success: false, configured: true, metrics: ctx.metrics, message: result.error || 'The AI provider is unavailable.' });
+  res.json({ success: true, insights: result.text, metrics: ctx.metrics, provider: result.provider, model: result.model });
+});
+
+app.post('/api/ai/draft', async (req: Request, res: Response) => {
+  if (!isAiConfigured()) {
+    return res.status(503).json({ success: false, configured: false, message: 'AI is not configured on this server.' });
+  }
+  const account = (req as any).account;
+  const kind = String(req.body?.kind || 'follow_up').slice(0, 40).replace(/[^a-z_ ]/gi, '');
+  const about = String(req.body?.about || '').slice(0, 600);
+  const recipient = String(req.body?.recipient || '').slice(0, 120);
+  if (!about.trim() && !recipient.trim()) return res.status(400).json({ success: false, message: 'Provide a recipient or a short brief.' });
+
+  const ctx = buildAiBusinessContext(account);
+  const system =
+    `You are a professional business-writing assistant for ${account?.name || 'a user'} at a company using the Enact360 CRM. ` +
+    `Draft a concise, polite ${kind.replace(/_/g, ' ')} email. Return ONLY the email with a Subject line and body. ` +
+    `Do not invent facts about the recipient.\n\nLIVE BUSINESS SUMMARY (context only):\n${ctx.text}`;
+  const result = await aiChat(system, [{ role: 'user', content: `Recipient: ${recipient || '(unspecified)'}\nBrief: ${about || '(none provided)'}` }], { maxTokens: 700 });
+  if (!result.ok) return res.status(502).json({ success: false, configured: true, message: result.error || 'The AI provider is unavailable.' });
+  res.json({ success: true, draft: result.text, provider: result.provider, model: result.model });
 });
 
 app.use('/api', (_req, res) => res.status(404).json({success:false,message:'API endpoint not found.'}));

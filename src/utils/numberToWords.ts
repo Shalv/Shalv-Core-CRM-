@@ -64,36 +64,32 @@ export function amountInWords(num: number): string {
     return res;
   };
 
-  const integerPart = Math.floor(num);
-  const decimalPart = Math.round((num - integerPart) * 100);
+  const totalPaise = Math.round(num * 100);
+  const integerPart = Math.floor(totalPaise / 100);
+  const decimalPart = totalPaise % 100;
 
-  // Indian numbering system: Crores, Lakhs, Thousands, Hundreds
-  const crores = Math.floor(integerPart / 10000000);
-  let remainder = integerPart % 10000000;
+  // Indian numbering system (Crore, Lakh, Thousand, Hundred), expressed recursively so that
+  // amounts of any size render correctly — e.g. ₹100 crore must read "One Hundred Crore",
+  // not "Crore". The previous non-recursive version silently dropped the crore segment for
+  // any amount of ₹100 crore or more.
+  const convertIndianInteger = (n: number): string => {
+    if (n <= 0) return '';
+    if (n < 1000) return convertThreeDigits(n);
+    const parts: string[] = [];
+    const crore = Math.floor(n / 10000000);
+    let rest = n % 10000000;
+    if (crore > 0) parts.push(`${convertIndianInteger(crore)} Crore`);
+    const lakh = Math.floor(rest / 100000);
+    rest %= 100000;
+    const thousand = Math.floor(rest / 1000);
+    rest %= 1000;
+    if (lakh > 0) parts.push(`${convertTwoDigits(lakh)} Lakh`);
+    if (thousand > 0) parts.push(`${convertTwoDigits(thousand)} Thousand`);
+    if (rest > 0) parts.push(convertThreeDigits(rest));
+    return parts.join(' ');
+  };
 
-  const lakhs = Math.floor(remainder / 100000);
-  remainder = remainder % 100000;
-
-  const thousands = Math.floor(remainder / 1000);
-  remainder = remainder % 1000;
-
-  const hundreds = remainder;
-
-  const parts: string[] = [];
-  if (crores > 0) {
-    parts.push(`${convertTwoDigits(crores)} Crore`);
-  }
-  if (lakhs > 0) {
-    parts.push(`${convertTwoDigits(lakhs)} Lakh`);
-  }
-  if (thousands > 0) {
-    parts.push(`${convertTwoDigits(thousands)} Thousand`);
-  }
-  if (hundreds > 0) {
-    parts.push(convertThreeDigits(hundreds));
-  }
-
-  let words = `Rupees ${parts.join(' ')}`.trim();
+  let words = `Rupees ${integerPart > 0 ? convertIndianInteger(integerPart) : 'Zero'}`;
 
   if (decimalPart > 0) {
     words += ` and ${convertTwoDigits(decimalPart)} Paise`;

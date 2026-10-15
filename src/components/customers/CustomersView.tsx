@@ -22,6 +22,7 @@ import {
   ExternalLink,
   ChevronRight,
   ShieldCheck,
+  Shield,
   ArrowUpRight,
   UserCheck,
   Edit3,

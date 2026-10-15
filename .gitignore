@@ -27,3 +27,10 @@ npm-debug.log*
 # Caveat: tests/deployment.test.cjs reads .vercel/output, so run `npm run build` before
 # `npm run test:deployment` on a fresh clone — `npm run check` already does the build first.
 .vercel/
+
+# Runtime CRM store: contains live records and password hashes. Never commit it.
+.crm_persisted_store.json
+.crm_persisted_store.*.json
+
+# Database dumps can contain real customer PII — keep them out of the repo and out of public/.
+*.sql
