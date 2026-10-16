@@ -96,12 +96,15 @@ import {
   saveShiftSwapRequests,
   loadHelpDeskTickets,
   saveHelpDeskTickets,
+  loadPayrollRuns,
+  savePayrollRuns,
   type PayrollLocation,
   type RegularizationRequest,
   type ShiftDefinition,
   type ShiftAssignment,
   type ShiftSwapRequest,
   type HelpDeskTicket,
+  type PayrollRun,
 } from './payrollTypes';
 import { checkGeofence, formatDistance, localIsoDate, localTimeString } from '../../shared/geo';
 import { PayrollAdminMasterSection } from './PayrollAdminMasterSection';
@@ -117,6 +120,7 @@ import { PayrollLocationMaster } from './PayrollLocationMaster';
 import { PayrollRegularizationSection } from './PayrollRegularizationSection';
 import { PayrollShiftRosterSection } from './PayrollShiftRosterSection';
 import { PayrollHelpDeskSection } from './PayrollHelpDeskSection';
+import { PayrollProcessingSection } from './PayrollProcessingSection';
 import { PayChakraFooter } from './PayChakraFooter';
 
 export type { EssTabKey };
@@ -261,6 +265,9 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
 
   const [helpDeskTickets, setHelpDeskTickets] = useState<HelpDeskTicket[]>(() => loadHelpDeskTickets());
   useEffect(() => { saveHelpDeskTickets(helpDeskTickets); }, [helpDeskTickets]);
+
+  const [payrollRuns, setPayrollRuns] = useState<PayrollRun[]>(() => loadPayrollRuns());
+  useEffect(() => { savePayrollRuns(payrollRuns); }, [payrollRuns]);
 
   const [adminPolicyMaster, setAdminPolicyMaster] = useState<AdminPolicyMaster>(() =>
     loadAdminPolicyMaster()
@@ -6065,6 +6072,14 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
               }))}
               tickets={helpDeskTickets}
               onChange={setHelpDeskTickets}
+              setStatusBanner={setStatusBanner}
+            />
+            <PayrollProcessingSection
+              employees={enrolledEmployees}
+              runs={payrollRuns}
+              onChangeRuns={setPayrollRuns}
+              currentUserName={currentUser.name || 'Administrator'}
+              formatCurrency={formatCurrency}
               setStatusBanner={setStatusBanner}
             />
             <PayrollAdminMasterSection

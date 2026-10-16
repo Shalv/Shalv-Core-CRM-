@@ -2038,6 +2038,170 @@ export const updateHelpDeskTicket = (
     };
   });
 
+/* ------------------------------------------------------- Payroll processing ----
+ * Phase 3. A payroll run moves through an explicit pipeline with locking, controlled
+ * reopening, arrears/recoveries adjustments, variance against the previous month,
+ * payment export and separate processing vs payment status.
+ * ------------------------------------------------------------------------------- */
+export type PayrollRunStatus =
+  | 'Draft'
+  | 'Calculated'
+  | 'Under Review'
+  | 'Approved'
+  | 'Published'
+  | 'Paid';
+
+export const PAYROLL_RUN_PIPELINE: PayrollRunStatus[] = [
+  'Draft',
+  'Calculated',
+  'Under Review',
+  'Approved',
+  'Published',
+  'Paid',
+];
+
+export type PayrollPaymentStatus = 'Unpaid' | 'Partially Paid' | 'Paid';
+
+export type PayrollAdjustmentKind = 'Arrear' | 'Recovery' | 'Incentive' | 'Overtime';
+export const PAYROLL_ADJUSTMENT_KINDS: PayrollAdjustmentKind[] = ['Arrear', 'Recovery', 'Incentive', 'Overtime'];
+
+export interface PayrollAdjustment {
+  id: string;
+  employeeId: string;
+  employeeName?: string;
+  kind: PayrollAdjustmentKind;
+  amount: number;
+  note?: string;
+  addedBy: string;
+  addedAt: string;
+}
+
+export interface PayrollRunLine {
+  employeeId: string;
+  employeeName: string;
+  empCode: string;
+  gross: number;
+  net: number;
+}
+
+export interface PayrollRun {
+  /** Month key, e.g. '2026-10'. */
+  id: string;
+  month: string;
+  status: PayrollRunStatus;
+  paymentStatus: PayrollPaymentStatus;
+  /** Locked runs are read-only until deliberately reopened. */
+  locked: boolean;
+  reopenReason?: string;
+  headcount: number;
+  grossTotal: number;
+  netTotal: number;
+  lines: PayrollRunLine[];
+  adjustments: PayrollAdjustment[];
+  calculatedAt?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  publishedAt?: string;
+  paidAt?: string;
+  history: RegularizationHistoryEntry[];
+}
+
+const PAYROLL_RUNS_KEY = 'crm_payroll_runs';
+
+export const loadPayrollRuns = (): PayrollRun[] => {
+  try {
+    const raw = localStorage.getItem(PAYROLL_RUNS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed as PayrollRun[];
+    }
+  } catch {
+    /* ignore */
+  }
+  return [];
+};
+
+export const savePayrollRuns = (list: PayrollRun[]): void => {
+  try {
+    localStorage.setItem(PAYROLL_RUNS_KEY, JSON.stringify(list));
+  } catch {
+    /* ignore */
+  }
+};
+
+/** The next status in the pipeline, or null when already at the end. */
+export const nextPayrollRunStatus = (status: PayrollRunStatus): PayrollRunStatus | null => {
+  const i = PAYROLL_RUN_PIPELINE.indexOf(status);
+  return i >= 0 && i < PAYROLL_RUN_PIPELINE.length - 1 ? PAYROLL_RUN_PIPELINE[i + 1] : null;
+};
+
+/** Apply a change to a run, appending an audit entry. Blocked while locked. */
+export const updatePayrollRun = (
+  list: PayrollRun[],
+  id: string,
+  patch: Partial<PayrollRun>,
+  by: string,
+  action: string
+): PayrollRun[] =>
+  list.map((r) => {
+    if (r.id !== id) return r;
+    const at = new Date().toISOString();
+    const from = patch.status && patch.status !== r.status ? r.status : undefined;
+    return {
+      ...r,
+      ...patch,
+      history: [...(r.history || []), { at, by, action, from, to: patch.status }],
+    };
+  });
+
+export const reopenPayrollRun = (
+  list: PayrollRun[],
+  id: string,
+  by: string,
+  reason: string
+): PayrollRun[] =>
+  list.map((r) =>
+    r.id === id
+      ? {
+          ...r,
+          locked: false,
+          status: 'Under Review' as PayrollRunStatus,
+          reopenReason: reason,
+          history: [
+            ...(r.history || []),
+            {
+              at: new Date().toISOString(),
+              by,
+              action: `Reopened — ${reason}`,
+              from: r.status,
+              to: 'Under Review',
+            },
+          ],
+        }
+      : r
+  );
+
+/** Net variance for a month against the previous run, per employee. */
+export const payrollVariance = (current: PayrollRun, previous?: PayrollRun | null) => {
+  const prevMap = new Map((previous?.lines || []).map((l) => [l.employeeId, l]));
+  const rows = current.lines.map((l) => {
+    const prev = prevMap.get(l.employeeId);
+    return {
+      employeeId: l.employeeId,
+      employeeName: l.employeeName,
+      empCode: l.empCode,
+      net: l.net,
+      prevNet: prev ? prev.net : null,
+      delta: prev ? l.net - prev.net : null,
+    };
+  });
+  return {
+    rows,
+    netDelta: previous ? current.netTotal - previous.netTotal : null,
+    headcountDelta: previous ? current.headcount - previous.headcount : null,
+  };
+};
+
 export const DEFAULT_ADMIN_POLICY_MASTER: AdminPolicyMaster = {
   policyCode: 'CS-HR-POL-001',
   policyVersion: '1.0',
