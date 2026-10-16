@@ -13,6 +13,8 @@ import {
   Wallet,
   ClipboardList,
   BadgeCheck,
+  Check,
+  X,
 } from 'lucide-react';
 import { Sparkline, DonutChart } from './EssCharts';
 import {
@@ -46,6 +48,16 @@ export interface AdminDashboardSectionProps {
   policy: any;
   formatCurrency: (n: number) => string;
   onNavigate?: (target: string) => void;
+  /** Decide a leave request. */
+  onDecideLeave?: (id: string, decision: 'Approved' | 'Rejected') => void;
+  /** Decide an expense claim. */
+  onDecideClaim?: (id: string, decision: 'Approved' | 'Rejected') => void;
+  /** Decide a punch regularization. */
+  onDecideRegularization?: (id: string, decision: 'Approved' | 'Rejected') => void;
+  /** Decide a shift swap. */
+  onDecideSwap?: (id: string, decision: 'Approved' | 'Rejected') => void;
+  /** Decide a help desk ticket. */
+  onDecideTicket?: (id: string, decision: 'Resolved' | 'Closed') => void;
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -77,6 +89,11 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
   policy,
   formatCurrency,
   onNavigate,
+  onDecideLeave,
+  onDecideClaim,
+  onDecideRegularization,
+  onDecideSwap,
+  onDecideTicket,
 }) => {
   const now = new Date();
   const todayIso = now.toISOString().slice(0, 10);
@@ -108,9 +125,33 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
   const deptSegments = byDept.map(([label, value], i) => ({ label, value, color: palette[i % palette.length] }));
   const deptTotal = deptSegments.reduce((s, x) => s + x.value, 0);
 
-  /** Everything waiting on an admin/HR decision. */
+  /**
+   * Everything waiting on an admin/HR decision, across every request type — leave and expense
+   * claims included. Each row carries the id and kind it came from so the Approve/Reject buttons
+   * can be dispatched back to the right store.
+   */
   const pending = [
+    ...leaves.filter((l) => l?.status === 'Pending Approval').map((l) => ({
+      id: l.id,
+      kind: 'leave',
+      type: 'Leave request',
+      who: l.employeeName || l.employeeId,
+      date: l.appliedOn || l.startDate || '',
+      status: 'Pending',
+      detail: `${l.leaveType || 'Leave'} · ${l.days}d`,
+    })),
+    ...claims.filter((c) => c?.status === 'Under Verification').map((c) => ({
+      id: c.id,
+      kind: 'claim',
+      type: 'Expense claim',
+      who: c.employeeName || c.employeeId,
+      date: c.expenseDate || '',
+      status: 'Pending',
+      detail: `${c.category || 'Expense'} · ${formatCurrency(Number(c.amount) || 0)}`,
+    })),
     ...regularization.filter((r) => r.status === 'Pending').map((r) => ({
+      id: r.id,
+      kind: 'regularization',
       type: 'Punch regularization',
       who: r.employeeName || r.employeeId,
       date: r.date,
@@ -118,6 +159,8 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
       detail: r.type,
     })),
     ...swaps.filter((s) => s.status === 'Pending').map((s) => ({
+      id: s.id,
+      kind: 'swap',
       type: 'Shift swap',
       who: s.requesterName || s.requesterId,
       date: s.date,
@@ -125,6 +168,8 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
       detail: 'Swap request',
     })),
     ...tickets.filter((t) => ['Open', 'In Progress', 'Escalated'].includes(String(t.status))).map((t) => ({
+      id: t.id,
+      kind: 'ticket',
       type: 'Help desk',
       who: t.employeeName || t.employeeId,
       date: String(t.raisedAt || '').slice(0, 10),
@@ -132,6 +177,24 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
       detail: t.category,
     })),
   ].sort((a, b) => (a.date < b.date ? 1 : -1));
+
+  /** Send a decision back to the store the row came from. */
+  const decide = (row: { id: string; kind: string }, approve: boolean) => {
+    if (row.kind === 'leave') onDecideLeave?.(row.id, approve ? 'Approved' : 'Rejected');
+    else if (row.kind === 'claim') onDecideClaim?.(row.id, approve ? 'Approved' : 'Rejected');
+    else if (row.kind === 'regularization')
+      onDecideRegularization?.(row.id, approve ? 'Approved' : 'Rejected');
+    else if (row.kind === 'swap') onDecideSwap?.(row.id, approve ? 'Approved' : 'Rejected');
+    else if (row.kind === 'ticket') onDecideTicket?.(row.id, approve ? 'Resolved' : 'Closed');
+  };
+
+  /** Only offer the buttons when the caller wired up a handler for that kind. */
+  const canDecide = (row: { kind: string }) =>
+    (row.kind === 'leave' && Boolean(onDecideLeave)) ||
+    (row.kind === 'claim' && Boolean(onDecideClaim)) ||
+    (row.kind === 'regularization' && Boolean(onDecideRegularization)) ||
+    (row.kind === 'swap' && Boolean(onDecideSwap)) ||
+    (row.kind === 'ticket' && Boolean(onDecideTicket));
 
   /** The latest payroll run — processing and payment status. */
   const latestRun = [...payrollRuns].sort((a, b) => (a.month < b.month ? 1 : -1))[0];
@@ -340,10 +403,10 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
           </div>
           <div className="overflow-x-auto">
             <table className="sh-table w-full">
-              <thead><tr><th>Request type</th><th>Employee</th><th>Detail</th><th>Status</th><th>Date</th></tr></thead>
+              <thead><tr><th>Request type</th><th>Employee</th><th>Detail</th><th>Status</th><th>Date</th><th className="text-right">Action</th></tr></thead>
               <tbody>
-                {pending.slice(0, 6).map((r, i) => (
-                  <tr key={`${r.type}-${i}`}>
+                {pending.slice(0, 8).map((r, i) => (
+                  <tr key={`${r.kind}-${r.id}-${i}`}>
                     <td className="font-semibold text-slate-800">{r.type}</td>
                     <td>
                       <span className="flex items-center gap-2">
@@ -360,10 +423,34 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
                       </span>
                     </td>
                     <td className="text-slate-500">{r.date || '—'}</td>
+                    <td className="text-right">
+                      {canDecide(r) ? (
+                        <span className="inline-flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            className="sh-btn sh-btn-primary"
+                            title={`Approve this ${r.type.toLowerCase()}`}
+                            onClick={() => decide(r, true)}
+                          >
+                            <Check className="w-3.5 h-3.5" /> Approve
+                          </button>
+                          <button
+                            type="button"
+                            className="sh-btn"
+                            title={`Reject this ${r.type.toLowerCase()}`}
+                            onClick={() => decide(r, false)}
+                          >
+                            <X className="w-3.5 h-3.5" /> Reject
+                          </button>
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-slate-400">—</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
                 {pending.length === 0 && (
-                  <tr><td colSpan={5} className="text-center py-8 text-slate-400">Nothing waiting — every request is decided.</td></tr>
+                  <tr><td colSpan={6} className="text-center py-8 text-slate-400">Nothing waiting — every request is decided.</td></tr>
                 )}
               </tbody>
             </table>

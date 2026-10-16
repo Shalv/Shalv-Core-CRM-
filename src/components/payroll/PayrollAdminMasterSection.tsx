@@ -5101,6 +5101,19 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                             onClick={() =>
                               setClaims((prev) =>
                                 prev.map((x) =>
+                                  x.id === c.id ? { ...x, status: 'Rejected' } : x
+                                )
+                              )
+                            }
+                            className="px-2.5 py-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-semibold whitespace-nowrap cursor-pointer"
+                          >
+                            Reject
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setClaims((prev) =>
+                                prev.map((x) =>
                                   x.id === c.id ? { ...x, status: 'Paid in Payslip' } : x
                                 )
                               )
