@@ -240,6 +240,8 @@ export interface AdminPolicyMaster {
   maxBreakDurationMins?: number; // 60 mins (1 hour)
   breakExceededDeductionDays?: number; // 0.5 day
   holidaySaturdayNumbers?: number[]; // [2, 4] -> 2nd & 4th Saturdays Off
+  /** Public / festival holiday calendar — the source the ESS attendance calendar reads. */
+  publicHolidays?: PublicHoliday[];
   sundaysOff?: boolean; // true -> All Sundays Off
   weeklyHolidaySaturdays?: string; // '2nd and 4th Saturdays + All Sundays'
   workingSaturdays?: string; // '1st, 3rd and 5th Saturdays'
@@ -2208,6 +2210,32 @@ export const payrollVariance = (current: PayrollRun, previous?: PayrollRun | nul
   };
 };
 
+/* --------------------------------------------------------- Public holidays ----
+ * The company holiday calendar. Fixed-date national holidays are seeded; moveable
+ * festivals are added by an admin, since their dates change every year.
+ * --------------------------------------------------------------------------- */
+export type PublicHolidayKind = 'Public' | 'Optional' | 'Restricted';
+export const PUBLIC_HOLIDAY_KINDS: PublicHolidayKind[] = ['Public', 'Optional', 'Restricted'];
+
+export interface PublicHoliday {
+  id: string;
+  name: string;
+  /** YYYY-MM-DD */
+  date: string;
+  kind: PublicHolidayKind;
+}
+
+/** Fixed-date national holidays (same date every year). */
+export const DEFAULT_PUBLIC_HOLIDAYS: PublicHoliday[] = [
+  { id: 'HOL-REPUBLIC', name: 'Republic Day', date: '2026-01-26', kind: 'Public' },
+  { id: 'HOL-INDEPENDENCE', name: 'Independence Day', date: '2026-08-15', kind: 'Public' },
+  { id: 'HOL-GANDHI', name: 'Gandhi Jayanti', date: '2026-10-02', kind: 'Public' },
+];
+
+/** The holiday falling on a given date, if any. */
+export const resolveHoliday = (policy: any, dateIso: string): PublicHoliday | undefined =>
+  (Array.isArray(policy?.publicHolidays) ? policy.publicHolidays : []).find((h: PublicHoliday) => h?.date === dateIso);
+
 /* ---------------------------------------------------- Employee lifecycle & exit ----
  * Phase 4. Probation, confirmation, promotion, transfer, resignation, termination and
  * exit — with notice period and full-and-final settlement. Every transition is audited.
@@ -2623,6 +2651,7 @@ export const DEFAULT_ADMIN_POLICY_MASTER: AdminPolicyMaster = {
   maxBreakDurationMins: 60,
   breakExceededDeductionDays: 0.5,
   holidaySaturdayNumbers: [2, 4],
+  publicHolidays: DEFAULT_PUBLIC_HOLIDAYS.map((h) => ({ ...h })),
   sundaysOff: true,
   weeklyHolidaySaturdays: '2nd and 4th Saturdays + All Sundays',
   workingSaturdays: '1st, 3rd and 5th Saturdays',

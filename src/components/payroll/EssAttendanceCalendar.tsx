@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, LogIn, LogOut, Plane } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, LogIn, LogOut, Plane, Star } from 'lucide-react';
 
 /**
  * ESS attendance calendar.
@@ -96,6 +96,16 @@ export function EssAttendanceCalendar({ attendance, leaves = [], policy }: EssAt
     return map;
   }, [leaves]);
 
+  /** date -> public holiday, from the company holiday calendar on the policy master. */
+  const holidayByDate = useMemo(() => {
+    const map: Record<string, { name: string; kind: string }> = {};
+    const list: any[] = Array.isArray(policy?.publicHolidays) ? policy.publicHolidays : [];
+    for (const h of list) {
+      if (h?.date && h?.name) map[h.date] = { name: h.name, kind: h.kind || 'Public' };
+    }
+    return map;
+  }, [policy]);
+
   const firstDay = new Date(cursor.y, cursor.m, 1);
   const daysInMonth = new Date(cursor.y, cursor.m + 1, 0).getDate();
   const leading = firstDay.getDay();
@@ -132,6 +142,8 @@ export function EssAttendanceCalendar({ attendance, leaves = [], policy }: EssAt
   const monthLeaveDays = Object.keys(leaveByDate).filter((d) =>
     d.startsWith(`${cursor.y}-${String(cursor.m + 1).padStart(2, '0')}`)
   ).length;
+  const monthPrefix = `${cursor.y}-${String(cursor.m + 1).padStart(2, '0')}`;
+  const monthHolidays = Object.keys(holidayByDate).filter((d) => d.startsWith(monthPrefix));
 
   return (
     <section className="sh-card">
@@ -141,7 +153,7 @@ export function EssAttendanceCalendar({ attendance, leaves = [], policy }: EssAt
           <div>
             <h3 className="sh-card-title">My attendance calendar</h3>
             <p className="text-[11.5px] text-slate-500">
-              Punches and leave, day by day · {monthPunchDays} punched day(s), {monthLeaveDays} leave day(s)
+              Punches, leave, holidays and week offs, day by day · {monthPunchDays} punched day(s), {monthLeaveDays} leave day(s), {monthHolidays.length} holiday(s)
             </p>
           </div>
         </div>
@@ -172,6 +184,7 @@ export function EssAttendanceCalendar({ attendance, leaves = [], policy }: EssAt
             if (!dateIso) return <div key={`empty-${i}`} className="min-h-[74px] rounded-lg bg-transparent" />;
             const p = punchesByDate[dateIso];
             const leaveType = leaveByDate[dateIso];
+            const holiday = holidayByDate[dateIso];
             const off = isWeekOff(dateIso);
             const isToday = dateIso === todayIso;
             const dayNum = Number(dateIso.slice(8, 10));
@@ -182,20 +195,31 @@ export function EssAttendanceCalendar({ attendance, leaves = [], policy }: EssAt
                 className={`min-h-[74px] rounded-lg border p-1.5 flex flex-col gap-1 ${
                   isToday
                     ? 'border-[#f26522] bg-orange-50/60'
+                    : holiday
+                    ? 'border-violet-300 bg-violet-50'
                     : off
                     ? 'border-slate-100 bg-slate-50'
                     : 'border-slate-200 bg-white'
                 }`}
-                title={`${dateIso}${p?.in ? ` · in ${p.in}` : ''}${p?.out ? ` · out ${p.out}` : ''}${leaveType ? ` · ${leaveType}` : ''}`}
+                title={`${dateIso}${holiday ? ` · ${holiday.name} (holiday)` : ''}${p?.in ? ` · in ${p.in}` : ''}${p?.out ? ` · out ${p.out}` : ''}${leaveType ? ` · ${leaveType}` : ''}`}
               >
                 <div className="flex items-center justify-between">
-                  <span className={`text-[11.5px] font-bold ${off ? 'text-slate-400' : 'text-slate-700'}`}>
+                  <span className={`text-[11.5px] font-bold ${off || holiday ? 'text-slate-500' : 'text-slate-700'}`}>
                     {dayNum}
                   </span>
-                  {off && !leaveType && !p && (
+                  {off && !holiday && !leaveType && !p && (
                     <span className="text-[9px] font-bold uppercase text-slate-400">Off</span>
                   )}
                 </div>
+
+                {holiday && (
+                  <div
+                    className="inline-flex items-center gap-1 self-start rounded border border-violet-200 bg-violet-100 px-1.5 py-0.5 text-[9.5px] font-bold text-violet-800 max-w-full"
+                    title={holiday.name}
+                  >
+                    <Star className="w-2.5 h-2.5 shrink-0" /> <span className="truncate">{holiday.name}</span>
+                  </div>
+                )}
 
                 {p?.in && (
                   <div className="flex items-center gap-1 text-[10px] text-emerald-700 leading-none">
@@ -232,12 +256,24 @@ export function EssAttendanceCalendar({ attendance, leaves = [], policy }: EssAt
             <span className="w-3 h-3 rounded-[3px] bg-violet-100 border border-violet-200 inline-block" /> Privilege leave
           </span>
           <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-[3px] bg-violet-100 border border-violet-200 inline-block" /> Public holiday
+          </span>
+          <span className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-[3px] bg-slate-50 border border-slate-200 inline-block" /> Week off
           </span>
           <span className="ml-auto">
             Working Saturdays: {policy?.workingSaturdays || '1st, 3rd & 5th working; 2nd & 4th off'}
           </span>
         </div>
+        {monthHolidays.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-violet-800">
+            {monthHolidays.map((d) => (
+              <span key={d}>
+                <Star className="w-3 h-3 inline" /> {d.slice(8, 10)} {MONTH_LABELS[cursor.m].slice(0, 3)} — {holidayByDate[d].name}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
