@@ -2655,6 +2655,125 @@ export const prorateForLop = (
   return { payableDays, net: Math.round((gross * payableDays) / wd) };
 };
 
+/* -------------------------------------------------- till-date pro-rating ----
+ * The ESS dashboard shows what has accrued SO FAR this month, not a full-month figure:
+ * earnings, statutory deductions, loan recovery and reimbursements are prorated against the
+ * working days that have already elapsed. A day is "worked" when it is not a Sunday, not an
+ * off-Saturday (2nd/4th by default) and not a paid public holiday.
+ * -------------------------------------------------------------------------- */
+
+/** True when the date is a non-working day: weekly off or a paid public holiday. */
+export const isNonWorkingDay = (dateIso: string, policy?: Partial<AdminPolicyMaster>): boolean => {
+  const pol: any = policy || DEFAULT_ADMIN_POLICY_MASTER;
+  if (isPaidHoliday(pol, dateIso)) return true;
+  const [y, m, d] = String(dateIso).split('-').map(Number);
+  if (!y || !m || !d) return false;
+  const dow = new Date(y, m - 1, d).getDay();
+  if (dow === 0) return pol.sundaysOff !== false;
+  if (dow === 6) {
+    const nth = Math.ceil(d / 7);
+    return (pol.holidaySaturdayNumbers || [2, 4]).includes(nth);
+  }
+  return false;
+};
+
+/**
+ * Scheduled working days elapsed in a month up to (and including) today, plus the month's
+ * total. `fraction` is the share of the month's pay that has accrued so far.
+ */
+export const workingDaysElapsedInMonth = (
+  monthKey: string,
+  todayIso: string,
+  policy?: Partial<AdminPolicyMaster>
+): { elapsed: number; total: number; fraction: number } => {
+  // Elapsed and total are measured by the SAME rule (weekly offs and public holidays both
+  // excluded), so the fraction is a true share of the month's payable days.
+  const parts = String(monthKey).split('-');
+  const year = Number(parts[0]) || 2026;
+  const monthNum = Number(parts[1]) || 1;
+  const daysInMonth = new Date(year, monthNum, 0).getDate();
+
+  let total = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    if (!isNonWorkingDay(`${monthKey}-${String(d).padStart(2, '0')}`, policy)) total++;
+  }
+  total = Math.max(1, total);
+
+  // Month entirely in the future, or entirely in the past.
+  if (todayIso < `${monthKey}-01`) return { elapsed: 0, total, fraction: 0 };
+  if (todayIso > `${monthKey}-${String(daysInMonth).padStart(2, '0')}`) {
+    return { elapsed: total, total, fraction: 1 };
+  }
+
+  const todayDay = Number(String(todayIso).slice(8, 10));
+  let elapsed = 0;
+  for (let d = 1; d <= todayDay; d++) {
+    if (!isNonWorkingDay(`${monthKey}-${String(d).padStart(2, '0')}`, policy)) elapsed++;
+  }
+  const capped = Math.min(elapsed, total);
+  return { elapsed: capped, total, fraction: total > 0 ? capped / total : 0 };
+};
+
+/**
+ * Prorate a full-month payroll breakdown to the working days elapsed so far.
+ * Every figure is scaled by the same fraction, so the parts always add up to the whole.
+ */
+export const proratePayrollToDate = (
+  breakdown: PolicyPayrollBreakdown,
+  fraction: number
+): {
+  adjustedGross: number;
+  basic: number;
+  hra: number;
+  specialAllowance: number;
+  conveyance: number;
+  incentive: number;
+  grossEarnings: number;
+  pfDeduction: number;
+  professionalTax: number;
+  incomeTaxTds: number;
+  loanRecovery: number;
+  advanceRecovery: number;
+  otherDeductions: number;
+  approvedReimbursements: number;
+  totalDeductions: number;
+  netPayable: number;
+} => {
+  const f = Math.max(0, Math.min(1, Number(fraction) || 0));
+  const cut = (v: number) => Math.round((Number(v) || 0) * f);
+  const adjustedGross = cut(breakdown.adjustedGross);
+  const incentive = cut(breakdown.incentive);
+  const grossEarnings = cut(breakdown.grossEarnings);
+  const pfDeduction = cut(breakdown.pfDeduction);
+  const professionalTax = cut(breakdown.professionalTax);
+  const incomeTaxTds = cut(breakdown.incomeTaxTds);
+  const loanRecovery = cut(breakdown.loanRecovery);
+  const advanceRecovery = cut(breakdown.advanceRecovery);
+  const otherDeductions = cut(breakdown.otherDeductions);
+  const approvedReimbursements = cut(breakdown.approvedReimbursements);
+  // Derive the totals from the prorated parts so they always reconcile exactly.
+  const totalDeductions = pfDeduction + professionalTax + incomeTaxTds + loanRecovery + advanceRecovery + otherDeductions;
+  const netPayable = Math.max(0, grossEarnings + approvedReimbursements - totalDeductions);
+  return {
+    adjustedGross,
+    basic: cut(breakdown.basic),
+    hra: cut(breakdown.hra),
+    specialAllowance: cut(breakdown.specialAllowance),
+    conveyance: cut(breakdown.conveyance),
+    incentive,
+    grossEarnings,
+    pfDeduction,
+    professionalTax,
+    incomeTaxTds,
+    loanRecovery,
+    advanceRecovery,
+    otherDeductions,
+    approvedReimbursements,
+    totalDeductions,
+    netPayable,
+  };
+};
+
 export const DEFAULT_ADMIN_POLICY_MASTER: AdminPolicyMaster = {
   policyCode: 'CS-HR-POL-001',
   policyVersion: '1.0',

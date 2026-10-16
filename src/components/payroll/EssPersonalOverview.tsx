@@ -1,4 +1,11 @@
 import React from 'react';
+import {
+  calculateEmployeePolicyPayroll,
+  proratePayrollToDate,
+  workingDaysElapsedInMonth,
+  loadAllEmployeeLoans,
+} from './payrollTypes';
+import type { AdminPolicyMaster, EmployeeLoanRecord } from './payrollTypes';
 import { EssAttendanceCalendar } from './EssAttendanceCalendar';
 import { Sparkline, DonutChart } from './EssCharts';
 import { WorkspaceIllustration } from './EssIllustration';
@@ -10,7 +17,13 @@ import {
   ClipartClock,
   ClipartPayslip,
 } from './EssClipart';
+
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
 import {
+  BadgeCheck,
   CalendarCheck,
   FileText,
   Receipt,
@@ -68,6 +81,8 @@ export interface EssPersonalOverviewProps {
   officeLabel?: string;
   /** Payroll runs — used to draw the employee's own salary trend (real, stored data). */
   payrollRuns?: any[];
+  /** The employee's salary master — the salary structure the actual pay is calculated from. */
+  salaryMaster?: any;
 }
 
 const WORK_MODES: { id: 'Office HQ' | 'Work From Home' | 'Client Site Visit'; label: string; icon: React.ReactNode }[] = [
@@ -120,6 +135,7 @@ export function EssPersonalOverview({
   payslipMonth,
   officeLabel,
   payrollRuns,
+  salaryMaster,
 }: EssPersonalOverviewProps) {
   const name = employee?.name || 'Employee';
   const empCode = employee?.empCode || employee?.userId || '—';
@@ -145,18 +161,63 @@ export function EssPersonalOverview({
   const alreadyOut = Boolean(!isPunchedIn && attendance?.punchInTime && attendance?.punchOutTime);
   const nextPunchLabel = isPunchedIn ? 'Punch Out' : 'Punch In';
 
-  // ---- pay -------------------------------------------------------------------
-  const gross = Number(employee?.monthlyGross) || 0;
+  // ---- pay: the ACTUAL figure, not an estimate ---------------------------------
+  // Calculated from the employee's salary structure, their attendance and leave for this month,
+  // any loan instalment and every other deduction — then prorated to the working days that have
+  // actually elapsed this month, so the dashboard shows what has accrued TO DATE.
+  const monthKey = new Date().toISOString().slice(0, 7);
+  const todayIsoNow = new Date().toISOString().slice(0, 10);
+  const loans = React.useMemo<EmployeeLoanRecord[]>(() => {
+    try {
+      return loadAllEmployeeLoans();
+    } catch {
+      return [];
+    }
+  }, []);
+  const monthProgress = workingDaysElapsedInMonth(monthKey, todayIsoNow, policy as AdminPolicyMaster);
+  const payrollBreakdown = React.useMemo(() => {
+    if (!salaryMaster) return null;
+    try {
+      return calculateEmployeePolicyPayroll({
+        monthKey,
+        master: salaryMaster,
+        policy: policy as AdminPolicyMaster,
+        attendance,
+        leaves,
+        claims: claims || [],
+        loansOverride: loans,
+      });
+    } catch {
+      return null;
+    }
+  }, [salaryMaster, monthKey, policy, attendance, leaves, claims, loans]);
+  const prorated = payrollBreakdown
+    ? proratePayrollToDate(payrollBreakdown, monthProgress.fraction)
+    : null;
+  const isActualPay = Boolean(prorated);
+
+  // Estimate only — used as a fallback when the employee has no salary structure yet.
+  const estimatedGross = Number(employee?.monthlyGross) || 0;
   const basicPct = Number(policy?.defaultBasicPct ?? 50) || 50;
   const pfCap = Number(policy?.defaultPfCapBasic ?? 1800) || 1800;
-  const basic = (gross * basicPct) / 100;
-  const pf = Math.min(Math.round(basic * 0.12), pfCap);
-  const pt = Number(policy?.defaultProfTax ?? 200) || 0;
-  const tds = Math.round((gross * (Number(policy?.defaultTdsPct ?? 0) || 0)) / 100);
-  const incentive = Number(employee?.incentive) || 0;
-  const deductions = pf + pt + tds;
-  const netInHand = Math.max(0, gross + incentive - deductions);
-  const deductionPct = gross + incentive > 0 ? Math.round((deductions / (gross + incentive)) * 100) : 0;
+  const estBasic = (estimatedGross * basicPct) / 100;
+  const estPf = Math.min(Math.round(estBasic * 0.12), pfCap);
+  const estPt = Number(policy?.defaultProfTax ?? 200) || 0;
+  const estTds = Math.round((estimatedGross * (Number(policy?.defaultTdsPct ?? 0) || 0)) / 100);
+
+  const gross = prorated ? prorated.grossEarnings : estimatedGross;
+  const pf = prorated ? prorated.pfDeduction : estPf;
+  const pt = prorated ? prorated.professionalTax : estPt;
+  const tds = prorated ? prorated.incomeTaxTds : estTds;
+  const loanEmi = prorated ? prorated.loanRecovery : 0;
+  const otherDeductions = prorated ? prorated.advanceRecovery + prorated.otherDeductions : 0;
+  const incentive = prorated ? prorated.incentive : Number(employee?.incentive) || 0;
+  const reimbursements = prorated ? prorated.approvedReimbursements : 0;
+  const deductions = prorated ? prorated.totalDeductions : pf + pt + tds;
+  const netInHand = prorated ? prorated.netPayable : Math.max(0, gross + incentive - deductions);
+  const payableBase = gross + reimbursements;
+  const deductionPct = payableBase > 0 ? Math.round((deductions / payableBase) * 100) : 0;
+  const actualLopDays = payrollBreakdown ? payrollBreakdown.lopDays : lopDays;
 
   // ---- leave -----------------------------------------------------------------
   const approvedLeaves = leaves.filter(isApproved);
@@ -494,13 +555,41 @@ export function EssPersonalOverview({
           <div className="sh-card-body space-y-3">
             <div className="flex items-end justify-between gap-3">
               <div>
-                <div className="text-[10.5px] font-bold uppercase tracking-widest text-slate-500">In hand</div>
+                <div className="text-[10.5px] font-bold uppercase tracking-widest text-slate-500">
+                  In hand (till date)
+                </div>
                 <div className="text-2xl font-extrabold text-slate-900">{money(netInHand)}</div>
               </div>
               <div className="text-right text-[11.5px] text-slate-500">
                 <div>Gross {money(gross)}</div>
-                {incentive > 0 && <div className="text-emerald-600">+ Incentive {money(incentive)}</div>}
+                {reimbursements > 0 && (
+                  <div className="text-emerald-600">+ Reimbursements {money(reimbursements)}</div>
+                )}
+                {incentive > 0 && <div className="text-emerald-600">incl. Incentive {money(incentive)}</div>}
               </div>
+            </div>
+
+            {/* the basis of the calculation, so the figure is auditable at a glance */}
+            <div
+              className={`flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg px-2.5 py-1.5 text-[11px] ${
+                isActualPay
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                  : 'bg-slate-50 text-slate-600 border border-slate-200'
+              }`}
+            >
+              <BadgeCheck className="w-3.5 h-3.5 shrink-0" />
+              {isActualPay ? (
+                <>
+                  <span className="font-semibold">Actual</span>
+                  <span>
+                    · {monthProgress.elapsed} of {monthProgress.total} working days elapsed in{' '}
+                    {MONTH_NAMES[new Date().getMonth()]} {new Date().getFullYear()}
+                  </span>
+                  {actualLopDays > 0 && <span>· {actualLopDays} LOP day(s)</span>}
+                </>
+              ) : (
+                <span>Estimated — no salary structure set up for you yet.</span>
+              )}
             </div>
 
             <div className="sh-progress"><span style={{ width: `${100 - deductionPct}%` }} /></div>
@@ -509,7 +598,7 @@ export function EssPersonalOverview({
               <span>Deductions {deductionPct}%</span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-1">
               <div className="rounded-lg bg-slate-50 px-2.5 py-2">
                 <div className="text-[10px] uppercase font-bold text-slate-500">PF</div>
                 <div className="text-[12.5px] font-bold text-slate-800">{money(pf)}</div>
@@ -522,15 +611,24 @@ export function EssPersonalOverview({
                 <div className="text-[10px] uppercase font-bold text-slate-500">TDS</div>
                 <div className="text-[12.5px] font-bold text-slate-800">{money(tds)}</div>
               </div>
+              <div className="rounded-lg bg-slate-50 px-2.5 py-2">
+                <div className="text-[10px] uppercase font-bold text-slate-500">Loan</div>
+                <div className="text-[12.5px] font-bold text-slate-800">{money(loanEmi)}</div>
+              </div>
               <div className="rounded-lg bg-rose-50 px-2.5 py-2">
                 <div className="text-[10px] uppercase font-bold text-rose-600">Total out</div>
                 <div className="text-[12.5px] font-bold text-rose-700">{money(deductions)}</div>
               </div>
             </div>
-            {lopDays > 0 && (
+            {otherDeductions > 0 && (
+              <div className="text-[11px] text-slate-500">
+                Includes {money(otherDeductions)} of advance / other recoveries.
+              </div>
+            )}
+            {actualLopDays > 0 && (
               <div className="flex items-center gap-1.5 text-[11.5px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
                 <AlertTriangle className="w-3.5 h-3.5" />
-                {lopDays} loss-of-pay day(s) recorded this cycle — pay is prorated accordingly.
+                {actualLopDays} loss-of-pay day(s) recorded this cycle — pay is prorated accordingly.
               </div>
             )}
           </div>
