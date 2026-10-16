@@ -2152,7 +2152,13 @@ export const nextPayrollRunStatus = (status: PayrollRunStatus): PayrollRunStatus
   return i >= 0 && i < PAYROLL_RUN_PIPELINE.length - 1 ? PAYROLL_RUN_PIPELINE[i + 1] : null;
 };
 
-/** Apply a change to a run, appending an audit entry. Blocked while locked. */
+/**
+ * Apply a change to a run, appending an audit entry.
+ *
+ * A LOCKED run is genuinely read-only: the only way past the lock is reopenPayrollRun, which
+ * clears it and records who reopened the run and why. This is enforced here rather than only in
+ * the screen, so no caller can mutate a settled payroll run by accident.
+ */
 export const updatePayrollRun = (
   list: PayrollRun[],
   id: string,
@@ -2162,6 +2168,7 @@ export const updatePayrollRun = (
 ): PayrollRun[] =>
   list.map((r) => {
     if (r.id !== id) return r;
+    if (r.locked) return r;
     const at = new Date().toISOString();
     const from = patch.status && patch.status !== r.status ? r.status : undefined;
     return {
@@ -2177,26 +2184,33 @@ export const reopenPayrollRun = (
   by: string,
   reason: string
 ): PayrollRun[] =>
-  list.map((r) =>
-    r.id === id
-      ? {
-          ...r,
-          locked: false,
-          status: 'Under Review' as PayrollRunStatus,
-          reopenReason: reason,
-          history: [
-            ...(r.history || []),
-            {
-              at: new Date().toISOString(),
-              by,
-              action: `Reopened — ${reason}`,
-              from: r.status,
-              to: 'Under Review',
-            },
-          ],
-        }
-      : r
-  );
+  list.map((r) => {
+    if (r.id !== id) return r;
+    const at = new Date().toISOString();
+    const wasPaid = r.paymentStatus === 'Paid';
+    return {
+      ...r,
+      locked: false,
+      status: 'Under Review' as PayrollRunStatus,
+      reopenReason: reason,
+      // A reopened run is no longer settled, so it must not sit there showing "Under Review"
+      // alongside "Payment: Paid". The fact that it HAD been paid is kept in the audit trail
+      // below rather than being silently overwritten when the run is paid again.
+      ...(wasPaid ? { paymentStatus: 'Unpaid' as PayrollPaymentStatus } : {}),
+      history: [
+        ...(r.history || []),
+        {
+          at,
+          by,
+          action: `Reopened — ${reason}${
+            wasPaid ? ` (was paid on ${r.paidAt || 'an earlier date'})` : ''
+          }`,
+          from: r.status,
+          to: 'Under Review',
+        },
+      ],
+    };
+  });
 
 /** Net variance for a month against the previous run, per employee. */
 export const payrollVariance = (current: PayrollRun, previous?: PayrollRun | null) => {

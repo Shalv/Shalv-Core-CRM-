@@ -6519,6 +6519,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                 currentUserName={currentUser.name || 'Administrator'}
                 formatCurrency={formatCurrency}
                 setStatusBanner={setStatusBanner}
+                isAdminUser={isAdminUser}
               />
             </div>
             <PayrollLifecycleSection
