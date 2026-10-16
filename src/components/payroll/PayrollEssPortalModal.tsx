@@ -156,6 +156,7 @@ import { PayrollLifecycleSection } from './PayrollLifecycleSection';
 import { PayrollAuditTrailSection } from './PayrollAuditTrailSection';
 import { PayrollAssetsSection } from './PayrollAssetsSection';
 import { PayrollTalentSection } from './PayrollTalentSection';
+import { PayrollHolidayMaster } from './PayrollHolidayMaster';
 import {
   fetchPayrollCollections,
   pushPayrollCollection,
@@ -6355,6 +6356,11 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                   return { ...prev, [userId]: { ...current, locationId } };
                 });
               }}
+              setStatusBanner={setStatusBanner}
+            />
+            <PayrollHolidayMaster
+              policy={adminPolicyMaster}
+              onChangePolicy={(patch) => setAdminPolicyMaster((prev) => ({ ...prev, ...patch }))}
               setStatusBanner={setStatusBanner}
             />
             <PayrollRegularizationSection
