@@ -2220,6 +2220,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
       shift={resolveEmployeeShift(shifts, shiftAssignments, currentUser.id)}
       officeLabel={resolvePunchLocation(payrollLocations, activeUserMaster?.locationId).name}
       payrollRuns={payrollRuns}
+      salaryMaster={employeeSalaryMasters[currentUser.id] || activeUserMaster}
       lopDays={essLopDays}
       payslipMonth={selectedMonthMeta?.label}
       onWorkModeChange={(mode) => setAttendance((prev) => ({ ...prev, workMode: mode }))}
