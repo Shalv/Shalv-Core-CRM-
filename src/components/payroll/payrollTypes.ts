@@ -2202,6 +2202,105 @@ export const payrollVariance = (current: PayrollRun, previous?: PayrollRun | nul
   };
 };
 
+/* ---------------------------------------------------- Employee lifecycle & exit ----
+ * Phase 4. Probation, confirmation, promotion, transfer, resignation, termination and
+ * exit — with notice period and full-and-final settlement. Every transition is audited.
+ * ----------------------------------------------------------------------------------- */
+export type LifecycleEventType =
+  | 'Probation'
+  | 'Confirmation'
+  | 'Promotion'
+  | 'Transfer'
+  | 'Resignation'
+  | 'Termination'
+  | 'Exit';
+
+export const LIFECYCLE_EVENT_TYPES: LifecycleEventType[] = [
+  'Probation',
+  'Confirmation',
+  'Promotion',
+  'Transfer',
+  'Resignation',
+  'Termination',
+  'Exit',
+];
+
+export type LifecycleStatus = 'Pending' | 'Approved' | 'Rejected' | 'Completed';
+
+export interface LifecycleEvent {
+  id: string;
+  employeeId: string;
+  employeeName?: string;
+  type: LifecycleEventType;
+  effectiveDate: string;
+  fromDesignation?: string;
+  toDesignation?: string;
+  fromDepartment?: string;
+  toDepartment?: string;
+  fromSalary?: number;
+  toSalary?: number;
+  noticePeriodDays?: number;
+  lastWorkingDay?: string;
+  reason?: string;
+  /** Full-and-final settlement (exit). */
+  fnfAmount?: number;
+  fnfNotes?: string;
+  status: LifecycleStatus;
+  raisedAt: string;
+  raisedBy?: string;
+  decidedBy?: string;
+  decidedAt?: string;
+  remarks?: string;
+  history: RegularizationHistoryEntry[];
+}
+
+const LIFECYCLE_KEY = 'crm_payroll_lifecycle';
+
+export const loadLifecycleEvents = (): LifecycleEvent[] => {
+  try {
+    const raw = localStorage.getItem(LIFECYCLE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed as LifecycleEvent[];
+    }
+  } catch {
+    /* ignore */
+  }
+  return [];
+};
+
+export const saveLifecycleEvents = (list: LifecycleEvent[]): void => {
+  try {
+    localStorage.setItem(LIFECYCLE_KEY, JSON.stringify(list));
+  } catch {
+    /* ignore */
+  }
+};
+
+/** Move a lifecycle event to a new status, recording who/when/from/to. */
+export const decideLifecycleEvent = (
+  list: LifecycleEvent[],
+  id: string,
+  decision: LifecycleStatus,
+  by: string,
+  remarks?: string
+): LifecycleEvent[] =>
+  list.map((e) => {
+    if (e.id !== id) return e;
+    const at = new Date().toISOString();
+    return {
+      ...e,
+      status: decision,
+      decidedBy: by,
+      decidedAt: at,
+      remarks: remarks || e.remarks,
+      history: [
+        ...(e.history || []),
+        { at, by, action: `Status → ${decision}`, from: e.status, to: decision },
+      ],
+    };
+  });
+
 export const DEFAULT_ADMIN_POLICY_MASTER: AdminPolicyMaster = {
   policyCode: 'CS-HR-POL-001',
   policyVersion: '1.0',
