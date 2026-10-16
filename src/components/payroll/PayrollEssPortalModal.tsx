@@ -86,6 +86,7 @@ import {
   loadPayrollLocations,
   savePayrollLocations,
   resolvePunchLocation,
+  resolveEmployeeShift,
   loadRegularizationRequests,
   saveRegularizationRequests,
   loadShifts,
@@ -414,6 +415,28 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
   useCollectionSync('performance', performanceReviews, collectionsHydrated, lastSyncedRef);
   useCollectionSync('trainingPrograms', trainingPrograms, collectionsHydrated, lastSyncedRef);
   useCollectionSync('trainingNominations', trainingNominations, collectionsHydrated, lastSyncedRef);
+
+  // ---- ESS sub-navigation ----------------------------------------------------------
+  // One unified scroll container for the whole employee portal, with the dashboard and
+  // the self-service sections as segmented views instead of a detached second container.
+  const [essView, setEssView] = useState<
+    'dashboard' | 'shifts' | 'regularization' | 'helpdesk' | 'career' | 'assets'
+  >('dashboard');
+
+  const essLopDays = (() => {
+    const run = payrollRuns.find((r) => r.month === (selectedMonthMeta?.key || ''));
+    const line = run?.lines.find((l) => l.employeeId === currentUser.id);
+    return line?.lopDays ?? 0;
+  })();
+
+  const essViewTabs: { id: typeof essView; label: string }[] = [
+    { id: 'dashboard', label: 'Dashboard Hub' },
+    { id: 'shifts', label: 'My Shifts & Swaps' },
+    { id: 'regularization', label: 'Punch Regularization' },
+    { id: 'helpdesk', label: 'HR Helpdesk' },
+    { id: 'career', label: 'Career & Milestones' },
+    { id: 'assets', label: 'My Assets' },
+  ];
 
   // ---- Header sub-navigation focus -------------------------------------------------
   // Every header tab and dropdown option lands on the section it names, rather than
@@ -2146,13 +2169,143 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
       formatCurrency={formatCurrency}
       isFetchingLocation={isFetchingLocation}
       onPunch={handleTogglePunch}
+      policy={adminPolicyMaster}
+      shift={resolveEmployeeShift(shifts, shiftAssignments, currentUser.id)}
+      officeLabel={resolvePunchLocation(payrollLocations, activeUserMaster?.locationId).name}
+      lopDays={essLopDays}
+      payslipMonth={selectedMonthMeta?.label}
+      onWorkModeChange={(mode) => setAttendance((prev) => ({ ...prev, workMode: mode }))}
+      onDownloadPayslip={() => { setPayChakraTab('payroll'); setActiveTab('payslips'); }}
+      onNewClaim={() => { setPayChakraTab('expenses'); setActiveTab('reimbursements'); }}
+      onFileRegularization={() => setEssView('regularization')}
       onNavigate={(tab) => {
         if (tab === 'payslips') { setPayChakraTab('payroll'); setActiveTab('payslips'); }
         else if (tab === 'leaves') { setPayChakraTab('leaves'); setActiveTab('leaves'); }
         else if (tab === 'reimbursements') { setPayChakraTab('expenses'); setActiveTab('reimbursements'); }
         else if (tab === 'profile') { setPayChakraTab('profile'); setActiveTab('profile'); }
+        else if (tab === 'shifts') setEssView('shifts');
+        else if (tab === 'regularization') setEssView('regularization');
+        else if (tab === 'helpdesk') setEssView('helpdesk');
+        else if (tab === 'lifecycle') setEssView('career');
       }}
     />
+  );
+
+  const essEmployeeList = enrolledEmployees.map((m) => ({
+    userId: m.userId,
+    name: m.name,
+    empCode: m.empCode,
+    department: m.department,
+    designation: m.designation,
+    monthlyGross: m.monthlyGross,
+  }));
+
+  // One unified scroll container for the whole employee portal: the dashboard and the
+  // self-service sections are segmented views, so there is no detached second container
+  // and no nested scrollbar.
+  const essPortalView = (
+    <div className="flex-1 overflow-y-auto">
+      <div className="p-3 sm:p-4 lg:p-6 space-y-4">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {essViewTabs.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              onClick={() => setEssView(v.id)}
+              className={`sh-btn ${essView === v.id ? 'sh-btn-soft' : ''}`}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+
+        {essView === 'dashboard' && personalOverview}
+        {essView === 'shifts' && (
+          <PayrollShiftRosterSection
+            mode="employee"
+            currentUserId={currentUser.id}
+            currentUserName={currentUser.name || 'Employee'}
+            employees={essEmployeeList}
+            shifts={shifts}
+            onChangeShifts={setShifts}
+            assignments={shiftAssignments}
+            onChangeAssignments={setShiftAssignments}
+            swaps={shiftSwaps}
+            onChangeSwaps={setShiftSwaps}
+            setStatusBanner={setStatusBanner}
+          />
+        )}
+        {essView === 'regularization' && (
+          <PayrollRegularizationSection
+            mode="employee"
+            currentUserId={currentUser.id}
+            currentUserName={currentUser.name || 'Employee'}
+            employees={essEmployeeList}
+            requests={regularizationRequests}
+            onChange={setRegularizationRequests}
+            setStatusBanner={setStatusBanner}
+          />
+        )}
+        {essView === 'helpdesk' && (
+          <PayrollHelpDeskSection
+            mode="employee"
+            currentUserId={currentUser.id}
+            currentUserName={currentUser.name || 'Employee'}
+            employees={essEmployeeList}
+            tickets={helpDeskTickets}
+            onChange={setHelpDeskTickets}
+            setStatusBanner={setStatusBanner}
+          />
+        )}
+        {essView === 'career' && (
+          <>
+            <PayrollLifecycleSection
+              mode="employee"
+              currentUserId={currentUser.id}
+              currentUserName={currentUser.name || 'Employee'}
+              employees={essEmployeeList}
+              events={lifecycleEvents}
+              onChange={setLifecycleEvents}
+              setStatusBanner={setStatusBanner}
+            />
+            <PayrollTalentSection
+              mode="employee"
+              currentUserId={currentUser.id}
+              currentUserName={currentUser.name || 'Employee'}
+              employees={essEmployeeList}
+              jobOpenings={jobOpenings}
+              onChangeJobOpenings={setJobOpenings}
+              candidates={candidates}
+              onChangeCandidates={setCandidates}
+              onboardingPlans={onboardingPlans}
+              onChangeOnboardingPlans={setOnboardingPlans}
+              performanceReviews={performanceReviews}
+              onChangePerformanceReviews={setPerformanceReviews}
+              trainingPrograms={trainingPrograms}
+              onChangeTrainingPrograms={setTrainingPrograms}
+              trainingNominations={trainingNominations}
+              onChangeTrainingNominations={setTrainingNominations}
+              setStatusBanner={setStatusBanner}
+            />
+          </>
+        )}
+        {essView === 'assets' && (
+          <PayrollAssetsSection
+            mode="employee"
+            currentUserId={currentUser.id}
+            currentUserName={currentUser.name || 'Employee'}
+            employees={essEmployeeList}
+            categories={assetCategories}
+            onChangeCategories={setAssetCategories}
+            assets={assets}
+            onChangeAssets={setAssets}
+            allocations={assetAllocations}
+            onChangeAllocations={setAssetAllocations}
+            setStatusBanner={setStatusBanner}
+          />
+        )}
+      </div>
+    </div>
   );
 
   return (
@@ -2178,7 +2331,12 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
               else if (sub === 'add_employee') focusAdmin('salary_master', true);
               else focusAdmin('salary_master');
             }
-            else if (tab === 'attendance') setActiveTab('admin_dashboard');
+            else if (tab === 'attendance') {
+              // Employees land on their own GPS-verified punch terminal, never the
+              // company-wide admin dashboard.
+              if (isAdminUser) setActiveTab('admin_dashboard');
+              else { setPayChakraTab('overview'); setActiveTab('overview'); setEssView('dashboard'); }
+            }
             else if (tab === 'leaves') setActiveTab('leaves');
             else if (tab === 'payroll') {
               if (sub === 'loans') setActiveTab('loans');
@@ -2220,9 +2378,9 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
         />
 
         {/* SELF-SERVICE OVERVIEW — employees see only their own information */}
-        {payChakraTab === 'overview' && !isAdminUser && (
+        {payChakraTab === 'overview' && !isAdminUser && essPortalView}
+        {false && (
           <>
-            {personalOverview}
             <div className="sh-scope p-3 sm:p-4">
               <PayrollRegularizationSection
                 mode="employee"
@@ -6204,7 +6362,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
           )}
 
           {/* Employees must never see admin screens: if a non-admin reaches an admin tab, show their own overview */}
-          {!isAdminUser && (activeTab === 'admin_dashboard' || activeTab === 'admin_master' || activeTab === 'reports' || activeTab === 'integration') && personalOverview}
+          {!isAdminUser && (activeTab === 'admin_dashboard' || activeTab === 'admin_master' || activeTab === 'reports' || activeTab === 'integration') && essPortalView}
 
           {/* TAB: ADMIN DASHBOARD & REPORTS (ALL EMPLOYEE INFO, REQUESTS & ATTENDANCE WITH GOOGLE COORDINATES) */}
           {activeTab === 'admin_dashboard' && isAdminUser && (
