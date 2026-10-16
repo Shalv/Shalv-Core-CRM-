@@ -1,6 +1,6 @@
 import React from 'react';
 import { EssAttendanceCalendar } from './EssAttendanceCalendar';
-import { Sparkline, AreaLineChart, DonutChart, MiniBars } from './EssCharts';
+import { Sparkline, DonutChart } from './EssCharts';
 import { WorkspaceIllustration } from './EssIllustration';
 import {
   CalendarCheck,
@@ -411,45 +411,11 @@ export function EssPersonalOverview({
         ))}
       </section>
 
-      {/* ------------------------------------------------------- trend + donut */}
+      {/* --------------------------------------------- attendance calendar + donut */}
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="ess-card lg:col-span-2">
-          <div className="sh-card-header">
-            <div>
-              <h3 className="sh-card-title">My salary trend</h3>
-              <p className="text-[11.5px] text-slate-500">
-                Net payable per payroll run — from your own processed payroll records
-              </p>
-            </div>
-            <div className="flex items-center gap-3 text-[11px] text-slate-500">
-              <span className="flex items-center gap-1.5">
-                <span className="ess-legend-dot" style={{ background: '#4a90e2' }} /> Net payable
-              </span>
-            </div>
-          </div>
-          <div className="sh-card-body">
-            {salarySeries.length >= 2 ? (
-              <>
-                <div className="flex items-baseline gap-2 mb-2">
-                  <span className="text-[20px] font-extrabold text-slate-900">
-                    {money(salarySeries[salarySeries.length - 1].net)}
-                  </span>
-                  <span className="text-[11.5px] text-slate-500">latest net payable</span>
-                </div>
-                <AreaLineChart
-                  series={[{ name: 'Net payable', color: '#4a90e2', points: salarySeries.map((s) => s.net) }]}
-                  labels={salarySeries.map((s) => s.label)}
-                  markerIndex={salarySeries.length - 1}
-                  markerLabel={showSalary ? formatCurrency(salarySeries[salarySeries.length - 1].net) : '••••••'}
-                  height={196}
-                />
-              </>
-            ) : (
-              <div className="py-10 text-center text-[12px] text-slate-400">
-                Your salary trend appears here once two or more payroll runs have been processed for you.
-              </div>
-            )}
-          </div>
+        <div className="lg:col-span-2">
+          {/* Attendance calendar — punches, leave, holidays and week offs, day by day */}
+          <EssAttendanceCalendar attendance={attendance} leaves={leaves} policy={policy} />
         </div>
 
         <div className="ess-card">
@@ -682,9 +648,6 @@ export function EssPersonalOverview({
           </div>
         </div>
       </section>
-
-      {/* ------------------------------------------------- attendance calendar */}
-      <EssAttendanceCalendar attendance={attendance} leaves={leaves} policy={policy} />
 
       {/* --------------------------------------------------------- action hub */}
       <section className="sh-card">
