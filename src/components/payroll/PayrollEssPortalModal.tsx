@@ -106,6 +106,18 @@ import {
   saveAssets,
   loadAssetAllocations,
   saveAssetAllocations,
+  loadJobOpenings,
+  saveJobOpenings,
+  loadCandidates,
+  saveCandidates,
+  loadOnboardingPlans,
+  saveOnboardingPlans,
+  loadPerformanceReviews,
+  savePerformanceReviews,
+  loadTrainingPrograms,
+  saveTrainingPrograms,
+  loadTrainingNominations,
+  saveTrainingNominations,
   type PayrollLocation,
   type RegularizationRequest,
   type ShiftDefinition,
@@ -117,6 +129,12 @@ import {
   type AssetCategory,
   type Asset,
   type AssetAllocation,
+  type JobOpening,
+  type Candidate,
+  type OnboardingPlan,
+  type PerformanceReview,
+  type TrainingProgram,
+  type TrainingNomination,
 } from './payrollTypes';
 import { checkGeofence, formatDistance, localIsoDate, localTimeString } from '../../shared/geo';
 import { PayrollAdminMasterSection } from './PayrollAdminMasterSection';
@@ -136,6 +154,7 @@ import { PayrollProcessingSection } from './PayrollProcessingSection';
 import { PayrollLifecycleSection } from './PayrollLifecycleSection';
 import { PayrollAuditTrailSection } from './PayrollAuditTrailSection';
 import { PayrollAssetsSection } from './PayrollAssetsSection';
+import { PayrollTalentSection } from './PayrollTalentSection';
 import {
   fetchPayrollCollections,
   pushPayrollCollection,
@@ -323,6 +342,19 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
   const [assetAllocations, setAssetAllocations] = useState<AssetAllocation[]>(() => loadAssetAllocations());
   useEffect(() => { saveAssetAllocations(assetAllocations); }, [assetAllocations]);
 
+  const [jobOpenings, setJobOpenings] = useState<JobOpening[]>(() => loadJobOpenings());
+  useEffect(() => { saveJobOpenings(jobOpenings); }, [jobOpenings]);
+  const [candidates, setCandidates] = useState<Candidate[]>(() => loadCandidates());
+  useEffect(() => { saveCandidates(candidates); }, [candidates]);
+  const [onboardingPlans, setOnboardingPlans] = useState<OnboardingPlan[]>(() => loadOnboardingPlans());
+  useEffect(() => { saveOnboardingPlans(onboardingPlans); }, [onboardingPlans]);
+  const [performanceReviews, setPerformanceReviews] = useState<PerformanceReview[]>(() => loadPerformanceReviews());
+  useEffect(() => { savePerformanceReviews(performanceReviews); }, [performanceReviews]);
+  const [trainingPrograms, setTrainingPrograms] = useState<TrainingProgram[]>(() => loadTrainingPrograms());
+  useEffect(() => { saveTrainingPrograms(trainingPrograms); }, [trainingPrograms]);
+  const [trainingNominations, setTrainingNominations] = useState<TrainingNomination[]>(() => loadTrainingNominations());
+  useEffect(() => { saveTrainingNominations(trainingNominations); }, [trainingNominations]);
+
   // ---- Real-time capture ----------------------------------------------------------
   // Load the HR collections from the server on mount (so this browser sees every other
   // user's changes), then push each collection back whenever it changes.
@@ -352,6 +384,12 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
       take('assetCategories', loadAssetCategories(), setAssetCategories, true);
       take('assets', loadAssets(), setAssets);
       take('assetAllocations', loadAssetAllocations(), setAssetAllocations);
+      take('jobOpenings', loadJobOpenings(), setJobOpenings);
+      take('candidates', loadCandidates(), setCandidates);
+      take('onboarding', loadOnboardingPlans(), setOnboardingPlans);
+      take('performance', loadPerformanceReviews(), setPerformanceReviews);
+      take('trainingPrograms', loadTrainingPrograms(), setTrainingPrograms);
+      take('trainingNominations', loadTrainingNominations(), setTrainingNominations);
       setCollectionsHydrated(true);
     })();
     return () => {
@@ -370,6 +408,12 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
   useCollectionSync('assetCategories', assetCategories, collectionsHydrated, lastSyncedRef);
   useCollectionSync('assets', assets, collectionsHydrated, lastSyncedRef);
   useCollectionSync('assetAllocations', assetAllocations, collectionsHydrated, lastSyncedRef);
+  useCollectionSync('jobOpenings', jobOpenings, collectionsHydrated, lastSyncedRef);
+  useCollectionSync('candidates', candidates, collectionsHydrated, lastSyncedRef);
+  useCollectionSync('onboarding', onboardingPlans, collectionsHydrated, lastSyncedRef);
+  useCollectionSync('performance', performanceReviews, collectionsHydrated, lastSyncedRef);
+  useCollectionSync('trainingPrograms', trainingPrograms, collectionsHydrated, lastSyncedRef);
+  useCollectionSync('trainingNominations', trainingNominations, collectionsHydrated, lastSyncedRef);
 
   // ---- Header sub-navigation focus -------------------------------------------------
   // Every header tab and dropdown option lands on the section it names, rather than
@@ -2258,6 +2302,30 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                 onChangeAssets={setAssets}
                 allocations={assetAllocations}
                 onChangeAllocations={setAssetAllocations}
+                setStatusBanner={setStatusBanner}
+              />
+              <PayrollTalentSection
+                mode="employee"
+                currentUserId={currentUser.id}
+                currentUserName={currentUser.name || 'Employee'}
+                employees={enrolledEmployees.map((m) => ({
+                  userId: m.userId,
+                  name: m.name,
+                  empCode: m.empCode,
+                  department: m.department,
+                }))}
+                jobOpenings={jobOpenings}
+                onChangeJobOpenings={setJobOpenings}
+                candidates={candidates}
+                onChangeCandidates={setCandidates}
+                onboardingPlans={onboardingPlans}
+                onChangeOnboardingPlans={setOnboardingPlans}
+                performanceReviews={performanceReviews}
+                onChangePerformanceReviews={setPerformanceReviews}
+                trainingPrograms={trainingPrograms}
+                onChangeTrainingPrograms={setTrainingPrograms}
+                trainingNominations={trainingNominations}
+                onChangeTrainingNominations={setTrainingNominations}
                 setStatusBanner={setStatusBanner}
               />
             </div>
@@ -6304,6 +6372,30 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
               onChangeAssets={setAssets}
               allocations={assetAllocations}
               onChangeAllocations={setAssetAllocations}
+              setStatusBanner={setStatusBanner}
+            />
+            <PayrollTalentSection
+              mode="admin"
+              currentUserId={currentUser.id}
+              currentUserName={currentUser.name || 'Administrator'}
+              employees={enrolledEmployees.map((m) => ({
+                userId: m.userId,
+                name: m.name,
+                empCode: m.empCode,
+                department: m.department,
+              }))}
+              jobOpenings={jobOpenings}
+              onChangeJobOpenings={setJobOpenings}
+              candidates={candidates}
+              onChangeCandidates={setCandidates}
+              onboardingPlans={onboardingPlans}
+              onChangeOnboardingPlans={setOnboardingPlans}
+              performanceReviews={performanceReviews}
+              onChangePerformanceReviews={setPerformanceReviews}
+              trainingPrograms={trainingPrograms}
+              onChangeTrainingPrograms={setTrainingPrograms}
+              trainingNominations={trainingNominations}
+              onChangeTrainingNominations={setTrainingNominations}
               setStatusBanner={setStatusBanner}
             />
             <PayrollAdminMasterSection

@@ -17,7 +17,13 @@ export type PayrollCollectionKey =
   | 'lifecycle'
   | 'assets'
   | 'assetCategories'
-  | 'assetAllocations';
+  | 'assetAllocations'
+  | 'jobOpenings'
+  | 'candidates'
+  | 'onboarding'
+  | 'performance'
+  | 'trainingPrograms'
+  | 'trainingNominations';
 
 function authHeaders(): Record<string, string> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
