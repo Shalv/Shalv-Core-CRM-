@@ -320,6 +320,7 @@ const PERSISTED_CRM_STATE: Record<string, any> = {
   payrollPerformance: [],
   payrollTrainingPrograms: [],
   payrollTrainingNominations: [],
+  payrollUserPermissions: [],
   crmSlices: {},
 };
 
@@ -1189,6 +1190,7 @@ function buildPersistedStoreObject() {
     payrollPerformance: PERSISTED_CRM_STATE.payrollPerformance || [],
     payrollTrainingPrograms: PERSISTED_CRM_STATE.payrollTrainingPrograms || [],
     payrollTrainingNominations: PERSISTED_CRM_STATE.payrollTrainingNominations || [],
+    payrollUserPermissions: PERSISTED_CRM_STATE.payrollUserPermissions || [],
     crmSlices: PERSISTED_CRM_STATE.crmSlices,
     company_setup: MOCK_TABLES.company_setup,
     outlook_app_config: MOCK_TABLES.outlook_app_config,
@@ -1227,6 +1229,7 @@ const durableMiddleware = livePool ? postgresStateMiddleware(livePool, {
       payrollAssetCategories: [], payrollAssetAllocations: [],
       payrollJobOpenings: [], payrollCandidates: [], payrollOnboarding: [],
       payrollPerformance: [], payrollTrainingPrograms: [], payrollTrainingNominations: [],
+      payrollUserPermissions: [],
       ...value,
     });
     MOCK_TABLES.users = value.users || [];
@@ -3246,9 +3249,36 @@ const PAYROLL_COLLECTION_KEYS: Record<string, string> = {
   performance: 'payrollPerformance',
   trainingPrograms: 'payrollTrainingPrograms',
   trainingNominations: 'payrollTrainingNominations',
+  userPayrollPermissions: 'payrollUserPermissions',
 };
-// Collections only an admin/HR user may write. Employees may read all of them.
-const PAYROLL_ADMIN_ONLY_COLLECTIONS = ['locations', 'shifts', 'shiftAssignments', 'runs'];
+/*
+ * Per-collection write policy.
+ *   adminOnly  — only an admin/HR user may write the collection at all.
+ *   ownerField — a non-admin may only create/update/delete records in this collection
+ *                where this field equals their own user id. Other people's records are
+ *                preserved untouched, so a non-admin can never alter someone else's data.
+ * Collections with neither flag fall back to admin-only.
+ */
+const PAYROLL_COLLECTION_POLICY: Record<string, { adminOnly?: boolean; ownerField?: string }> = {
+  locations: { adminOnly: true },
+  shifts: { adminOnly: true },
+  shiftAssignments: { adminOnly: true },
+  runs: { adminOnly: true },
+  assets: { adminOnly: true },
+  assetCategories: { adminOnly: true },
+  jobOpenings: { adminOnly: true },
+  candidates: { adminOnly: true },
+  trainingPrograms: { adminOnly: true },
+  userPayrollPermissions: { adminOnly: true },
+  regularization: { ownerField: 'employeeId' },
+  helpdesk: { ownerField: 'employeeId' },
+  shiftSwaps: { ownerField: 'requesterId' },
+  lifecycle: { ownerField: 'employeeId' },
+  onboarding: { ownerField: 'employeeId' },
+  performance: { ownerField: 'employeeId' },
+  trainingNominations: { ownerField: 'employeeId' },
+  assetAllocations: { ownerField: 'employeeId' },
+};
 
 const isAdminActor = (req: Request): boolean => {
   const actor = (req as any).account;
@@ -3270,16 +3300,46 @@ app.post('/api/payroll/collections/:key', (req: Request, res: Response) => {
   if (!stateKey) {
     return res.status(404).json({ success: false, message: 'Unknown collection' });
   }
-  if (PAYROLL_ADMIN_ONLY_COLLECTIONS.includes(key) && !isAdminActor(req)) {
-    return res.status(403).json({ success: false, message: 'Not permitted for this collection' });
-  }
   const data = req.body?.data;
   if (!Array.isArray(data)) {
     return res.status(400).json({ success: false, message: 'data must be an array' });
   }
-  PERSISTED_CRM_STATE[stateKey] = data;
+
+  const policy = PAYROLL_COLLECTION_POLICY[key] || { adminOnly: true };
+  const isAdmin = isAdminActor(req);
+
+  if (policy.adminOnly && !isAdmin) {
+    return res.status(403).json({ success: false, message: 'Not permitted for this collection' });
+  }
+
+  let next: any[] = data;
+  if (!isAdmin && policy.ownerField) {
+    // Record-level authorisation: the actor may only touch records they own. Everything
+    // else in the collection is carried over unchanged, so no other employee's record
+    // can be created, altered or removed by this request.
+    const actor = (req as any).account;
+    const actorId = String(actor?.id ?? '');
+    const ownerField = policy.ownerField;
+    const existing = Array.isArray(PERSISTED_CRM_STATE[stateKey]) ? PERSISTED_CRM_STATE[stateKey] : [];
+    const othersRecords = existing.filter((r: any) => String(r?.[ownerField] ?? '') !== actorId);
+    const ownRecords = data.filter((r: any) => String(r?.[ownerField] ?? '') === actorId);
+    const rejected = data.filter((r: any) => String(r?.[ownerField] ?? '') !== actorId);
+    next = [...othersRecords, ...ownRecords];
+    PERSISTED_CRM_STATE[stateKey] = next;
+    flushStateToDatabase();
+    return res.json({
+      success: true,
+      key,
+      count: next.length,
+      ownedCount: ownRecords.length,
+      rejectedCount: rejected.length,
+      scoped: true,
+    });
+  }
+
+  PERSISTED_CRM_STATE[stateKey] = next;
   flushStateToDatabase();
-  res.json({ success: true, key, count: data.length });
+  res.json({ success: true, key, count: next.length });
 });
 
 app.get('/api/payroll/loans', (req: Request, res: Response) => {

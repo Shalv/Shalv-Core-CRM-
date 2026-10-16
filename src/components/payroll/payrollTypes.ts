@@ -2082,6 +2082,10 @@ export interface PayrollRunLine {
   empCode: string;
   gross: number;
   net: number;
+  /** Attendance-linked payable days for the run month (working days minus LOP). */
+  payableDays?: number;
+  /** Loss-of-pay days for the run month, taken from the attendance register. */
+  lopDays?: number;
 }
 
 export interface PayrollRun {
@@ -2094,6 +2098,8 @@ export interface PayrollRun {
   locked: boolean;
   reopenReason?: string;
   headcount: number;
+  /** Working days in the run month (used to prorate pay for LOP days). */
+  workingDays?: number;
   grossTotal: number;
   netTotal: number;
   lines: PayrollRunLine[];
@@ -2565,6 +2571,23 @@ export const reviewAverage = (r: PerformanceReview): number | null => {
   const vals = manager.length ? manager : self;
   if (!vals.length) return null;
   return Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 10) / 10;
+};
+
+/* ------------------------------------------------------------------ LOP ----
+ * Attendance-linked pay: a loss-of-pay day reduces payable days, and pay is prorated
+ * against the month's working days. net = gross x payableDays / workingDays.
+ * -------------------------------------------------------------------------- */
+export const DEFAULT_RUN_WORKING_DAYS = 26;
+
+export const prorateForLop = (
+  gross: number,
+  workingDays: number,
+  lopDays: number
+): { payableDays: number; net: number } => {
+  const wd = workingDays > 0 ? workingDays : DEFAULT_RUN_WORKING_DAYS;
+  const lop = Math.max(0, Math.min(lopDays, wd));
+  const payableDays = wd - lop;
+  return { payableDays, net: Math.round((gross * payableDays) / wd) };
 };
 
 export const DEFAULT_ADMIN_POLICY_MASTER: AdminPolicyMaster = {

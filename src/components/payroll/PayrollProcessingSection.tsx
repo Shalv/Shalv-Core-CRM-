@@ -27,6 +27,8 @@ import {
   updatePayrollRun,
   reopenPayrollRun,
   payrollVariance,
+  prorateForLop,
+  DEFAULT_RUN_WORKING_DAYS,
 } from './payrollTypes';
 
 /**
@@ -118,6 +120,7 @@ export function PayrollProcessingSection({
         paymentStatus: 'Unpaid',
         locked: false,
         headcount: 0,
+        workingDays: DEFAULT_RUN_WORKING_DAYS,
         grossTotal: 0,
         netTotal: 0,
         lines: [],
@@ -129,34 +132,82 @@ export function PayrollProcessingSection({
     setStatusBanner?.(`Payroll run for ${month} created (Draft).`);
   };
 
+  const runWorkingDays = current?.workingDays ?? DEFAULT_RUN_WORKING_DAYS;
+
+  /** Total net for a set of lines, including arrears/recoveries adjustments. */
+  const totalNet = (lines: PayrollRunLine[], run: PayrollRun) =>
+    lines.reduce((s, l) => s + l.net, 0) +
+    run.adjustments.reduce(
+      (s, a) => s + (a.kind === 'Recovery' ? -Math.abs(a.amount) : Math.abs(a.amount)),
+      0
+    );
+
   const calculate = () => {
     if (!current || current.locked) return;
-    const lines: PayrollRunLine[] = enrolled.map((e) => ({
-      employeeId: e.userId,
-      employeeName: e.name || e.userId,
-      empCode: e.empCode || '',
-      gross: Number(e.monthlyGross) || 0,
-      net: Number(e.monthlyGross) || 0,
-    }));
-    const gross = lines.reduce((s, l) => s + l.gross, 0);
-    const net = gross + adjustmentNet(current);
+    const wd = runWorkingDays;
+    const lines: PayrollRunLine[] = enrolled.map((e) => {
+      const gross = Number(e.monthlyGross) || 0;
+      const prev = current.lines.find((l) => l.employeeId === e.userId);
+      const lop = Math.max(0, Number(prev?.lopDays) || 0);
+      const { payableDays, net } = prorateForLop(gross, wd, lop);
+      return {
+        employeeId: e.userId,
+        employeeName: e.name || e.userId,
+        empCode: e.empCode || '',
+        gross,
+        net,
+        payableDays,
+        lopDays: lop,
+      };
+    });
+    const grossTotal = lines.reduce((s, l) => s + l.gross, 0);
     onChangeRuns(
       updatePayrollRun(
         runs,
         current.id,
         {
           lines,
+          workingDays: wd,
           headcount: lines.length,
-          grossTotal: gross,
-          netTotal: net,
+          grossTotal,
+          netTotal: totalNet(lines, current),
           status: 'Calculated',
           calculatedAt: new Date().toISOString(),
         },
         currentUserName,
-        `Calculated ${lines.length} employees`
+        `Calculated ${lines.length} employees over ${wd} working days`
       )
     );
-    setStatusBanner?.(`Payroll calculated for ${month}: ${lines.length} employees, gross ${formatCurrency(gross)}.`);
+    setStatusBanner?.(`Payroll calculated for ${month}: ${lines.length} employees, gross ${formatCurrency(grossTotal)}.`);
+  };
+
+  /** Attendance-linked: set loss-of-pay days for one employee and re-prorate their pay. */
+  const setLineLop = (employeeId: string, lopDays: number) => {
+    if (!current || current.locked) return;
+    const wd = runWorkingDays;
+    const lop = Math.max(0, Math.min(Number(lopDays) || 0, wd));
+    const lines = current.lines.map((l) => {
+      if (l.employeeId !== employeeId) return l;
+      const { payableDays, net } = prorateForLop(l.gross, wd, lop);
+      return { ...l, lopDays: lop, payableDays, net };
+    });
+    const name = current.lines.find((l) => l.employeeId === employeeId)?.employeeName || employeeId;
+    onChangeRuns(
+      updatePayrollRun(runs, current.id, { lines, netTotal: totalNet(lines, current) }, currentUserName, `LOP ${lop} day(s) for ${name}`)
+    );
+    setStatusBanner?.(`${name}: ${lop} LOP day(s) applied.`);
+  };
+
+  const setWorkingDays = (wd: number) => {
+    if (!current || current.locked) return;
+    const days = Math.max(1, Number(wd) || DEFAULT_RUN_WORKING_DAYS);
+    const lines = current.lines.map((l) => {
+      const { payableDays, net } = prorateForLop(l.gross, days, l.lopDays || 0);
+      return { ...l, payableDays, net };
+    });
+    onChangeRuns(
+      updatePayrollRun(runs, current.id, { workingDays: days, lines, netTotal: totalNet(lines, current) }, currentUserName, `Working days set to ${days}`)
+    );
   };
 
   const advance = () => {
@@ -212,7 +263,7 @@ export function PayrollProcessingSection({
       addedAt: at,
     };
     const nextAdjustments = [...current.adjustments, adj];
-    const net = current.grossTotal + nextAdjustments.reduce((s, a) => s + (a.kind === 'Recovery' ? -Math.abs(a.amount) : Math.abs(a.amount)), 0);
+    const net = totalNet(current.lines, { ...current, adjustments: nextAdjustments });
     onChangeRuns(
       updatePayrollRun(runs, current.id, { adjustments: nextAdjustments, netTotal: net }, currentUserName, `Added ${adjustKind} ${amount} for ${emp?.name || adjustFor}`)
     );
@@ -223,7 +274,7 @@ export function PayrollProcessingSection({
   const removeAdjustment = (id: string) => {
     if (!current || current.locked) return;
     const nextAdjustments = current.adjustments.filter((a) => a.id !== id);
-    const net = current.grossTotal + nextAdjustments.reduce((s, a) => s + (a.kind === 'Recovery' ? -Math.abs(a.amount) : Math.abs(a.amount)), 0);
+    const net = totalNet(current.lines, { ...current, adjustments: nextAdjustments });
     onChangeRuns(updatePayrollRun(runs, current.id, { adjustments: nextAdjustments, netTotal: net }, currentUserName, 'Removed adjustment'));
   };
 
@@ -316,6 +367,18 @@ export function PayrollProcessingSection({
                 {current.locked ? <><Unlock className="w-3.5 h-3.5" /> Reopen</> : <><Lock className="w-3.5 h-3.5" /> Lock run</>}
               </button>
               <button type="button" className="sh-btn" onClick={exportPayments}><Download className="w-3.5 h-3.5" /> Payment export</button>
+              {!current.locked && (
+                <label className="flex items-center gap-1.5 text-[11.5px] text-slate-500">
+                  Working days
+                  <input
+                    type="number"
+                    min={1}
+                    className="sh-input max-w-[70px]"
+                    value={current.workingDays ?? DEFAULT_RUN_WORKING_DAYS}
+                    onChange={(e) => setWorkingDays(Number(e.target.value))}
+                  />
+                </label>
+              )}
               <span className="ml-auto text-[12px] text-slate-500">
                 {current.headcount} employees · gross <b className="text-slate-800">{formatCurrency(current.grossTotal)}</b> · net payable <b className="text-slate-800">{formatCurrency(current.netTotal)}</b>
               </span>
@@ -363,6 +426,47 @@ export function PayrollProcessingSection({
                       </tr>
                     ))}
                     {current.adjustments.length === 0 && <tr><td colSpan={6} className="text-center py-5 text-slate-400">No adjustments for this run.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* attendance-linked pay / LOP */}
+            <div className="sh-card-body border-b border-slate-100">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-[12px] font-bold text-slate-700">Attendance-linked pay (loss of pay)</div>
+                <div className="text-[11.5px] text-slate-500">
+                  Pay is prorated over {runWorkingDays} working days. net = gross × payable ÷ working days.
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="sh-table w-full">
+                  <thead><tr><th>Employee</th><th>Gross</th><th>Working days</th><th>LOP days</th><th>Payable days</th><th>Net (before adjustments)</th></tr></thead>
+                  <tbody>
+                    {current.lines.map((l) => (
+                      <tr key={l.employeeId}>
+                        <td className="font-semibold text-slate-800">{l.employeeName}<div className="text-[11px] text-slate-500">{l.empCode}</div></td>
+                        <td>{formatCurrency(l.gross)}</td>
+                        <td>{runWorkingDays}</td>
+                        <td>
+                          {current.locked ? (
+                            l.lopDays || 0
+                          ) : (
+                            <input
+                              type="number"
+                              min={0}
+                              max={runWorkingDays}
+                              className="sh-input max-w-[70px]"
+                              value={l.lopDays ?? 0}
+                              onChange={(e) => setLineLop(l.employeeId, Number(e.target.value))}
+                            />
+                          )}
+                        </td>
+                        <td>{l.payableDays ?? runWorkingDays}</td>
+                        <td className="font-semibold text-slate-800">{formatCurrency(l.net)}</td>
+                      </tr>
+                    ))}
+                    {current.lines.length === 0 && <tr><td colSpan={6} className="text-center py-5 text-slate-400">Calculate the run to see attendance-linked pay.</td></tr>}
                   </tbody>
                 </table>
               </div>
