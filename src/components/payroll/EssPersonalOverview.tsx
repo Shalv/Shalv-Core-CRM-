@@ -1,5 +1,7 @@
 import React from 'react';
 import { EssAttendanceCalendar } from './EssAttendanceCalendar';
+import { Sparkline, AreaLineChart, DonutChart, MiniBars } from './EssCharts';
+import { WorkspaceIllustration } from './EssIllustration';
 import {
   CalendarCheck,
   FileText,
@@ -56,6 +58,8 @@ export interface EssPersonalOverviewProps {
   payslipMonth?: string;
   /** Office location label used by the geofence. */
   officeLabel?: string;
+  /** Payroll runs — used to draw the employee's own salary trend (real, stored data). */
+  payrollRuns?: any[];
 }
 
 const WORK_MODES: { id: 'Office HQ' | 'Work From Home' | 'Client Site Visit'; label: string; icon: React.ReactNode }[] = [
@@ -107,6 +111,7 @@ export function EssPersonalOverview({
   lopDays = 0,
   payslipMonth,
   officeLabel,
+  payrollRuns,
 }: EssPersonalOverviewProps) {
   const name = employee?.name || 'Employee';
   const empCode = employee?.empCode || employee?.userId || '—';
@@ -169,6 +174,58 @@ export function EssPersonalOverview({
   const approvedAmount = approvedClaims.reduce((s: number, c: any) => s + (Number(c?.amount) || 0), 0);
 
   const geofenceRadius = Number(policy?.geofenceRadiusMeters ?? 100) || 100;
+
+  // ---- real series for the charts (never invented) -------------------------------
+  const empKey = employee?.userId || employee?.id;
+
+  /** The employee's own net pay per payroll run, oldest → newest. */
+  const salarySeries = (Array.isArray(payrollRuns) ? payrollRuns : [])
+    .map((r: any) => {
+      const line = (r?.lines || []).find((l: any) => l?.employeeId === empKey);
+      if (!line) return null;
+      const label = String(r?.month || '').slice(5) || String(r?.month || '');
+      return { label, net: Number(line.net) || 0 };
+    })
+    .filter(Boolean)
+    .slice(-6) as { label: string; net: number }[];
+
+  /** Punched days in the current month, from the punch history. */
+  const monthPrefix = new Date().toISOString().slice(0, 7);
+  const punchedDates = new Set(
+    (Array.isArray(attendance?.punchHistory) ? attendance.punchHistory : [])
+      .map((r: any) => r?.date)
+      .filter((d: string) => typeof d === 'string' && d.startsWith(monthPrefix))
+  );
+
+  /** Leave taken by type — drives the composition donut. */
+  const leaveSegments = LEAVE_QUOTAS.map((q, i) => ({
+    label: q.label,
+    value: takenBy(q.type),
+    color: ['#4a90e2', '#f5b942', '#f2726f', '#6d4bd1'][i % 4],
+  })).filter((s) => s.value > 0);
+  const totalLeaveTaken = leaveSegments.reduce((s, x) => s + x.value, 0);
+
+  /** A short, honest activity feed from the employee's own records. */
+  const activity = [
+    ...(Array.isArray(attendance?.punchHistory) ? attendance.punchHistory : []).slice(0, 3).map((r: any) => ({
+      at: `${r.date} ${r.time}`,
+      title: r.action === 'PUNCH_IN' ? 'Punched in' : 'Punched out',
+      detail: r.workMode ? `Work mode: ${r.workMode}` : '',
+      tone: 'mint' as const,
+    })),
+    ...approvedLeaves.slice(0, 2).map((l: any) => ({
+      at: l.startDate || '',
+      title: `${l.leaveType || 'Leave'} approved`,
+      detail: l.reason || 'Approved leave',
+      tone: 'blue' as const,
+    })),
+    ...myClaims.slice(0, 2).map((c: any) => ({
+      at: c.expenseDate || c.submittedAt || '',
+      title: `Claim ${String(c.status || 'submitted').toLowerCase()}`,
+      detail: c.description || c.category || 'Reimbursement',
+      tone: 'peach' as const,
+    })),
+  ].slice(0, 6);
 
   const actions = [
     { label: 'Apply for leave', hint: 'Leave & WFH requests', icon: <CalendarCheck className="w-4.5 h-4.5" />, onClick: () => onNavigate?.('leaves') },
@@ -290,6 +347,142 @@ export function EssPersonalOverview({
             )}
             {isFetchingLocation ? 'Getting location…' : alreadyOut ? 'Completed' : nextPunchLabel}
           </button>
+        </div>
+      </section>
+
+      {/* --------------------------------------------------------------- KPI cards */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {[
+          {
+            chip: 'ess-chip-blue',
+            icon: <CalendarCheck className="w-4.5 h-4.5" />,
+            title: 'Punched days',
+            sub: 'This month',
+            value: String(punchedDates.size),
+            delta: null as string | null,
+            spark: null as number[] | null,
+          },
+          {
+            chip: 'ess-chip-mint',
+            icon: <CalendarDays className="w-4.5 h-4.5" />,
+            title: 'Leave remaining',
+            sub: `${totalLeaveTaken} day(s) taken`,
+            value: String(
+              LEAVE_QUOTAS.reduce((s, q) => s + Math.max(0, q.quota - takenBy(q.type)), 0)
+            ),
+            delta: null,
+            spark: null,
+          },
+          {
+            chip: 'ess-chip-amber',
+            icon: <Receipt className="w-4.5 h-4.5" />,
+            title: 'Claims in review',
+            sub: `${approvedClaims.length} approved`,
+            value: String(inReviewClaims.length),
+            delta: null,
+            spark: null,
+          },
+          {
+            chip: 'ess-chip-peach',
+            icon: <Wallet className="w-4.5 h-4.5" />,
+            title: 'Net take-home',
+            sub: 'Current cycle',
+            value: money(netInHand),
+            delta: salarySeries.length >= 2 ? `${salarySeries[salarySeries.length - 1].net - salarySeries[salarySeries.length - 2].net >= 0 ? '+' : ''}${formatCurrency(salarySeries[salarySeries.length - 1].net - salarySeries[salarySeries.length - 2].net)}` : null,
+            spark: salarySeries.length >= 2 ? salarySeries.map((s) => s.net) : null,
+          },
+        ].map((k) => (
+          <div key={k.title} className="ess-card p-4">
+            <div className="flex items-start justify-between gap-3">
+              <span className={`ess-chip ${k.chip}`}>{k.icon}</span>
+              {k.spark && <Sparkline points={k.spark} color="#f26522" width={80} height={32} />}
+            </div>
+            <div className="mt-3 ess-kpi-title">{k.title}</div>
+            <div className="ess-kpi-sub">{k.sub}</div>
+            <div className="mt-1.5 flex items-center gap-2">
+              <span className="ess-kpi-value">{k.value}</span>
+              {k.delta && (
+                <span className={`ess-delta ${k.delta.startsWith('-') ? 'ess-delta-down' : 'ess-delta-up'}`}>
+                  {k.delta.startsWith('-') ? '↓' : '↑'} {k.delta.replace('-', '')}
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
+      </section>
+
+      {/* ------------------------------------------------------- trend + donut */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="ess-card lg:col-span-2">
+          <div className="sh-card-header">
+            <div>
+              <h3 className="sh-card-title">My salary trend</h3>
+              <p className="text-[11.5px] text-slate-500">
+                Net payable per payroll run — from your own processed payroll records
+              </p>
+            </div>
+            <div className="flex items-center gap-3 text-[11px] text-slate-500">
+              <span className="flex items-center gap-1.5">
+                <span className="ess-legend-dot" style={{ background: '#4a90e2' }} /> Net payable
+              </span>
+            </div>
+          </div>
+          <div className="sh-card-body">
+            {salarySeries.length >= 2 ? (
+              <>
+                <div className="flex items-baseline gap-2 mb-2">
+                  <span className="text-[20px] font-extrabold text-slate-900">
+                    {money(salarySeries[salarySeries.length - 1].net)}
+                  </span>
+                  <span className="text-[11.5px] text-slate-500">latest net payable</span>
+                </div>
+                <AreaLineChart
+                  series={[{ name: 'Net payable', color: '#4a90e2', points: salarySeries.map((s) => s.net) }]}
+                  labels={salarySeries.map((s) => s.label)}
+                  markerIndex={salarySeries.length - 1}
+                  markerLabel={showSalary ? formatCurrency(salarySeries[salarySeries.length - 1].net) : '••••••'}
+                  height={196}
+                />
+              </>
+            ) : (
+              <div className="py-10 text-center text-[12px] text-slate-400">
+                Your salary trend appears here once two or more payroll runs have been processed for you.
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="ess-card">
+          <div className="sh-card-header">
+            <div>
+              <h3 className="sh-card-title">Leave taken</h3>
+              <p className="text-[11.5px] text-slate-500">By type, this year</p>
+            </div>
+          </div>
+          <div className="sh-card-body flex flex-col items-center">
+            {totalLeaveTaken > 0 ? (
+              <>
+                <DonutChart
+                  segments={leaveSegments}
+                  size={158}
+                  centerLabel={`${totalLeaveTaken}`}
+                  centerSub="days taken"
+                />
+                <div className="mt-3 w-full space-y-1.5">
+                  {leaveSegments.map((s) => (
+                    <div key={s.label} className="flex items-center justify-between text-[11.5px]">
+                      <span className="flex items-center gap-1.5 text-slate-600">
+                        <span className="ess-legend-dot" style={{ background: s.color }} /> {s.label}
+                      </span>
+                      <span className="font-bold text-slate-800">{s.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="py-12 text-center text-[12px] text-slate-400">No leave taken this year.</div>
+            )}
+          </div>
         </div>
       </section>
 
@@ -520,6 +713,59 @@ export function EssPersonalOverview({
               <div className="text-[11px] text-slate-500">{a.hint}</div>
             </button>
           ))}
+        </div>
+      </section>
+
+      {/* --------------------------------------------- illustration + activity feed */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="ess-card p-4 flex flex-col items-center justify-center text-center">
+          <WorkspaceIllustration width={200} height={140} />
+          <div className="mt-2 text-[13.5px] font-bold text-slate-800">Your workspace, in one place</div>
+          <p className="text-[11.5px] text-slate-500 mt-0.5">
+            Punch, leave, payslips, claims and requests — all self-service, all yours.
+          </p>
+          <button
+            type="button"
+            className="sh-btn sh-btn-primary mt-3"
+            onClick={() => (onDownloadPayslip ? onDownloadPayslip() : onNavigate?.('payslips'))}
+          >
+            <Download className="w-3.5 h-3.5" /> Get my latest payslip
+          </button>
+        </div>
+
+        <div className="ess-card lg:col-span-2">
+          <div className="sh-card-header">
+            <div>
+              <h3 className="sh-card-title">My activity</h3>
+              <p className="text-[11.5px] text-slate-500">Your own punches, leaves and claims</p>
+            </div>
+          </div>
+          <div className="sh-card-body">
+            {activity.length > 0 ? (
+              activity.map((a, i) => (
+                <div key={`${a.at}-${i}`} className="ess-row">
+                  <span
+                    className={`ess-avatar`}
+                    style={{
+                      background:
+                        a.tone === 'mint' ? '#0f9d58' : a.tone === 'blue' ? '#4a90e2' : '#e2641a',
+                    }}
+                  >
+                    {a.tone === 'mint' ? <LogIn className="w-3.5 h-3.5" /> : a.tone === 'blue' ? <CalendarDays className="w-3.5 h-3.5" /> : <Receipt className="w-3.5 h-3.5" />}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[12.5px] font-semibold text-slate-800">{a.title}</div>
+                    <div className="text-[11px] text-slate-500 truncate">{a.detail}</div>
+                  </div>
+                  <span className="text-[11px] text-slate-400 whitespace-nowrap">{a.at}</span>
+                </div>
+              ))
+            ) : (
+              <div className="py-10 text-center text-[12px] text-slate-400">
+                Nothing yet — your punches, leave and claims will show up here.
+              </div>
+            )}
+          </div>
         </div>
       </section>
 

@@ -468,17 +468,19 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
     item.view ? payChakraTab === 'overview' && essView === item.view : payChakraTab !== 'overview' && activeTab === item.tab;
 
   const essNavBar = (
-    <div className="sticky top-0 z-20 flex flex-wrap items-center gap-1.5 bg-[#f8fafc] py-1">
-      {essNav.map((v) => (
-        <button
-          key={v.id}
-          type="button"
-          onClick={() => goEss(v)}
-          className={`sh-btn ${essNavActive(v) ? 'sh-btn-soft' : ''}`}
-        >
-          {v.label}
-        </button>
-      ))}
+    <div className="sticky top-0 z-20 bg-[#f8fafc] pt-1">
+      <div className="ess-tabs">
+        {essNav.map((v) => (
+          <button
+            key={v.id}
+            type="button"
+            onClick={() => goEss(v)}
+            className={`ess-tab ${essNavActive(v) ? 'is-active' : ''}`}
+          >
+            {v.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 
@@ -2216,6 +2218,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
       policy={adminPolicyMaster}
       shift={resolveEmployeeShift(shifts, shiftAssignments, currentUser.id)}
       officeLabel={resolvePunchLocation(payrollLocations, activeUserMaster?.locationId).name}
+      payrollRuns={payrollRuns}
       lopDays={essLopDays}
       payslipMonth={selectedMonthMeta?.label}
       onWorkModeChange={(mode) => setAttendance((prev) => ({ ...prev, workMode: mode }))}

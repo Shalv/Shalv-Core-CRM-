@@ -328,3 +328,33 @@ body {
 .sh-scope ::-webkit-scrollbar { width: 8px; height: 8px; }
 .sh-scope ::-webkit-scrollbar-thumb { background: #dfe3ea; border-radius: 8px; }
 .sh-scope ::-webkit-scrollbar-track { background: transparent; }
+
+/* ============================================================================
+   ESS dashboard — graphic card language
+   Pastel icon chips, delta pills, circular avatars, underline tabs and the
+   row/legend rhythm used across the employee dashboard.
+   ========================================================================= */
+.ess-card{background:#fff;border:1px solid #eef0f4;border-radius:16px;box-shadow:0 1px 2px rgba(27,42,65,.04),0 10px 26px -20px rgba(27,42,65,.28)}
+.ess-chip{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;flex:0 0 auto}
+.ess-chip-mint{background:#e7f6ee;color:#0f9d58}
+.ess-chip-peach{background:#fdeee4;color:#e2641a}
+.ess-chip-pink{background:#fde9ee;color:#d94a6a}
+.ess-chip-blue{background:#e8f0fe;color:#3b7ddd}
+.ess-chip-amber{background:#fff5e0;color:#b8860b}
+.ess-chip-violet{background:#f1ecfd;color:#6d4bd1}
+.ess-delta{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:9999px}
+.ess-delta-up{background:#e7f6ee;color:#0f9d58}
+.ess-delta-down{background:#fde9ee;color:#d93025}
+.ess-delta-flat{background:#f1f4f9;color:#8a94a6}
+.ess-kpi-title{font-size:12px;font-weight:700;color:#1b2a41}
+.ess-kpi-sub{font-size:10.5px;color:#8a94a6}
+.ess-kpi-value{font-size:19px;font-weight:800;color:#1b2a41;line-height:1.15}
+.ess-avatar{width:34px;height:34px;border-radius:9999px;display:grid;place-items:center;font-size:11px;font-weight:800;color:#fff;flex:0 0 auto}
+.ess-legend-dot{width:8px;height:8px;border-radius:9999px;display:inline-block}
+.ess-tabs{display:flex;flex-wrap:wrap;gap:18px;border-bottom:1px solid #eef0f4}
+.ess-tab{position:relative;padding:0 2px 9px;font-size:13px;font-weight:600;color:#8a94a6;background:none;border:0;cursor:pointer}
+.ess-tab.is-active{color:#1e4d5c;font-weight:700}
+.ess-tab.is-active::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:2.5px;border-radius:2px;background:#1e4d5c}
+.ess-tab:hover{color:#1b2a41}
+.ess-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f4f6fa}
+.ess-row:last-child{border-bottom:0}
