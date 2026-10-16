@@ -415,7 +415,11 @@ export interface ExpenseClaimItem {
   linkedCustomer: string;
   billNumber: string;
   description: string;
-  status: 'Approved & Queued for Payroll' | 'Under Verification' | 'Paid in Payslip';
+  status:
+    | 'Under Verification'
+    | 'Approved & Queued for Payroll'
+    | 'Paid in Payslip'
+    | 'Rejected';
 }
 
 export interface StatutoryDetails {

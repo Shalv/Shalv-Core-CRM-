@@ -84,3 +84,47 @@ test('the breakdown is produced for a valid master and reconciles', () => {
   assert.ok(b.netPayable >= 0, 'net is not negative');
   assert.ok(b.totalDeductions >= 0, 'deductions are not negative');
 });
+
+/* ----------------------------------------------- expense claim approval workflow ---- */
+
+const claim = (id: string, status: string, amount = 1000) => ({
+  id,
+  claimNo: `CLM-${id}`,
+  employeeId: 'u-test',
+  employeeName: 'Test Employee',
+  category: 'Meals & Client Hospitality',
+  expenseDate: '2026-10-05',
+  amount,
+  linkedCustomer: '',
+  billNumber: 'BILL-1',
+  description: 'test',
+  status,
+});
+
+test('only an approved claim is counted as a reimbursement', () => {
+  const approved = run([] as any[]);
+  const withApproved = calculateEmployeePolicyPayroll({
+    monthKey: '2026-10',
+    master,
+    policy: POLICY,
+    claims: [claim('EXP-1', 'Approved & Queued for Payroll', 1000)] as any,
+  });
+  const withVerifying = calculateEmployeePolicyPayroll({
+    monthKey: '2026-10',
+    master,
+    policy: POLICY,
+    claims: [claim('EXP-1', 'Under Verification', 1000)] as any,
+  });
+  const withRejected = calculateEmployeePolicyPayroll({
+    monthKey: '2026-10',
+    master,
+    policy: POLICY,
+    claims: [claim('EXP-1', 'Rejected', 1000)] as any,
+  });
+
+  assert.equal(withApproved.approvedReimbursements, 1000, 'an approved claim is reimbursed');
+  assert.equal(withVerifying.approvedReimbursements, 0, 'a claim awaiting verification is not');
+  assert.equal(withRejected.approvedReimbursements, 0, 'a rejected claim is not');
+  assert.equal(withVerifying.netPayable, approved.netPayable, 'awaiting verification pays nothing extra');
+  assert.equal(withRejected.netPayable, approved.netPayable, 'a rejected claim pays nothing extra');
+});

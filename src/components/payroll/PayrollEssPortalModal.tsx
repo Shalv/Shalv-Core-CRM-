@@ -87,6 +87,8 @@ import {
   savePayrollLocations,
   resolvePunchLocation,
   resolveEmployeeShift,
+  decideRegularization,
+  decideShiftSwap,
   loadRegularizationRequests,
   saveRegularizationRequests,
   loadShifts,
@@ -2461,6 +2463,52 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                 else if (target === 'payroll') { setActiveTab('admin_master'); setSectionAnchor('payroll-processing'); }
                 else if (target === 'recruitment') { setActiveTab('admin_master'); setSectionAnchor('admin-talent'); }
                 else setActiveTab('admin_master');
+              }}
+              /* --- approvals straight from the dashboard, so a submitted request can be decided
+                     without hunting for the right admin screen. --- */
+              onDecideLeave={(id, decision) => {
+                setLeaves((prev) => prev.map((l) => (l.id === id ? { ...l, status: decision } : l)));
+                setStatusBanner(`Leave request ${id} ${decision === 'Approved' ? 'approved' : 'rejected'}.`);
+              }}
+              onDecideClaim={(id, decision) => {
+                setClaims((prev) =>
+                  prev.map((c) =>
+                    c.id === id
+                      ? {
+                          ...c,
+                          status:
+                            decision === 'Approved'
+                              ? 'Approved & Queued for Payroll'
+                              : 'Rejected',
+                        }
+                      : c
+                  )
+                );
+                setStatusBanner(
+                  decision === 'Approved'
+                    ? `Expense claim ${id} approved and queued for payroll.`
+                    : `Expense claim ${id} rejected.`
+                );
+              }}
+              onDecideRegularization={(id, decision) => {
+                setRegularizationRequests((prev) =>
+                  decideRegularization(prev, id, decision, currentUser.name)
+                );
+                setStatusBanner(`Regularization request ${id} ${decision.toLowerCase()}.`);
+              }}
+              onDecideSwap={(id, decision) => {
+                setShiftSwaps((prev) => decideShiftSwap(prev, id, decision, currentUser.name));
+                setStatusBanner(`Shift swap ${id} ${decision.toLowerCase()}.`);
+              }}
+              onDecideTicket={(id, decision) => {
+                setHelpDeskTickets((prev) =>
+                  prev.map((t) =>
+                    t.id === id
+                      ? { ...t, status: decision, resolvedAt: new Date().toISOString() }
+                      : t
+                  )
+                );
+                setStatusBanner(`Help desk ticket ${id} marked ${decision.toLowerCase()}.`);
               }}
             />
           </div>
