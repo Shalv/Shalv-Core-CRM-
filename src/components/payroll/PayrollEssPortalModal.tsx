@@ -2419,7 +2419,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
 
         {/* WORKFORCE OVERVIEW (admin only — company-wide workforce data) */}
         {payChakraTab === 'overview' && isAdminUser && (
-          <>
+          <div className="flex-1 overflow-y-auto bg-[#f8fafc]">
           <div className="p-3 sm:p-4 lg:p-6">
             <AdminDashboardSection
               employees={enrolledEmployees}
@@ -2473,7 +2473,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
             pendingClaimsCount={claims.filter((c) => c.status === 'Under Verification').length}
             pendingLoansCount={0}
           />
-          </>
+          </div>
         )}
 
         {/* PERSISTENT ALERT MESSAGE WHILE LOCATION IS OFF (Attendance Not Recorded) */}

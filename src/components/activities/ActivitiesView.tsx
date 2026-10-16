@@ -12,6 +12,8 @@ import {
 
 interface ActivitiesViewProps {
   initialFilter?: string;
+  /** Bumped on every ACTION: navigation so the create dialog reopens on repeat clicks. */
+  actionNonce?: number;
   onNavigateToLead: (leadId: string) => void;
   onNavigateToCustomer: (customerId: string) => void;
   onNavigateToOrder: (orderId: string) => void;
@@ -19,6 +21,7 @@ interface ActivitiesViewProps {
 
 export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
   initialFilter,
+  actionNonce,
   onNavigateToLead,
   onNavigateToCustomer,
   onNavigateToOrder,
@@ -70,7 +73,7 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
     } else {
       setStatusFilter('ALL');
     }
-  }, [initialFilter]);
+  }, [initialFilter, actionNonce]);
 
   const filteredActivities = activities.filter((a) => {
     const matchesSearch =

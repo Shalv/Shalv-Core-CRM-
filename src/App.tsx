@@ -144,6 +144,9 @@ function MainAppContent() {
   const [activeInvoiceId, setActiveInvoiceId] = useState<string | undefined>(
     initialNav.module === 'invoices' ? initialNav.itemId : undefined
   );
+  /** Bumped on every ACTION: navigation so "create" dialogs reopen on repeat clicks. */
+  const [actionNonce, setActionNonce] = useState(0);
+
   const [activePaymentFilter, setActivePaymentFilter] = useState<string | undefined>(
     initialNav.module === 'payments' ? initialNav.itemId : undefined
   );
@@ -160,6 +163,13 @@ function MainAppContent() {
   // Core navigation handler that synchronizes browser history and query state
   const applyNavigation = (module: string, itemId?: string, isPopState = false) => {
     setCurrentModule(module);
+    // A create action carried on the item id is a REQUEST, not a filter value. Because the
+    // filter state keeps its previous value, a second "Record Payment" (or "Create Lead",
+    // etc.) would set the same string and React would not re-render — so the dialog would
+    // never reopen. Bumping a nonce on every action request makes each one fire.
+    if (itemId && String(itemId).startsWith('ACTION:')) {
+      setActionNonce((n) => n + 1);
+    }
     if (module === 'customers') setActiveCustomerId(itemId);
     if (module === 'opportunities') setActiveOpportunityId(itemId);
     if (module === 'orders') setActiveOrderId(itemId);
@@ -425,6 +435,7 @@ function MainAppContent() {
             {currentModule === 'leads' && (
               <LeadsView
                 initialFilter={activeLeadId}
+                actionNonce={actionNonce}
                 onOpenTrace={(lId) => handleOpenTrace(lId)}
                 onNavigateToCustomer={(cId) => handleNavigate('customers', cId)}
                 onNavigateToOpportunity={(oppId) => handleNavigate('opportunities', oppId)}
@@ -457,6 +468,7 @@ function MainAppContent() {
             {currentModule === 'orders' && (
               <SalesOrdersView
                 initialOrderId={activeOrderId}
+                actionNonce={actionNonce}
                 onOpenTrace={handleOpenTrace}
                 onNavigateToCustomer={(cId) => handleNavigate('customers', cId)}
                 onNavigateToInvoice={(iId) => handleNavigate('invoices', iId)}
@@ -478,6 +490,7 @@ function MainAppContent() {
             {currentModule === 'purchases' && (
               <PurchaseOrdersView
                 initialPoId={activePurchaseOrderId}
+                actionNonce={actionNonce}
                 onNavigateToCustomer={(cId: string) => handleNavigate('customers', cId)}
               />
             )}
@@ -507,6 +520,7 @@ function MainAppContent() {
               <PaymentsView
                 presetInvoice={presetPaymentInvoice}
                 initialFilter={activePaymentFilter}
+                actionNonce={actionNonce}
                 onClosePreset={() => setPresetPaymentInvoice(null)}
                 onOpenTrace={handleOpenTrace}
                 onNavigateToInvoice={(iId) => handleNavigate('invoices', iId)}
@@ -528,6 +542,7 @@ function MainAppContent() {
             {currentModule === 'activities' && (
               <ActivitiesView
                 initialFilter={activeActivityFilter}
+                actionNonce={actionNonce}
                 onNavigateToLead={(lId) => handleNavigate('leads', lId)}
                 onNavigateToCustomer={(cId) => handleNavigate('customers', cId)}
                 onNavigateToOrder={(oId) => handleNavigate('orders', oId)}

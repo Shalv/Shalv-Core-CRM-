@@ -41,11 +41,14 @@ import {
 interface PurchaseOrdersViewProps {
   onNavigateToCustomer?: (customerId: string) => void;
   initialPoId?: string;
+  /** Bumped on every ACTION: navigation so the create dialog reopens on repeat clicks. */
+  actionNonce?: number;
 }
 
 export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({
   onNavigateToCustomer,
   initialPoId,
+  actionNonce,
 }) => {
   const {
     purchaseOrders,
@@ -176,7 +179,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({
     } else {
       setSelectedPoId(initialPoId);
     }
-  }, [initialPoId]);
+  }, [initialPoId, actionNonce]);
 
   const selectedPo = useMemo(() => {
     return purchaseOrders.find((p) => p.id === selectedPoId) || purchaseOrders[0];
