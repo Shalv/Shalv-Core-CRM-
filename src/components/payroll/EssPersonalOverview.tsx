@@ -15,6 +15,8 @@ import {
   AlertTriangle,
   Timer,
   UtensilsCrossed,
+  Eye,
+  EyeOff,
   TrendingUp,
   Target,
   Home,
@@ -116,6 +118,10 @@ export function EssPersonalOverview({
     .slice(0, 2)
     .join('')
     .toUpperCase();
+
+  // Salary privacy: monetary values are masked by default and revealed only on demand.
+  const [showSalary, setShowSalary] = React.useState(false);
+  const money = (n: number) => (showSalary ? formatCurrency(n) : '••••••');
 
   const isPunchedIn = Boolean(attendance?.punchedIn);
   const punchTime = attendance?.punchInTime || '—';
@@ -296,23 +302,35 @@ export function EssPersonalOverview({
                 <p className="text-[11.5px] text-slate-500">{payslipMonth || 'Current cycle'}</p>
               </div>
             </div>
-            <button
-              type="button"
-              className="sh-btn sh-btn-soft"
-              onClick={() => (onDownloadPayslip ? onDownloadPayslip() : onNavigate?.('payslips'))}
-            >
-              <Download className="w-3.5 h-3.5" /> Payslip PDF
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="sh-btn"
+                onClick={() => setShowSalary((s) => !s)}
+                title={showSalary ? 'Hide salary amounts' : 'Show salary amounts'}
+                aria-pressed={showSalary}
+              >
+                {showSalary ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                {showSalary ? 'Hide salary' : 'Show salary'}
+              </button>
+              <button
+                type="button"
+                className="sh-btn sh-btn-soft"
+                onClick={() => (onDownloadPayslip ? onDownloadPayslip() : onNavigate?.('payslips'))}
+              >
+                <Download className="w-3.5 h-3.5" /> Payslip PDF
+              </button>
+            </div>
           </div>
           <div className="sh-card-body space-y-3">
             <div className="flex items-end justify-between gap-3">
               <div>
                 <div className="text-[10.5px] font-bold uppercase tracking-widest text-slate-500">In hand</div>
-                <div className="text-2xl font-extrabold text-slate-900">{formatCurrency(netInHand)}</div>
+                <div className="text-2xl font-extrabold text-slate-900">{money(netInHand)}</div>
               </div>
               <div className="text-right text-[11.5px] text-slate-500">
-                <div>Gross {formatCurrency(gross)}</div>
-                {incentive > 0 && <div className="text-emerald-600">+ Incentive {formatCurrency(incentive)}</div>}
+                <div>Gross {money(gross)}</div>
+                {incentive > 0 && <div className="text-emerald-600">+ Incentive {money(incentive)}</div>}
               </div>
             </div>
 
@@ -325,19 +343,19 @@ export function EssPersonalOverview({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
               <div className="rounded-lg bg-slate-50 px-2.5 py-2">
                 <div className="text-[10px] uppercase font-bold text-slate-500">PF</div>
-                <div className="text-[12.5px] font-bold text-slate-800">{formatCurrency(pf)}</div>
+                <div className="text-[12.5px] font-bold text-slate-800">{money(pf)}</div>
               </div>
               <div className="rounded-lg bg-slate-50 px-2.5 py-2">
                 <div className="text-[10px] uppercase font-bold text-slate-500">Prof. Tax</div>
-                <div className="text-[12.5px] font-bold text-slate-800">{formatCurrency(pt)}</div>
+                <div className="text-[12.5px] font-bold text-slate-800">{money(pt)}</div>
               </div>
               <div className="rounded-lg bg-slate-50 px-2.5 py-2">
                 <div className="text-[10px] uppercase font-bold text-slate-500">TDS</div>
-                <div className="text-[12.5px] font-bold text-slate-800">{formatCurrency(tds)}</div>
+                <div className="text-[12.5px] font-bold text-slate-800">{money(tds)}</div>
               </div>
               <div className="rounded-lg bg-rose-50 px-2.5 py-2">
                 <div className="text-[10px] uppercase font-bold text-rose-600">Total out</div>
-                <div className="text-[12.5px] font-bold text-rose-700">{formatCurrency(deductions)}</div>
+                <div className="text-[12.5px] font-bold text-rose-700">{money(deductions)}</div>
               </div>
             </div>
             {lopDays > 0 && (
@@ -365,7 +383,7 @@ export function EssPersonalOverview({
           <div className="sh-card-body grid grid-cols-2 gap-3">
             <div className="rounded-lg bg-emerald-50 px-3 py-2.5">
               <div className="text-[10px] uppercase font-bold text-emerald-700">Approved (payable)</div>
-              <div className="text-[15px] font-extrabold text-emerald-800">{formatCurrency(approvedAmount)}</div>
+              <div className="text-[15px] font-extrabold text-emerald-800">{money(approvedAmount)}</div>
               <div className="text-[10.5px] text-emerald-700">{approvedClaims.length} claim(s)</div>
             </div>
             <div className="rounded-lg bg-amber-50 px-3 py-2.5">
