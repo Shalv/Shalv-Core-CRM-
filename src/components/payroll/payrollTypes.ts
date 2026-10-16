@@ -2301,6 +2301,96 @@ export const decideLifecycleEvent = (
     };
   });
 
+/* ------------------------------------------------------------ Assets ----
+ * Phase 4. Asset categories, an asset register, allocation to employees with
+ * acknowledgement and return, and issue reporting against an allocation.
+ * ------------------------------------------------------------------------- */
+export type AssetStatus = 'Available' | 'Allocated' | 'Under Repair' | 'Retired' | 'Lost';
+export const ASSET_STATUSES: AssetStatus[] = ['Available', 'Allocated', 'Under Repair', 'Retired', 'Lost'];
+
+export interface AssetCategory {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+export interface Asset {
+  /** Asset tag / identifier. */
+  id: string;
+  name: string;
+  categoryId: string;
+  serialNo?: string;
+  purchaseDate?: string;
+  cost?: number;
+  status: AssetStatus;
+  condition?: string;
+  notes?: string;
+}
+
+export interface AssetIssue {
+  reportedAt: string;
+  reportedBy?: string;
+  description: string;
+  resolvedAt?: string;
+  resolution?: string;
+}
+
+export interface AssetAllocation {
+  id: string;
+  assetId: string;
+  employeeId: string;
+  employeeName?: string;
+  allocatedAt: string;
+  allocatedBy?: string;
+  /** Employee acknowledgement of receipt. */
+  acknowledgedAt?: string;
+  returnedAt?: string;
+  returnCondition?: string;
+  issue?: AssetIssue;
+}
+
+const ASSET_CATEGORIES_KEY = 'crm_payroll_asset_categories';
+const ASSETS_KEY = 'crm_payroll_assets';
+const ASSET_ALLOCATIONS_KEY = 'crm_payroll_asset_allocations';
+
+const readList = <T,>(key: string, fallback: T[]): T[] => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed as T[];
+    }
+  } catch {
+    /* ignore */
+  }
+  return fallback;
+};
+const writeList = (key: string, value: unknown): void => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* ignore */
+  }
+};
+
+export const DEFAULT_ASSET_CATEGORIES: AssetCategory[] = [
+  { id: 'CAT-LAPTOP', name: 'Laptop', description: 'Portable computers issued to employees' },
+  { id: 'CAT-MOBILE', name: 'Mobile Phone', description: 'Company-issued handsets and SIMs' },
+  { id: 'CAT-FURNITURE', name: 'Furniture', description: 'Desks, chairs and fixtures' },
+  { id: 'CAT-ACCESS', name: 'Access Card', description: 'Door and facility access credentials' },
+];
+
+export const loadAssetCategories = (): AssetCategory[] => readList(ASSET_CATEGORIES_KEY, DEFAULT_ASSET_CATEGORIES.map((c) => ({ ...c })));
+export const saveAssetCategories = (list: AssetCategory[]): void => writeList(ASSET_CATEGORIES_KEY, list);
+export const loadAssets = (): Asset[] => readList<Asset>(ASSETS_KEY, []);
+export const saveAssets = (list: Asset[]): void => writeList(ASSETS_KEY, list);
+export const loadAssetAllocations = (): AssetAllocation[] => readList<AssetAllocation>(ASSET_ALLOCATIONS_KEY, []);
+export const saveAssetAllocations = (list: AssetAllocation[]): void => writeList(ASSET_ALLOCATIONS_KEY, list);
+
+/** The employee currently holding an asset (open allocation), if any. */
+export const currentHolder = (allocations: AssetAllocation[], assetId: string): AssetAllocation | undefined =>
+  allocations.find((a) => a.assetId === assetId && !a.returnedAt);
+
 export const DEFAULT_ADMIN_POLICY_MASTER: AdminPolicyMaster = {
   policyCode: 'CS-HR-POL-001',
   policyVersion: '1.0',

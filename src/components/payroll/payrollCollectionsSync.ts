@@ -14,7 +14,10 @@ export type PayrollCollectionKey =
   | 'shiftSwaps'
   | 'helpdesk'
   | 'runs'
-  | 'lifecycle';
+  | 'lifecycle'
+  | 'assets'
+  | 'assetCategories'
+  | 'assetAllocations';
 
 function authHeaders(): Record<string, string> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
