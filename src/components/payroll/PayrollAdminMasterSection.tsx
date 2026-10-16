@@ -4886,7 +4886,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                             onClick={() =>
                               setLeaves((prev) =>
                                 prev.map((x) =>
-                                  x.id === lv.id ? { ...x, status: 'Cancelled' } : x
+                                  x.id === lv.id ? { ...x, status: 'Rejected' } : x
                                 )
                               )
                             }
