@@ -81,7 +81,7 @@ import {
   INITIAL_LICENSE_TYPES,
 } from '../data/supportAmcData';
 import { useApplicationSync, SyncStatus } from './useApplicationSync';
-import { Snapshot, recordPendingUserPassword, isRemovedPredefinedUser, milestoneInvoiceItems, validatePaymentLinks, money, roundRupees } from '../shared/integrity';
+import { Snapshot, recordPendingUserPassword, isRemovedPredefinedUser, milestoneInvoiceItems, validatePaymentLinks, money } from '../shared/integrity';
 import { resolveGstRate } from '../shared/gst';
 import { isAuthoritativeAuthRejection } from '../shared/authFallback';
 
@@ -7264,12 +7264,12 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
     const customer = customers.find((c) => c.id === paymentData.customerId);
     if (!customer) throw new Error('Customer not found');
 
-    // Money is recorded in whole rupees. A decimal amount is rounded off here — at the single
-    // point every caller funnels through — so a value like 100.50 cannot leave a half-paisa
-    // balance behind or trip the invoice balance check.
-    const amount = roundRupees(paymentData.amount);
-    const rawTds = roundRupees(paymentData.tdsDeducted || 0);
-    if (amount <= 0) throw new Error('Payment amount must be at least \u20b91 after rounding off.');
+    // Decimals ARE allowed. The amount is only tidied to two decimal places (paise) here — at the
+    // single point every caller funnels through — so a value like 100.50 is saved as 100.50 while
+    // floating-point dust cannot leave a half-paisa balance behind or trip the balance check.
+    const amount = money(paymentData.amount);
+    const rawTds = money(paymentData.tdsDeducted || 0);
+    if (amount <= 0) throw new Error('Payment amount must be greater than zero.');
 
     // Validate the receipt against its linked invoice/milestone/order BEFORE mutating state, so an
     // overpayment, a cross-customer allocation, an out-of-range TDS or a payment against a

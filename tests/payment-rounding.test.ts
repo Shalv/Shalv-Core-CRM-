@@ -1,58 +1,67 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { roundRupees, money, validatePaymentLinks } = await import('../src/shared/integrity');
+const { money, roundRupees, validatePaymentLinks } = await import('../src/shared/integrity');
 const { confirmSave, confirmDelete } = await import('../src/shared/confirm');
 
-/* ------------------------------------------------------------- rounding off ---- */
+/* ------------------------------------------- decimals are allowed and kept ---- */
 
-test('a decimal payment amount rounds off to whole rupees', () => {
-  assert.equal(roundRupees(100.5), 101);
-  assert.equal(roundRupees(100.4), 100);
-  assert.equal(roundRupees(100.49), 100);
-  assert.equal(roundRupees(99.5), 100);
-  assert.equal(roundRupees(0.49), 0);
-  assert.equal(roundRupees(0.5), 1);
+test('a decimal payment amount is kept, not rounded away', () => {
+  assert.equal(money(100.5), 100.5);
+  assert.equal(money(100.25), 100.25);
+  assert.equal(money(0.5), 0.5);
+  assert.equal(money(99999.99), 99999.99);
 });
 
-test('whole amounts and floats are left clean', () => {
-  assert.equal(roundRupees(25000), 25000);
-  // The classic float artefact must not survive rounding.
-  assert.equal(roundRupees(0.1 + 0.2), 0);
-  assert.equal(roundRupees(1234.999999999), 1235);
+test('decimals are tidied to two places (paise), never to a whole rupee', () => {
+  assert.equal(money(100.555), 100.56);
+  assert.equal(money(100.554), 100.55);
+  assert.equal(money(100.5), 100.5);
+  // The classic float artefact is cleaned up, but the paise survive.
+  assert.equal(money(0.1 + 0.2), 0.3);
+  assert.equal(money(1.005), 1.01);
 });
 
-test('rounding never produces NaN or a negative artefact', () => {
-  assert.equal(roundRupees('not a number'), 0);
-  assert.equal(roundRupees(undefined), 0);
-  assert.equal(roundRupees(null), 0);
-  assert.equal(roundRupees(NaN), 0);
-  assert.equal(roundRupees(Infinity), 0);
+test('a decimal is still positive, so a sub-rupee amount saves', () => {
+  // 0.50 used to round to 0 and be refused; it must be accepted now.
+  assert.ok(money(0.5) > 0);
+  assert.equal(money(0.5), 0.5);
 });
 
-test('roundRupees is stable — rounding an already-rounded value changes nothing', () => {
-  for (const v of [0, 1, 99, 100.5, 25000.75, 1000000.4]) {
-    assert.equal(roundRupees(roundRupees(v)), roundRupees(v));
+test('whole amounts are unchanged', () => {
+  assert.equal(money(25000), 25000);
+  assert.equal(money(0), 0);
+});
+
+test('money is stable — tidying an already-tidy value changes nothing', () => {
+  for (const v of [0, 1, 99, 100.5, 25000.75, 1000000.4, 0.01]) {
+    assert.equal(money(money(v)), money(v));
   }
 });
 
-test('money still keeps paise for balances, while roundRupees drops them', () => {
-  assert.equal(money(100.5), 100.5);
-  assert.equal(roundRupees(100.5), 101);
+test('a non-numeric or zero amount is rejected rather than saved', () => {
+  // money() does not itself sanitise (it is used for balances elsewhere), so the guarantee lives
+  // in the validator: a NaN or zero amount can never be written.
+  assert.throws(() =>
+    validatePaymentLinks(snapshot, { amount: Number('x'), tdsDeducted: 0, customerId: 'c1', invoiceId: 'inv1' })
+  );
+  assert.throws(() =>
+    validatePaymentLinks(snapshot, { amount: 0, tdsDeducted: 0, customerId: 'c1', invoiceId: 'inv1' })
+  );
 });
 
-/* ------------------------------------------- the rounded amount passes checks ---- */
+/* ------------------------------------------- the decimal amount passes checks ---- */
 
 const snapshot = {
-  invoices: [{ id: 'inv1', customerId: 'c1', status: 'Issued', grandTotal: 1000, paidAmount: 0, balanceAmount: 1000 }],
+  invoices: [{ id: 'inv1', customerId: 'c1', status: 'Issued', grandTotal: 1000.5, paidAmount: 0, balanceAmount: 1000.5 }],
   milestones: [],
   orders: [],
 } as any;
 
-test('a rounded amount equal to the invoice balance is accepted', () => {
+test('a decimal amount equal to the invoice balance is accepted', () => {
   assert.doesNotThrow(() =>
     validatePaymentLinks(snapshot, {
-      amount: roundRupees(1000),
+      amount: money(1000.5),
       tdsDeducted: 0,
       customerId: 'c1',
       invoiceId: 'inv1',
@@ -60,11 +69,10 @@ test('a rounded amount equal to the invoice balance is accepted', () => {
   );
 });
 
-test('a decimal that rounds down to the balance is accepted', () => {
-  // 1000.4 rounds to 1000, which is exactly the balance — this used to be able to trip the check.
+test('a part payment with paise is accepted', () => {
   assert.doesNotThrow(() =>
     validatePaymentLinks(snapshot, {
-      amount: roundRupees(1000.4),
+      amount: money(333.33),
       tdsDeducted: 0,
       customerId: 'c1',
       invoiceId: 'inv1',
@@ -75,12 +83,20 @@ test('a decimal that rounds down to the balance is accepted', () => {
 test('a genuine overpayment is still rejected', () => {
   assert.throws(() =>
     validatePaymentLinks(snapshot, {
-      amount: roundRupees(1001),
+      amount: money(1001),
       tdsDeducted: 0,
       customerId: 'c1',
       invoiceId: 'inv1',
     })
   );
+});
+
+/* --------------------------------------------- whole-rupee rounding is available ---- */
+
+test('roundRupees is still available for callers that want whole rupees', () => {
+  assert.equal(roundRupees(100.5), 101);
+  assert.equal(roundRupees(100.4), 100);
+  assert.equal(roundRupees('not a number'), 0);
 });
 
 /* ------------------------------------------------------- save confirmation ---- */
