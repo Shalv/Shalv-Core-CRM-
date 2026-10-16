@@ -2391,6 +2391,182 @@ export const saveAssetAllocations = (list: AssetAllocation[]): void => writeList
 export const currentHolder = (allocations: AssetAllocation[], assetId: string): AssetAllocation | undefined =>
   allocations.find((a) => a.assetId === assetId && !a.returnedAt);
 
+/* ================== Phase 4 (cont.): recruitment, onboarding, performance, training ==
+ * Four compact but complete modules. Each is server-backed through the same durable
+ * collection mechanism as the rest of the HR data.
+ * ================================================================================ */
+
+/* ------------------------------------------------------------ Recruitment ---- */
+export type JobOpeningStatus = 'Open' | 'On Hold' | 'Closed';
+export interface JobOpening {
+  id: string;
+  title: string;
+  department?: string;
+  location?: string;
+  openings: number;
+  status: JobOpeningStatus;
+  postedAt: string;
+  description?: string;
+}
+
+export type CandidateStage = 'Applied' | 'Screening' | 'Interview' | 'Offer' | 'Hired' | 'Rejected';
+export const CANDIDATE_STAGES: CandidateStage[] = ['Applied', 'Screening', 'Interview', 'Offer', 'Hired', 'Rejected'];
+
+export type CandidateSource = 'Referral' | 'Portal' | 'Agency' | 'Walk-in' | 'Other';
+export const CANDIDATE_SOURCES: CandidateSource[] = ['Referral', 'Portal', 'Agency', 'Walk-in', 'Other'];
+
+export interface Candidate {
+  id: string;
+  openingId: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  source: CandidateSource;
+  stage: CandidateStage;
+  appliedAt: string;
+  interviewAt?: string;
+  notes?: string;
+  referredBy?: string;
+}
+
+/* ------------------------------------------------------------- Onboarding ---- */
+export interface OnboardingTask {
+  id: string;
+  label: string;
+  owner?: string;
+  done: boolean;
+  doneAt?: string;
+}
+
+export interface OnboardingPlan {
+  id: string;
+  employeeId: string;
+  employeeName?: string;
+  joiningDate: string;
+  status: 'In Progress' | 'Completed';
+  tasks: OnboardingTask[];
+}
+
+export const DEFAULT_ONBOARDING_TASKS: string[] = [
+  'Collect documents (ID, PAN, bank details)',
+  'Issue offer acceptance and appointment letter',
+  'Create email and system accounts',
+  'Allocate desk, laptop and access card',
+  'Enrol in payroll and ESS portal',
+  'Assign reporting manager and buddy',
+  'Complete induction and policy briefing',
+];
+
+export const newOnboardingTasks = (): OnboardingTask[] =>
+  DEFAULT_ONBOARDING_TASKS.map((label, i) => ({ id: `T${i + 1}`, label, done: false }));
+
+/* ------------------------------------------------------------ Performance ---- */
+export type PerformanceStatus = 'Not Started' | 'Self Assessment' | 'Manager Review' | 'Completed';
+export const PERFORMANCE_STATUSES: PerformanceStatus[] = ['Not Started', 'Self Assessment', 'Manager Review', 'Completed'];
+
+export interface PerformanceGoal {
+  id: string;
+  title: string;
+  weight: number;
+  selfRating?: number;
+  managerRating?: number;
+}
+
+export interface PerformanceReview {
+  id: string;
+  employeeId: string;
+  employeeName?: string;
+  cycle: string;
+  reviewerName?: string;
+  goals: PerformanceGoal[];
+  selfComments?: string;
+  managerComments?: string;
+  overallRating?: number;
+  status: PerformanceStatus;
+}
+
+export const DEFAULT_REVIEW_GOALS: string[] = [
+  'Delivery against role objectives',
+  'Quality and accuracy of work',
+  'Collaboration and communication',
+  'Ownership and initiative',
+];
+
+export const newReviewGoals = (): PerformanceGoal[] =>
+  DEFAULT_REVIEW_GOALS.map((title, i) => ({ id: `G${i + 1}`, title, weight: 25 }));
+
+/* --------------------------------------------------------------- Training ---- */
+export type TrainingMode = 'Classroom' | 'Online' | 'On the Job';
+export const TRAINING_MODES: TrainingMode[] = ['Classroom', 'Online', 'On the Job'];
+export type TrainingProgramStatus = 'Planned' | 'In Progress' | 'Completed' | 'Cancelled';
+
+export interface TrainingProgram {
+  id: string;
+  title: string;
+  trainer?: string;
+  startDate: string;
+  endDate?: string;
+  mode: TrainingMode;
+  status: TrainingProgramStatus;
+}
+
+export type TrainingNominationStatus = 'Nominated' | 'Attended' | 'Completed' | 'No Show';
+export const TRAINING_NOMINATION_STATUSES: TrainingNominationStatus[] = ['Nominated', 'Attended', 'Completed', 'No Show'];
+
+export interface TrainingNomination {
+  id: string;
+  programId: string;
+  employeeId: string;
+  employeeName?: string;
+  status: TrainingNominationStatus;
+  completionDate?: string;
+  certificate?: boolean;
+  feedback?: string;
+}
+
+/* --------------------------------------------------- generic list helpers ---- */
+const collectionList = <T,>(key: string, fallback: T[] = []): T[] => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed as T[];
+    }
+  } catch {
+    /* ignore */
+  }
+  return fallback;
+};
+const collectionWrite = (key: string, value: unknown): void => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* ignore */
+  }
+};
+
+export const loadJobOpenings = (): JobOpening[] => collectionList<JobOpening>('crm_payroll_job_openings');
+export const saveJobOpenings = (l: JobOpening[]): void => collectionWrite('crm_payroll_job_openings', l);
+export const loadCandidates = (): Candidate[] => collectionList<Candidate>('crm_payroll_candidates');
+export const saveCandidates = (l: Candidate[]): void => collectionWrite('crm_payroll_candidates', l);
+export const loadOnboardingPlans = (): OnboardingPlan[] => collectionList<OnboardingPlan>('crm_payroll_onboarding');
+export const saveOnboardingPlans = (l: OnboardingPlan[]): void => collectionWrite('crm_payroll_onboarding', l);
+export const loadPerformanceReviews = (): PerformanceReview[] => collectionList<PerformanceReview>('crm_payroll_performance');
+export const savePerformanceReviews = (l: PerformanceReview[]): void => collectionWrite('crm_payroll_performance', l);
+export const loadTrainingPrograms = (): TrainingProgram[] => collectionList<TrainingProgram>('crm_payroll_training_programs');
+export const saveTrainingPrograms = (l: TrainingProgram[]): void => collectionWrite('crm_payroll_training_programs', l);
+export const loadTrainingNominations = (): TrainingNomination[] => collectionList<TrainingNomination>('crm_payroll_training_nominations');
+export const saveTrainingNominations = (l: TrainingNomination[]): void => collectionWrite('crm_payroll_training_nominations', l);
+
+/** Average of the manager ratings on a review (or self ratings while self-assessing). */
+export const reviewAverage = (r: PerformanceReview): number | null => {
+  const manager = r.goals.map((g) => g.managerRating).filter((x): x is number => typeof x === 'number');
+  const self = r.goals.map((g) => g.selfRating).filter((x): x is number => typeof x === 'number');
+  const vals = manager.length ? manager : self;
+  if (!vals.length) return null;
+  return Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 10) / 10;
+};
+
 export const DEFAULT_ADMIN_POLICY_MASTER: AdminPolicyMaster = {
   policyCode: 'CS-HR-POL-001',
   policyVersion: '1.0',

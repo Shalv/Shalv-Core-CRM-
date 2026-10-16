@@ -314,6 +314,12 @@ const PERSISTED_CRM_STATE: Record<string, any> = {
   payrollAssets: [],
   payrollAssetCategories: [],
   payrollAssetAllocations: [],
+  payrollJobOpenings: [],
+  payrollCandidates: [],
+  payrollOnboarding: [],
+  payrollPerformance: [],
+  payrollTrainingPrograms: [],
+  payrollTrainingNominations: [],
   crmSlices: {},
 };
 
@@ -1177,6 +1183,12 @@ function buildPersistedStoreObject() {
     payrollAssets: PERSISTED_CRM_STATE.payrollAssets || [],
     payrollAssetCategories: PERSISTED_CRM_STATE.payrollAssetCategories || [],
     payrollAssetAllocations: PERSISTED_CRM_STATE.payrollAssetAllocations || [],
+    payrollJobOpenings: PERSISTED_CRM_STATE.payrollJobOpenings || [],
+    payrollCandidates: PERSISTED_CRM_STATE.payrollCandidates || [],
+    payrollOnboarding: PERSISTED_CRM_STATE.payrollOnboarding || [],
+    payrollPerformance: PERSISTED_CRM_STATE.payrollPerformance || [],
+    payrollTrainingPrograms: PERSISTED_CRM_STATE.payrollTrainingPrograms || [],
+    payrollTrainingNominations: PERSISTED_CRM_STATE.payrollTrainingNominations || [],
     crmSlices: PERSISTED_CRM_STATE.crmSlices,
     company_setup: MOCK_TABLES.company_setup,
     outlook_app_config: MOCK_TABLES.outlook_app_config,
@@ -1213,6 +1225,8 @@ const durableMiddleware = livePool ? postgresStateMiddleware(livePool, {
       payrollShiftAssignments: [], payrollShiftSwaps: [], payrollHelpDesk: [],
       payrollRuns: [], payrollLifecycle: [], payrollAssets: [],
       payrollAssetCategories: [], payrollAssetAllocations: [],
+      payrollJobOpenings: [], payrollCandidates: [], payrollOnboarding: [],
+      payrollPerformance: [], payrollTrainingPrograms: [], payrollTrainingNominations: [],
       ...value,
     });
     MOCK_TABLES.users = value.users || [];
@@ -3226,6 +3240,12 @@ const PAYROLL_COLLECTION_KEYS: Record<string, string> = {
   assets: 'payrollAssets',
   assetCategories: 'payrollAssetCategories',
   assetAllocations: 'payrollAssetAllocations',
+  jobOpenings: 'payrollJobOpenings',
+  candidates: 'payrollCandidates',
+  onboarding: 'payrollOnboarding',
+  performance: 'payrollPerformance',
+  trainingPrograms: 'payrollTrainingPrograms',
+  trainingNominations: 'payrollTrainingNominations',
 };
 // Collections only an admin/HR user may write. Employees may read all of them.
 const PAYROLL_ADMIN_ONLY_COLLECTIONS = ['locations', 'shifts', 'shiftAssignments', 'runs'];

@@ -48,6 +48,12 @@ const ALL_KEYS = [
   'assets',
   'assetCategories',
   'assetAllocations',
+  'jobOpenings',
+  'candidates',
+  'onboarding',
+  'performance',
+  'trainingPrograms',
+  'trainingNominations',
 ];
 
 test('payroll collections endpoint exposes every real-time HR collection as an array', async () => {
