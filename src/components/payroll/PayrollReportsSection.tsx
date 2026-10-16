@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { localIsoDate } from '../../shared/geo';
 import { useCrm } from '../../context/CrmContext';
 import {
   AdminPolicyMaster,
@@ -50,7 +51,7 @@ export const PayrollReportsSection: React.FC<PayrollReportsSectionProps> = ({
 }) => {
   const { users, customers, formatCurrency } = useCrm();
 
-  const todayIso = new Date().toISOString().split('T')[0];
+  const todayIso = localIsoDate();
   const defaultHandover = users[0]?.name || 'Reporting Manager';
   const defaultCustomer = customers[0]?.name || 'Enterprise Client Visit';
 

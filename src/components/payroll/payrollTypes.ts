@@ -1,4 +1,5 @@
 import { User, UserRole } from '../../types';
+import { localIsoDate } from '../../shared/geo';
 import { mergeDayLog, type AttendanceDayLog } from './attendanceLog';
 import { recordPendingUserPassword, isRemovedPredefinedUser } from '../../shared/integrity';
 
@@ -256,6 +257,16 @@ export interface AdminPolicyMaster {
   loanMaxDeductionPctOfNet?: number;
   loanMaxEligibilityMultiple?: number;
   loanDefaultInterestRate?: number;
+  // --- Attendance punch geofence (location validation) ---
+  /** Office geofence centre. When both are set, Office-HQ punches are validated against it. */
+  officeLat?: number;
+  officeLng?: number;
+  /** Human-readable office address (used to resolve the geofence centre when coords are absent). */
+  officeAddress?: string;
+  /** Allowed radius around the office centre, in metres. Defaults to 300. */
+  geofenceRadiusMeters?: number;
+  /** When true, a punch outside the geofence is recorded but flagged rather than blocked. */
+  allowOutOfGeofencePunch?: boolean;
 }
 
 export interface OrgMasterItem {
@@ -455,6 +466,12 @@ export interface GooglePunchLocation {
   plusCode?: string;
   accuracyMeters?: number;
   fetchedAt: string;
+  /** Distance from the office geofence centre, in metres (when a centre is configured). */
+  distanceMeters?: number;
+  /** Whether the fix fell inside the office geofence (undefined when no centre is configured). */
+  withinGeofence?: boolean;
+  /** Where the coordinates came from. Only 'gps' is ever recorded. */
+  source?: 'gps' | 'unknown';
 }
 
 export interface AttendancePunchRecord {
@@ -1314,7 +1331,7 @@ export const getVerifiedGoogleCoordsForLocation = (
 export const loadEmployeeAttendance = (
   empId: string,
   empLocation = 'New Delhi',
-  todayIso = new Date().toISOString().split('T')[0],
+  todayIso = localIsoDate(),
   empIndex = 0
 ): AttendanceSession => {
   const storageKey = `crm_ess_${empId}_attendance`;
@@ -1600,6 +1617,7 @@ export const DEFAULT_ADMIN_POLICY_MASTER: AdminPolicyMaster = {
   monthlyLeaveLimit: 1,
   shiftStartTime: '09:30 AM',
   shiftEndTime: '06:00 PM',
+  geofenceRadiusMeters: 300,
   earlyArrivalCutoff: '09:00 AM',
   capEarlyArrival: true,
   graceEndTime: '09:45 AM',
@@ -2546,7 +2564,7 @@ export const reconcileMonthlyLoanDeductions = (params: {
     hour: '2-digit',
     minute: '2-digit',
   });
-  const todayIso = new Date().toISOString().split('T')[0];
+  const todayIso = localIsoDate();
 
   let reconciledCount = 0;
   let skippedAlreadyReconciled = 0;

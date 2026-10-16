@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { localIsoDate } from '../../shared/geo';
 import { useCrm } from '../../context/CrmContext';
 import {
   User,
@@ -3956,7 +3957,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                 type="button"
                 onClick={() => {
                   saveAdminPolicyMaster(adminPolicyMaster, true);
-                  const todayIso = new Date().toISOString().split('T')[0];
+                  const todayIso = localIsoDate();
 
                   // 1. Propagate updated policy shift & leave quotas ONLY (NEVER overwrite existing employee deductions or PF amounts!)
                   setEmployeeSalaryMasters((prev) => {
@@ -5145,7 +5146,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
               <button
                 type="button"
                 onClick={() => {
-                  const todayIso = new Date().toISOString().split('T')[0];
+                  const todayIso = localIsoDate();
                   const csvRows = [
                     [
                       'EmpCode',
@@ -5246,7 +5247,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
               <tbody className="divide-y divide-slate-200">
                 {unifiedEmployeeList.map((entry, idx) => {
                   const m = entry.master;
-                  const todayIso = new Date().toISOString().split('T')[0];
+                  const todayIso = localIsoDate();
                   const empAtt = loadEmployeeAttendance(
                     entry.id,
                     entry.location || 'New Delhi',

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { localIsoDate } from '../../shared/geo';
 import { APIProvider, Map, AdvancedMarker } from '@vis.gl/react-google-maps';
 import { useCrm } from '../../context/CrmContext';
 import { User, UserRole } from '../../types';
@@ -248,7 +249,7 @@ export const PayrollAdminDashboardReportSection: React.FC<
     supplierCompany?.ifscCode,
   ]);
 
-  const todayIso = new Date().toISOString().split('T')[0];
+  const todayIso = localIsoDate();
 
   // Build complete unified employee list (CRM + Payroll and Payroll-Only)
   const allEmployees = useMemo(() => {
