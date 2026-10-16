@@ -92,6 +92,7 @@ import { PayrollLoanManagementSection } from './PayrollLoanManagementSection';
 import { PayChakraHeader, type PayChakraTab } from './PayChakraHeader';
 import { PayChakraOverviewView } from './PayChakraOverviewView';
 import { EssPersonalOverview } from './EssPersonalOverview';
+import { AdminPunchOnBehalf } from './AdminPunchOnBehalf';
 import { PayChakraFooter } from './PayChakraFooter';
 
 export type { EssTabKey };
@@ -1466,6 +1467,12 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
       location: { ...googleLoc, fetchedAt: nowTime },
     };
 
+    // When an admin/HR user punches for someone else, say so explicitly.
+    const onBehalfOf =
+      isAdminUser && activeEmployee && String(activeEmployee.id) !== String(currentUser.id)
+        ? `On behalf of ${activeEmployee.name} · `
+        : '';
+
     if (action === 'PUNCH_IN') {
       const evalResult = evaluateAttendancePolicy({
         punchInTime: nowTime,
@@ -1494,7 +1501,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
         punchHistory: [newRecord, ...(prev.punchHistory || []).slice(0, 14)],
       }));
       setStatusBanner(
-        `Punched In at ${nowTime} (Recorded as ${evalResult.recordedInTime}) · Status: ${evalResult.finalStatus} (${evalResult.entryRuleLabel}) · Google Maps: ${googleLoc.formattedAddress}`
+        `${onBehalfOf}Punched In at ${nowTime} (Recorded as ${evalResult.recordedInTime}) · Status: ${evalResult.finalStatus} (${evalResult.entryRuleLabel}) · Google Maps: ${googleLoc.formattedAddress}`
       );
     } else {
       const evalResult = evaluateAttendancePolicy({
@@ -1519,7 +1526,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
         punchHistory: [newRecord, ...(prev.punchHistory || []).slice(0, 14)],
       }));
       setStatusBanner(
-        `Punched Out at ${nowTime} · Final Status: ${evalResult.finalStatus} (${evalResult.exitRuleLabel}) · Google Maps: ${googleLoc.formattedAddress}`
+        `${onBehalfOf}Punched Out at ${nowTime} · Final Status: ${evalResult.finalStatus} (${evalResult.exitRuleLabel}) · Google Maps: ${googleLoc.formattedAddress}`
       );
     }
   };
@@ -5882,6 +5889,24 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
 
           {/* TAB: ADMIN DASHBOARD & REPORTS (ALL EMPLOYEE INFO, REQUESTS & ATTENDANCE WITH GOOGLE COORDINATES) */}
           {activeTab === 'admin_dashboard' && isAdminUser && (
+            <>
+            <AdminPunchOnBehalf
+              employees={enrolledEmployees.map((m) => ({
+                userId: m.userId,
+                name: m.name,
+                empCode: m.empCode,
+                department: m.department,
+                designation: m.designation,
+              }))}
+              selectedUserId={selectedAdminUserId}
+              onSelectEmployee={setSelectedAdminUserId}
+              isPunchedIn={Boolean(attendance.punchedIn)}
+              punchInTime={attendance.punchInTime}
+              punchOutTime={attendance.punchOutTime}
+              workMode={attendance.workMode}
+              isFetchingLocation={isFetchingLocation}
+              onPunch={handleTogglePunch}
+            />
             <PayrollAdminDashboardReportSection
               selectedAdminUserId={selectedAdminUserId}
               setSelectedAdminUserId={setSelectedAdminUserId}
@@ -5903,6 +5928,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
               }}
               onJumpToLoansModule={() => setActiveTab('loans')}
             />
+            </>
           )}
 
           {/* TAB: PAYROLL REPORTS CATALOGUE (Admin only) */}
