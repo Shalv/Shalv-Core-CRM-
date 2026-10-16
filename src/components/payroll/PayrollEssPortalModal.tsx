@@ -125,6 +125,35 @@ import { PayrollShiftRosterSection } from './PayrollShiftRosterSection';
 import { PayrollHelpDeskSection } from './PayrollHelpDeskSection';
 import { PayrollProcessingSection } from './PayrollProcessingSection';
 import { PayrollLifecycleSection } from './PayrollLifecycleSection';
+import {
+  fetchPayrollCollections,
+  pushPayrollCollection,
+  type PayrollCollectionKey,
+} from './payrollCollectionsSync';
+
+/**
+ * Persist one HR collection to the server whenever it changes (after hydration).
+ * Skips echoing back the value we just loaded, so hydration does not re-post itself.
+ */
+function useCollectionSync(
+  key: PayrollCollectionKey,
+  value: unknown[],
+  hydrated: boolean,
+  lastSyncedRef: { current: Record<string, string> }
+) {
+  useEffect(() => {
+    if (!hydrated) return;
+    let json = '';
+    try {
+      json = JSON.stringify(value);
+    } catch {
+      return;
+    }
+    if (lastSyncedRef.current[key] === json) return;
+    lastSyncedRef.current[key] = json;
+    void pushPayrollCollection(key, value);
+  }, [key, value, hydrated, lastSyncedRef]);
+}
 import { PayChakraFooter } from './PayChakraFooter';
 
 export type { EssTabKey };
@@ -275,6 +304,48 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
 
   const [lifecycleEvents, setLifecycleEvents] = useState<LifecycleEvent[]>(() => loadLifecycleEvents());
   useEffect(() => { saveLifecycleEvents(lifecycleEvents); }, [lifecycleEvents]);
+
+  // ---- Real-time capture ----------------------------------------------------------
+  // Load the HR collections from the server on mount (so this browser sees every other
+  // user's changes), then push each collection back whenever it changes.
+  const [collectionsHydrated, setCollectionsHydrated] = useState(false);
+  const lastSyncedRef = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const remote = await fetchPayrollCollections();
+      if (cancelled) return;
+      const ref = lastSyncedRef.current;
+      const take = <T,>(key: PayrollCollectionKey, local: T[], setter: (v: T[]) => void, keepLocalIfEmpty = false) => {
+        const remoteVal = remote && Array.isArray(remote[key]) ? (remote[key] as T[]) : null;
+        const next = remoteVal && (!keepLocalIfEmpty || remoteVal.length > 0) ? remoteVal : local;
+        ref[key] = JSON.stringify(next);
+        setter(next);
+      };
+      take('locations', loadPayrollLocations(), setPayrollLocations, true);
+      take('regularization', loadRegularizationRequests(), setRegularizationRequests);
+      take('shifts', loadShifts(), setShifts, true);
+      take('shiftAssignments', loadShiftAssignments(), setShiftAssignments);
+      take('shiftSwaps', loadShiftSwapRequests(), setShiftSwaps);
+      take('helpdesk', loadHelpDeskTickets(), setHelpDeskTickets);
+      take('runs', loadPayrollRuns(), setPayrollRuns);
+      take('lifecycle', loadLifecycleEvents(), setLifecycleEvents);
+      setCollectionsHydrated(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useCollectionSync('locations', payrollLocations, collectionsHydrated, lastSyncedRef);
+  useCollectionSync('regularization', regularizationRequests, collectionsHydrated, lastSyncedRef);
+  useCollectionSync('shifts', shifts, collectionsHydrated, lastSyncedRef);
+  useCollectionSync('shiftAssignments', shiftAssignments, collectionsHydrated, lastSyncedRef);
+  useCollectionSync('shiftSwaps', shiftSwaps, collectionsHydrated, lastSyncedRef);
+  useCollectionSync('helpdesk', helpDeskTickets, collectionsHydrated, lastSyncedRef);
+  useCollectionSync('runs', payrollRuns, collectionsHydrated, lastSyncedRef);
+  useCollectionSync('lifecycle', lifecycleEvents, collectionsHydrated, lastSyncedRef);
 
   const [adminPolicyMaster, setAdminPolicyMaster] = useState<AdminPolicyMaster>(() =>
     loadAdminPolicyMaster()
