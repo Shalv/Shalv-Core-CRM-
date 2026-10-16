@@ -157,6 +157,7 @@ import { PayrollAuditTrailSection } from './PayrollAuditTrailSection';
 import { PayrollAssetsSection } from './PayrollAssetsSection';
 import { PayrollTalentSection } from './PayrollTalentSection';
 import { PayrollHolidayMaster } from './PayrollHolidayMaster';
+import { confirmSave } from '../../shared/confirm';
 import { AdminDashboardSection } from './AdminDashboardSection';
 import {
   fetchPayrollCollections,
@@ -1584,7 +1585,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
       'Emergency Intimation': 0,
     };
     leaves
-      .filter((l) => l.status !== 'Cancelled')
+      .filter((l) => l.status !== 'Cancelled' && l.status !== 'Rejected')
       .forEach((l) => {
         used[l.leaveType] = (used[l.leaveType] || 0) + l.days;
       });
@@ -1917,6 +1918,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
       .filter(
         (l) =>
           l.status !== 'Cancelled' &&
+          l.status !== 'Rejected' &&
           l.startDate.slice(0, 7) === leaveForm.startDate.slice(0, 7) &&
           l.days > 0
       )
@@ -1974,8 +1976,22 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
 
   const handleSubmitClaim = (e: React.FormEvent) => {
     e.preventDefault();
+    // Clear, actionable validation instead of a silent no-op — previously an invalid amount or a
+    // missing employee simply returned and the button looked like it did nothing.
+    if (!activeEmployee) {
+      setStatusBanner('No employee profile is loaded — sign in again before submitting a claim.');
+      return;
+    }
     const numericAmount = Number(claimForm.amount);
-    if (!numericAmount || numericAmount <= 0 || !activeEmployee) return;
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      setStatusBanner('Enter a claim amount greater than zero.');
+      return;
+    }
+    if (!claimForm.expenseDate) {
+      setStatusBanner('Choose the date the expense was incurred.');
+      return;
+    }
+    if (!confirmSave('expense claim')) return;
 
     const newClaim: ExpenseClaimItem = {
       id: `EXP-${Date.now().toString().slice(-4)}`,
@@ -1988,7 +2004,11 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
       linkedCustomer: claimForm.linkedCustomer,
       billNumber: claimForm.billNumber || 'BILL-NA',
       description: claimForm.description || claimForm.category,
-      status: 'Approved & Queued for Payroll',
+      // Submitted for VERIFICATION, not auto-approved. An employee's claim must be verified and
+      // approved by an admin/HR before it can reach payroll — this used to be created already
+      // "Approved & Queued for Payroll", which silently skipped the whole approval step and left
+      // the admin's pending-claims counter at zero.
+      status: 'Under Verification',
     };
 
     setClaims([newClaim, ...claims]);
@@ -2001,7 +2021,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
     setStatusBanner(
       `Expense claim ${newClaim.claimNo} for ${formatCurrency(
         numericAmount
-      )} queued for next Payroll disbursement.`
+      )} submitted for verification. It will be queued for payroll once an admin or HR approves it.`
     );
   };
 
@@ -2019,7 +2039,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
       uanNumber: statutory.uanNumber,
     },
     attendancePush: attendance,
-    leavesPush: leaves.filter((l) => l.status !== 'Cancelled'),
+    leavesPush: leaves.filter((l) => l.status !== 'Cancelled' && l.status !== 'Rejected'),
     reimbursementsPush: claims.filter((c) => c.status === 'Approved & Queued for Payroll'),
     crmSalesCommissionPush: {
       month: selectedMonthMeta.key,

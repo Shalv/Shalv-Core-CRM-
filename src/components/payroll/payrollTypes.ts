@@ -389,7 +389,12 @@ export interface LeaveRequestItem {
   dayType: 'Full Day' | 'First Half' | 'Second Half' | 'Short Permission';
   reason: string;
   handoverTo: string;
-  status: 'Approved' | 'Pending Approval' | 'Cancelled' | 'Unauthorized Absence (LOP)';
+  status:
+    | 'Approved'
+    | 'Pending Approval'
+    | 'Cancelled'
+    | 'Rejected'
+    | 'Unauthorized Absence (LOP)';
   appliedOn: string;
   requestedInAdvance?: boolean;
 }
