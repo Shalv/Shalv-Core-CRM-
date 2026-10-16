@@ -109,6 +109,12 @@ interface PayrollAdminMasterSectionProps {
   };
   setStatusBanner: (msg: string | null) => void;
   integrationSectionNode?: React.ReactNode;
+  /** Focus a specific sub-section when navigated to from the header menu. */
+  focusSection?: string;
+  /** Bump to re-apply focusSection even when the value is unchanged. */
+  focusNonce?: number;
+  /** Open the "create employee" form directly (header "Add New Employee"). */
+  openCreateUser?: boolean;
 }
 
 const USER_ROLES: UserRole[] = [
@@ -143,6 +149,9 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
   selectedMonthMeta,
   setStatusBanner,
   integrationSectionNode,
+  focusSection,
+  focusNonce,
+  openCreateUser,
 }) => {
   const {
     currentUser,
@@ -175,6 +184,26 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
   >('salary_master');
 
   const [userFormMode, setUserFormMode] = useState<'edit' | 'create'>('edit');
+
+  // Apply a section focus requested from the header sub-navigation, so every header
+  // option lands on the section it names rather than all on the first one.
+  useEffect(() => {
+    const valid = [
+      'salary_master',
+      'org_masters',
+      'policy_master',
+      'approvals',
+      'payroll_run',
+      'external_integration',
+    ];
+    if (focusSection && valid.includes(focusSection)) {
+      setAdminSubTab(focusSection as typeof adminSubTab);
+    }
+    if (openCreateUser) {
+      setUserFormMode('create');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusSection, focusNonce, openCreateUser]);
 
   // Option: "Do you want to create this user in CRM as well?" when creating in Payroll
   const [alsoCreateInCrm, setAlsoCreateInCrm] = useState<boolean>(true);
