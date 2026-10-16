@@ -22,6 +22,8 @@ interface PaymentsViewProps {
   onNavigateToCustomer: (customerId: string) => void;
   onNavigateToReport?: (reportTab: string) => void;
   initialFilter?: string;
+  /** Bumped on every ACTION: navigation so the create dialog reopens on repeat clicks. */
+  actionNonce?: number;
   presetInvoice?: Invoice | null;
   onClosePreset?: () => void;
 }
@@ -52,6 +54,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
   onNavigateToCustomer,
   onNavigateToReport,
   initialFilter,
+  actionNonce,
   presetInvoice,
   onClosePreset,
 }) => {
@@ -211,7 +214,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
     } else {
       setSearchQuery(initialFilter);
     }
-  }, [initialFilter]);
+  }, [initialFilter, actionNonce]);
 
   const showFeedback = (type: 'success' | 'error', message: string) => {
     setFeedbackBanner({ type, message });
@@ -220,11 +223,15 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
 
   // Filtered dropdown options for selected customer
   const customerOrders = orders.filter((o) => o.customerId === selectedCustomerId);
+  // Only invoices that can actually take a payment are offered. Draft invoices are excluded
+  // to match validatePaymentLinks, which rejects them — previously they were selectable and
+  // the payment then failed, which read as "record payment is broken".
   const customerUnpaidInvoices = invoices.filter(
     (i) =>
       i.customerId === selectedCustomerId &&
       i.status !== 'Cancelled' &&
       i.status !== 'Converted' &&
+      i.status !== 'Draft' &&
       i.balanceAmount > 0 &&
       (!selectedOrderId || i.salesOrderId === selectedOrderId)
   );
@@ -267,22 +274,48 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
 
   const handleRecordPaymentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCustomerId || paymentAmount <= 0) return;
 
-    const receipt = recordPayment({
-      customerId: selectedCustomerId,
-      salesOrderId: selectedOrderId || undefined,
-      invoiceId: selectedInvoiceId || undefined,
-      milestoneId: selectedMilestoneId || undefined,
-      paymentStage,
-      amount: paymentAmount,
-      tdsDeducted,
-      paymentMode,
-      bankCashAccount,
-      transactionReference: transactionRef || `UTR-${Date.now().toString().slice(-6)}`,
-      remarks,
-      paymentDate,
-    });
+    // Clear, actionable validation instead of a silent no-op. Previously an unset customer or a
+    // zero amount simply returned, so the button looked like it did nothing at all.
+    if (!selectedCustomerId) {
+      showFeedback('error', 'Select a customer before recording the payment.');
+      return;
+    }
+    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+      showFeedback('error', 'Enter a payment amount greater than zero.');
+      return;
+    }
+    if (!paymentDate) {
+      showFeedback('error', 'Choose a payment date.');
+      return;
+    }
+    if (!bankCashAccount) {
+      showFeedback('error', 'Select the bank or cash account that received the money.');
+      return;
+    }
+
+    let receipt;
+    try {
+      receipt = recordPayment({
+        customerId: selectedCustomerId,
+        salesOrderId: selectedOrderId || undefined,
+        invoiceId: selectedInvoiceId || undefined,
+        milestoneId: selectedMilestoneId || undefined,
+        paymentStage,
+        amount: paymentAmount,
+        tdsDeducted,
+        paymentMode,
+        bankCashAccount,
+        transactionReference: transactionRef || `UTR-${Date.now().toString().slice(-6)}`,
+        remarks,
+        paymentDate,
+      });
+    } catch (err: any) {
+      // Surface the reason — overpayment, cross-customer allocation, a cancelled/converted/draft
+      // invoice — instead of letting the throw vanish and leave the modal looking broken.
+      showFeedback('error', err?.message || 'The payment could not be recorded.');
+      return;
+    }
 
     setIsRecordModalOpen(false);
     onClosePreset?.();
@@ -416,7 +449,12 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
           type="button"
           onClick={() => {
             const unpaidInv = invoices.find(
-              (i) => (i.invoiceType || 'Tax') === 'Tax' && i.status !== 'Cancelled' && i.balanceAmount > 0
+              (i) =>
+                (i.invoiceType || 'Tax') === 'Tax' &&
+                i.status !== 'Cancelled' &&
+                i.status !== 'Converted' &&
+                i.status !== 'Draft' &&
+                i.balanceAmount > 0
             );
             if (unpaidInv) {
               setSelectedCustomerId(unpaidInv.customerId);

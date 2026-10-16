@@ -26,6 +26,8 @@ interface SalesOrdersViewProps {
   onNavigateToMilestones?: (filter?: string) => void;
   onNavigateToReport?: (reportTab: string) => void;
   initialOrderId?: string;
+  /** Bumped on every ACTION: navigation so the create dialog reopens on repeat clicks. */
+  actionNonce?: number;
 }
 
 export const SalesOrdersView: React.FC<SalesOrdersViewProps> = ({
@@ -35,6 +37,7 @@ export const SalesOrdersView: React.FC<SalesOrdersViewProps> = ({
   onNavigateToMilestones,
   onNavigateToReport,
   initialOrderId,
+  actionNonce,
 }) => {
   const {
     orders,
@@ -95,7 +98,7 @@ export const SalesOrdersView: React.FC<SalesOrdersViewProps> = ({
     } else {
       setSelectedOrderId(initialOrderId);
     }
-  }, [initialOrderId]);
+  }, [initialOrderId, actionNonce]);
 
   const selectedOrder = orders.find((o) => o.id === selectedOrderId) || orders[0];
   const orderMilestones = selectedOrder

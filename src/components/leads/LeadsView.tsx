@@ -48,6 +48,8 @@ import { EmptyState } from '../ui/EmptyState';
 
 interface LeadsViewProps {
   initialFilter?: string;
+  /** Bumped on every ACTION: navigation so the create dialog reopens on repeat clicks. */
+  actionNonce?: number;
   onOpenTrace: (leadId: string) => void;
   onNavigateToCustomer: (customerId: string) => void;
   onNavigateToOpportunity?: (opportunityId: string) => void;
@@ -97,6 +99,7 @@ const LEAD_RATINGS: LeadRating[] = ['Hot', 'Warm', 'Cold'];
 
 export const LeadsView: React.FC<LeadsViewProps> = ({
   initialFilter,
+  actionNonce,
   onOpenTrace,
   onNavigateToCustomer,
   onNavigateToOpportunity,
@@ -737,7 +740,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
         handleOpenEditLead(targetLead);
       }
     }
-  }, [initialFilter]);
+  }, [initialFilter, actionNonce]);
 
   const totalLeadsCount = leads.length;
   const newLeadsCount = leads.filter((l) => l.status === 'New').length;
