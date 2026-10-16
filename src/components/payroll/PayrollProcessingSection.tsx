@@ -53,6 +53,8 @@ export interface PayrollProcessingSectionProps {
   currentUserName: string;
   formatCurrency: (n: number) => string;
   setStatusBanner?: (message: string) => void;
+  /** False for a non-admin: the approval actions are hidden and the run is read-only. */
+  isAdminUser?: boolean;
 }
 
 const monthKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -73,7 +75,13 @@ export function PayrollProcessingSection({
   currentUserName,
   formatCurrency,
   setStatusBanner,
+  isAdminUser,
 }: PayrollProcessingSectionProps) {
+  // Approving, publishing and paying a payroll run is an admin/HR action. The server already
+  // refuses a non-admin write to the runs collection; this makes the screen agree with it, so a
+  // non-admin who reaches this tab gets a read-only view rather than buttons that cannot work.
+  // Undefined means "not told" — the historic behaviour — so nothing breaks for existing callers.
+  const canManage = isAdminUser !== false;
   const [month, setMonth] = useState(monthKey());
   const [adjustFor, setAdjustFor] = useState('');
   const [adjustKind, setAdjustKind] = useState<PayrollAdjustmentKind>('Arrear');
@@ -349,10 +357,15 @@ export function PayrollProcessingSection({
             </div>
 
             <div className="sh-card-body flex flex-wrap items-center gap-2 border-b border-slate-100">
-              {!current.locked && current.status !== 'Calculated' && current.status !== 'Paid' && (
+              {!canManage && (
+                <span className="sh-badge sh-badge-neutral">
+                  <Lock className="w-3 h-3" /> Read-only — payroll approval needs an admin or HR role
+                </span>
+              )}
+              {canManage && !current.locked && current.status !== 'Calculated' && current.status !== 'Paid' && (
                 <button type="button" className="sh-btn sh-btn-primary" onClick={calculate}><PlayCircle className="w-3.5 h-3.5" /> Calculate</button>
               )}
-              {!current.locked && nextPayrollRunStatus(current.status) && (
+              {canManage && !current.locked && nextPayrollRunStatus(current.status) && (
                 <button type="button" className="sh-btn sh-btn-primary" onClick={advance}>
                   {current.status === 'Calculated' && <><Send className="w-3.5 h-3.5" /> Submit for review</>}
                   {current.status === 'Under Review' && <><BadgeCheck className="w-3.5 h-3.5" /> Approve</>}
@@ -360,14 +373,16 @@ export function PayrollProcessingSection({
                   {current.status === 'Published' && <><Banknote className="w-3.5 h-3.5" /> Confirm payment</>}
                 </button>
               )}
-              {!current.locked && current.status === 'Calculated' && (
+              {canManage && !current.locked && current.status === 'Calculated' && (
                 <button type="button" className="sh-btn" onClick={calculate}>Recalculate</button>
               )}
-              <button type="button" className="sh-btn" onClick={toggleLock}>
-                {current.locked ? <><Unlock className="w-3.5 h-3.5" /> Reopen</> : <><Lock className="w-3.5 h-3.5" /> Lock run</>}
-              </button>
+              {canManage && (
+                <button type="button" className="sh-btn" onClick={toggleLock}>
+                  {current.locked ? <><Unlock className="w-3.5 h-3.5" /> Reopen</> : <><Lock className="w-3.5 h-3.5" /> Lock run</>}
+                </button>
+              )}
               <button type="button" className="sh-btn" onClick={exportPayments}><Download className="w-3.5 h-3.5" /> Payment export</button>
-              {!current.locked && (
+              {canManage && !current.locked && (
                 <label className="flex items-center gap-1.5 text-[11.5px] text-slate-500">
                   Working days
                   <input
