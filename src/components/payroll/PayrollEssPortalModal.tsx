@@ -1943,7 +1943,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
   );
 
   return (
-    <div className={asDedicatedPage ? "fixed inset-0 z-50 flex flex-col bg-[#f8fafc] overflow-hidden text-xs" : "fixed inset-0 z-50 flex items-center justify-center bg-slate-900/65 backdrop-blur-xs p-2 sm:p-3 overflow-hidden text-xs"}>
+    <div className={asDedicatedPage ? "sh-scope fixed inset-0 z-50 flex flex-col bg-[#f8fafc] overflow-hidden text-xs" : "sh-scope fixed inset-0 z-50 flex items-center justify-center bg-slate-900/65 p-2 sm:p-3 overflow-hidden text-xs"}>
       {/* WIDE CONTAINER */}
       <div className={asDedicatedPage ? "w-full h-full bg-[#f8fafc] shadow-none border-none overflow-hidden flex flex-col" : "w-[98vw] max-w-[1680px] h-[94vh] max-h-[96vh] bg-[#f8fafc] rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col"}>
         {/* PAYCHAKRA TOP HEADER AND TOP NAVIGATION BAR */}

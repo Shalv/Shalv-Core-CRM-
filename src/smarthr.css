@@ -1,0 +1,330 @@
+/* ============================================================================
+   SmartHR design system
+   Mirrors the SmartHR HRM template's visual language (dreamstechnologies):
+   orange primary, light grey canvas, white cards, Roboto, navy headings.
+   Imported AFTER index.css so it re-skins the app shell and the Payroll module.
+   ========================================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,500;0,700;0,900;1,400&display=swap');
+
+:root {
+  /* SmartHR palette (taken from the template's own stylesheet) */
+  --sh-primary: #f26522;
+  --sh-primary-hover: #d9520f;
+  --sh-primary-soft: #fef1eb;
+  --sh-secondary: #0c4b5e;
+  --sh-info: #1b84ff;
+  --sh-info-soft: #ebf4ff;
+  --sh-success: #03c95a;
+  --sh-success-soft: #e8faf0;
+  --sh-warning: #ffc107;
+  --sh-warning-soft: #fff9e9;
+  --sh-danger: #e70d0d;
+  --sh-danger-soft: #fae7e7;
+  --sh-pink: #fd3995;
+  --sh-purple: #ab47bc;
+  --sh-purple-soft: #f7eef9;
+  --sh-heading: #202c4b;
+  --sh-body: #6b7280;
+  --sh-muted: #9ca3af;
+  --sh-canvas: #f8f9fa;
+  --sh-surface: #ffffff;
+  --sh-border: #ededed;
+  --sh-line: #f4f6fa;
+  --sh-radius: 8px;
+  --sh-radius-lg: 12px;
+  --sh-shadow: 0 2px 8px rgba(32, 44, 75, 0.06);
+  --sh-shadow-md: 0 4px 16px rgba(32, 44, 75, 0.08);
+}
+
+/* ---------------------------------------------------------------- base ---- */
+body {
+  font-family: 'Roboto', -apple-system, 'Segoe UI', sans-serif;
+  background-color: var(--sh-canvas);
+  color: var(--sh-body);
+}
+
+/* ------------------------------------------------- SmartHR scope re-skin ---
+   The shell and Payroll screens are built from Tailwind utilities. Descendant
+   selectors here have higher specificity than the single-class utilities, so
+   these rules re-skin that surface without touching component internals.
+   Apply `.sh-scope` to a container to switch its subtree to the SmartHR look. */
+
+.sh-scope {
+  font-family: 'Roboto', -apple-system, 'Segoe UI', sans-serif;
+  color: var(--sh-body);
+}
+
+/* text */
+.sh-scope .text-slate-900,
+.sh-scope .text-slate-800,
+.sh-scope .text-slate-700,
+.sh-scope .text-gray-900,
+.sh-scope .text-gray-800 { color: var(--sh-heading) !important; }
+.sh-scope .text-slate-600,
+.sh-scope .text-slate-500,
+.sh-scope .text-gray-600,
+.sh-scope .text-gray-500 { color: var(--sh-body) !important; }
+.sh-scope .text-slate-400,
+.sh-scope .text-gray-400 { color: var(--sh-muted) !important; }
+
+/* surfaces */
+.sh-scope .bg-slate-50,
+.sh-scope .bg-slate-100,
+.sh-scope .bg-gray-50,
+.sh-scope .bg-gray-100 { background-color: var(--sh-line) !important; }
+.sh-scope .bg-slate-200 { background-color: #edf0f5 !important; }
+.sh-scope .border-slate-100,
+.sh-scope .border-slate-200,
+.sh-scope .border-slate-300,
+.sh-scope .border-gray-200 { border-color: var(--sh-border) !important; }
+
+/* primary accent — indigo / teal / sky all become the SmartHR orange */
+.sh-scope .text-indigo-600, .sh-scope .text-indigo-700,
+.sh-scope .text-teal-600, .sh-scope .text-teal-700,
+.sh-scope .text-sky-600, .sh-scope .text-sky-700 { color: var(--sh-primary) !important; }
+.sh-scope .bg-indigo-600, .sh-scope .bg-indigo-700,
+.sh-scope .bg-teal-600, .sh-scope .bg-teal-700,
+.sh-scope .bg-sky-600 { background-color: var(--sh-primary) !important; }
+.sh-scope .border-indigo-600, .sh-scope .border-teal-600,
+.sh-scope .border-indigo-500 { border-color: var(--sh-primary) !important; }
+.sh-scope .bg-indigo-50, .sh-scope .bg-teal-50, .sh-scope .bg-sky-50,
+.sh-scope .bg-indigo-100, .sh-scope .bg-teal-100 { background-color: var(--sh-primary-soft) !important; }
+.sh-scope .ring-indigo-500\/20, .sh-scope .ring-teal-500\/20 { --tw-ring-color: rgba(242,101,34,.2) !important; }
+
+/* status */
+.sh-scope .text-emerald-600, .sh-scope .text-emerald-700, .sh-scope .text-green-600 { color: var(--sh-success) !important; }
+.sh-scope .bg-emerald-50, .sh-scope .bg-emerald-100 { background-color: var(--sh-success-soft) !important; }
+.sh-scope .text-amber-600, .sh-scope .text-amber-700, .sh-scope .text-amber-800 { color: #b45309 !important; }
+.sh-scope .bg-amber-50, .sh-scope .bg-amber-100 { background-color: var(--sh-warning-soft) !important; }
+.sh-scope .text-rose-600, .sh-scope .text-red-600, .sh-scope .text-rose-700 { color: var(--sh-danger) !important; }
+.sh-scope .bg-rose-50, .sh-scope .bg-red-50, .sh-scope .bg-rose-100 { background-color: var(--sh-danger-soft) !important; }
+.sh-scope .text-blue-600, .sh-scope .text-blue-700 { color: var(--sh-info) !important; }
+.sh-scope .bg-blue-50, .sh-scope .bg-blue-100 { background-color: var(--sh-info-soft) !important; }
+
+/* ---------------------------------------------------------- components ---- */
+
+/* card */
+.sh-card {
+  background: var(--sh-surface);
+  border: 1px solid var(--sh-border);
+  border-radius: var(--sh-radius-lg);
+  box-shadow: var(--sh-shadow);
+}
+.sh-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--sh-border);
+}
+.sh-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--sh-heading);
+  margin: 0;
+}
+.sh-card-body { padding: 18px; }
+
+/* stat card */
+.sh-stat {
+  background: var(--sh-surface);
+  border: 1px solid var(--sh-border);
+  border-radius: var(--sh-radius-lg);
+  box-shadow: var(--sh-shadow);
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transition: box-shadow .18s ease, transform .18s ease;
+}
+.sh-stat:hover { box-shadow: var(--sh-shadow-md); transform: translateY(-1px); }
+.sh-stat-icon {
+  width: 44px; height: 44px; border-radius: 10px; flex: 0 0 auto;
+  display: grid; place-items: center; font-size: 18px;
+}
+.sh-stat-label { font-size: 12px; color: var(--sh-body); font-weight: 500; }
+.sh-stat-value { font-size: 20px; font-weight: 700; color: var(--sh-heading); line-height: 1.2; }
+.sh-stat-sub { font-size: 11.5px; color: var(--sh-muted); }
+
+/* table */
+.sh-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+.sh-table thead th {
+  background: var(--sh-line);
+  color: var(--sh-body);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--sh-border);
+  white-space: nowrap;
+}
+.sh-table tbody td {
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--sh-body);
+  border-bottom: 1px solid var(--sh-line);
+  vertical-align: middle;
+}
+.sh-table tbody tr:last-child td { border-bottom: 0; }
+.sh-table tbody tr:hover { background: #fbfcfe; }
+
+/* badge */
+.sh-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 9999px;
+  font-size: 11.5px; font-weight: 600; border: 1px solid transparent;
+}
+.sh-badge-primary { background: var(--sh-primary-soft); color: var(--sh-primary-hover); border-color: rgba(242,101,34,.25); }
+.sh-badge-info { background: var(--sh-info-soft); color: #0b5ed7; border-color: rgba(27,132,255,.25); }
+.sh-badge-success { background: var(--sh-success-soft); color: #067647; border-color: rgba(3,201,90,.28); }
+.sh-badge-warning { background: var(--sh-warning-soft); color: #b45309; border-color: rgba(255,193,7,.4); }
+.sh-badge-danger { background: var(--sh-danger-soft); color: #b42318; border-color: rgba(231,13,13,.25); }
+.sh-badge-purple { background: var(--sh-purple-soft); color: #7b1fa2; border-color: rgba(171,71,188,.25); }
+.sh-badge-neutral { background: var(--sh-line); color: var(--sh-body); border-color: var(--sh-border); }
+
+/* button */
+.sh-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 14px; border-radius: 6px;
+  font-size: 13.5px; font-weight: 500; cursor: pointer;
+  border: 1px solid var(--sh-border); background: #fff; color: var(--sh-heading);
+  transition: all .18s ease;
+}
+.sh-btn:hover { background: var(--sh-line); }
+.sh-btn-primary { background: var(--sh-primary); border-color: var(--sh-primary); color: #fff; }
+.sh-btn-primary:hover { background: var(--sh-primary-hover); border-color: var(--sh-primary-hover); }
+.sh-btn-soft { background: var(--sh-primary-soft); border-color: transparent; color: var(--sh-primary-hover); }
+
+/* form control */
+.sh-input {
+  width: 100%; padding: 8px 12px; border-radius: 6px;
+  border: 1px solid var(--sh-border); background: #fff;
+  font-size: 13.5px; color: var(--sh-heading); outline: none;
+}
+.sh-input:focus { border-color: var(--sh-primary); box-shadow: 0 0 0 3px rgba(242,101,34,.15); }
+
+/* avatar */
+.sh-avatar {
+  width: 38px; height: 38px; border-radius: 8px; flex: 0 0 auto;
+  display: grid; place-items: center; color: #fff; font-weight: 600; font-size: 13px;
+  overflow: hidden;
+}
+
+/* progress */
+.sh-progress { height: 6px; border-radius: 9999px; background: var(--sh-line); overflow: hidden; }
+.sh-progress > span { display: block; height: 100%; border-radius: 9999px; background: var(--sh-primary); }
+
+/* --------------------------------------------------- shell: sidebar/top --- */
+.sh-sidebar {
+  background: var(--sh-surface);
+  border-right: 1px solid var(--sh-border);
+}
+.sh-sidebar-brand {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--sh-border);
+  font-weight: 700; color: var(--sh-heading);
+}
+.sh-nav-section {
+  font-size: 11px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--sh-muted);
+  padding: 14px 18px 6px;
+}
+.sh-nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 14px; margin: 1px 10px;
+  border-radius: 8px; font-size: 13.5px; font-weight: 500;
+  color: var(--sh-body); cursor: pointer; transition: all .16s ease;
+}
+.sh-nav-item:hover { background: var(--sh-line); color: var(--sh-heading); }
+.sh-nav-item.is-active {
+  background: var(--sh-primary-soft);
+  color: var(--sh-primary-hover);
+  font-weight: 600;
+}
+.sh-nav-item.is-active svg { color: var(--sh-primary); }
+
+.sh-topbar {
+  background: var(--sh-surface);
+  border-bottom: 1px solid var(--sh-border);
+}
+.sh-topbar-icon {
+  width: 36px; height: 36px; border-radius: 8px;
+  display: grid; place-items: center; color: var(--sh-body);
+  background: var(--sh-line); cursor: pointer; transition: all .16s ease;
+}
+.sh-topbar-icon:hover { background: var(--sh-primary-soft); color: var(--sh-primary); }
+
+/* ------------------------------------------------- re-skin shared tokens ---
+   Redefine the app's own custom classes so every Payroll screen that already
+   uses them adopts the SmartHR look without JSX changes. */
+.panel-depth,
+.card-depth {
+  background: var(--sh-surface) !important;
+  border: 1px solid var(--sh-border) !important;
+  border-radius: var(--sh-radius-lg) !important;
+  box-shadow: var(--sh-shadow) !important;
+}
+
+.table-modern thead th {
+  background: var(--sh-line) !important;
+  color: var(--sh-body) !important;
+  font-weight: 700 !important;
+  border-bottom: 1px solid var(--sh-border) !important;
+}
+.table-modern tbody tr:hover { background: #fbfcfe !important; }
+.table-modern tbody td { border-bottom: 1px solid var(--sh-line) !important; }
+
+.chip {
+  border-radius: 9999px !important;
+  font-weight: 600 !important;
+}
+.chip-accent { background: var(--sh-primary-soft) !important; color: var(--sh-primary-hover) !important; border-color: rgba(242,101,34,.25) !important; }
+.chip-info { background: var(--sh-info-soft) !important; color: #0b5ed7 !important; border-color: rgba(27,132,255,.25) !important; }
+.chip-success { background: var(--sh-success-soft) !important; color: #067647 !important; border-color: rgba(3,201,90,.28) !important; }
+.chip-warning { background: var(--sh-warning-soft) !important; color: #b45309 !important; border-color: rgba(255,193,7,.4) !important; }
+.chip-danger { background: var(--sh-danger-soft) !important; color: #b42318 !important; border-color: rgba(231,13,13,.25) !important; }
+.chip-neutral { background: var(--sh-line) !important; color: var(--sh-body) !important; border-color: var(--sh-border) !important; }
+
+.icon-depth {
+  border-radius: 10px !important;
+  background: var(--sh-primary-soft) !important;
+  color: var(--sh-primary) !important;
+  border-color: rgba(242,101,34,.2) !important;
+}
+
+.hero-panel {
+  background: var(--sh-surface) !important;
+  border: 1px solid var(--sh-border) !important;
+  border-radius: var(--sh-radius-lg) !important;
+  box-shadow: var(--sh-shadow) !important;
+}
+
+.btn-primary {
+  background: var(--sh-primary) !important;
+  border-color: var(--sh-primary) !important;
+  color: #fff !important;
+  border-radius: 6px !important;
+}
+.btn-outline {
+  border-radius: 6px !important;
+  border-color: var(--sh-border) !important;
+  color: var(--sh-heading) !important;
+  background: #fff !important;
+}
+.btn-outline:hover { background: var(--sh-line) !important; }
+
+.field {
+  border-radius: 6px !important;
+  border-color: var(--sh-border) !important;
+  color: var(--sh-heading) !important;
+}
+.field:focus { border-color: var(--sh-primary) !important; box-shadow: 0 0 0 3px rgba(242,101,34,.15) !important; }
+
+.eyebrow { color: var(--sh-primary) !important; }
+
+/* scrollbar to match the template's light chrome */
+.sh-scope ::-webkit-scrollbar { width: 8px; height: 8px; }
+.sh-scope ::-webkit-scrollbar-thumb { background: #dfe3ea; border-radius: 8px; }
+.sh-scope ::-webkit-scrollbar-track { background: transparent; }

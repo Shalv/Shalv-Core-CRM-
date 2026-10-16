@@ -726,7 +726,7 @@ export const PayrollAdminDashboardReportSection: React.FC<
     null;
 
   return (
-    <div className="space-y-4">
+    <div className="sh-scope space-y-4">
       {localBanner && !propSetStatusBanner && (
         <div className="px-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-emerald-900">
           <div className="flex items-center gap-2 font-medium text-xs">

@@ -220,7 +220,7 @@ export const PayrollReportsSection: React.FC<PayrollReportsSectionProps> = ({
   const activeDef = getReportDefinition(reportId);
 
   return (
-    <div className="p-5 space-y-4">
+    <div className="sh-scope p-5 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">

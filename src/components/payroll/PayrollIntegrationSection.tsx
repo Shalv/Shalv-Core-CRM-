@@ -48,7 +48,7 @@ export const PayrollIntegrationSection: React.FC<PayrollIntegrationSectionProps>
   );
 
   return (
-    <div className="space-y-4">
+    <div className="sh-scope space-y-4">
       {/* Dual Mode Selector Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div

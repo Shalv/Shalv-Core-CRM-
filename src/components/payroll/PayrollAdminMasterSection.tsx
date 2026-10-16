@@ -1256,7 +1256,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
   };
 
   return (
-    <div className="space-y-4">
+    <div className="sh-scope space-y-4">
       {/* Admin Control Header Bar — Responsive Layout, Zero Horizontal Scrolling */}
       <div className="bg-slate-900 text-white rounded-xl px-4 sm:px-5 py-3.5 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
         <div className="min-w-0">
