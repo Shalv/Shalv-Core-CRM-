@@ -83,6 +83,10 @@ import {
   reconcileMonthlyLoanDeductions,
   forgetDeletedPayrollMasterIds,
   OFFICE_GEOFENCE,
+  loadPayrollLocations,
+  savePayrollLocations,
+  resolvePunchLocation,
+  type PayrollLocation,
 } from './payrollTypes';
 import { checkGeofence, formatDistance, localIsoDate, localTimeString } from '../../shared/geo';
 import { PayrollAdminMasterSection } from './PayrollAdminMasterSection';
@@ -94,6 +98,7 @@ import { PayChakraHeader, type PayChakraTab } from './PayChakraHeader';
 import { PayChakraOverviewView } from './PayChakraOverviewView';
 import { EssPersonalOverview } from './EssPersonalOverview';
 import { AdminPunchOnBehalf } from './AdminPunchOnBehalf';
+import { PayrollLocationMaster } from './PayrollLocationMaster';
 import { PayChakraFooter } from './PayChakraFooter';
 
 export type { EssTabKey };
@@ -217,6 +222,11 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
   });
 
   // 0A. Admin Global Leave, Shift & Payroll Formula Policy Master (Policy CS-HR-POL-001 · Version 1.0)
+  const [payrollLocations, setPayrollLocations] = useState<PayrollLocation[]>(() => loadPayrollLocations());
+  useEffect(() => {
+    savePayrollLocations(payrollLocations);
+  }, [payrollLocations]);
+
   const [adminPolicyMaster, setAdminPolicyMaster] = useState<AdminPolicyMaster>(() =>
     loadAdminPolicyMaster()
   );
@@ -1413,13 +1423,11 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
 
   // Resolve the office geofence centre: explicit policy coordinates win, otherwise the
   // built-in office location (SRS Tower, Sector 31, Faridabad).
-  const resolveOfficeCentre = (): { lat: number; lng: number } => {
-    const p = adminPolicyMaster;
-    if (typeof p?.officeLat === 'number' && typeof p?.officeLng === 'number') {
-      return { lat: p.officeLat, lng: p.officeLng };
-    }
-    // Built-in office geofence centre (SRS Tower, Sector 31, Faridabad).
-    return { lat: OFFICE_GEOFENCE.lat, lng: OFFICE_GEOFENCE.lng };
+  // Resolve the punch geofence from the employee's assigned Location Master entry
+  // (falling back to the default active location).
+  const resolveOfficeCentre = (): { lat: number; lng: number; radiusMeters: number } => {
+    const loc = resolvePunchLocation(payrollLocations, activeUserMaster?.locationId);
+    return { lat: loc.lat, lng: loc.lng, radiusMeters: loc.radiusMeters };
   };
 
   const executePunchWithGoogleLocation = (
@@ -1540,10 +1548,9 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
       return;
     }
 
-    // Geofence validation — Office-HQ punches must fall inside the office radius.
-    const radius = adminPolicyMaster?.geofenceRadiusMeters ?? OFFICE_GEOFENCE.radiusMeters;
-    const centre = await resolveOfficeCentre();
-    const fence = checkGeofence(location.lat, location.lng, centre, radius);
+    // Geofence validation — the punch must fall inside the assigned location's radius.
+    const centre = resolveOfficeCentre();
+    const fence = checkGeofence(location.lat, location.lng, centre, centre.radiusMeters);
     if (fence) {
       location.distanceMeters = fence.distanceMeters;
       location.withinGeofence = fence.within;
@@ -1584,9 +1591,8 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
       return;
     }
 
-    const radius = adminPolicyMaster?.geofenceRadiusMeters ?? OFFICE_GEOFENCE.radiusMeters;
-    const centre = await resolveOfficeCentre();
-    const fence = checkGeofence(location.lat, location.lng, centre, radius);
+    const centre = resolveOfficeCentre();
+    const fence = checkGeofence(location.lat, location.lng, centre, centre.radiusMeters);
     if (fence) {
       location.distanceMeters = fence.distanceMeters;
       location.withinGeofence = fence.within;
@@ -5914,6 +5920,20 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
 
           {/* TAB 7: ADMIN PAYROLL & SHARED CRM USERS MASTER CONTROL CENTER */}
           {activeTab === 'admin_master' && isAdminUser && (
+            <>
+            <PayrollLocationMaster
+              locations={payrollLocations}
+              onChangeLocations={setPayrollLocations}
+              employees={enrolledEmployees}
+              onAssignEmployee={(userId, locationId) => {
+                setEmployeeSalaryMasters((prev) => {
+                  const current = prev[userId];
+                  if (!current) return prev;
+                  return { ...prev, [userId]: { ...current, locationId } };
+                });
+              }}
+              setStatusBanner={setStatusBanner}
+            />
             <PayrollAdminMasterSection
               selectedAdminUserId={selectedAdminUserId}
               setSelectedAdminUserId={setSelectedAdminUserId}
@@ -5945,6 +5965,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                 />
               }
             />
+            </>
           )}
         </div>
         )}
