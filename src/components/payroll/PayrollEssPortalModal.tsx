@@ -82,6 +82,7 @@ import {
   loadAllEmployeeLoans,
   reconcileMonthlyLoanDeductions,
   forgetDeletedPayrollMasterIds,
+  OFFICE_GEOFENCE,
 } from './payrollTypes';
 import { checkGeofence, formatDistance, localIsoDate, localTimeString } from '../../shared/geo';
 import { PayrollAdminMasterSection } from './PayrollAdminMasterSection';
@@ -1410,46 +1411,15 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
     };
   };
 
-  // Resolve the office geofence centre: explicit policy coordinates win, otherwise geocode
-  // the configured office / company address once and cache it in localStorage.
-  const resolveOfficeCentre = async (): Promise<{ lat: number; lng: number } | null> => {
+  // Resolve the office geofence centre: explicit policy coordinates win, otherwise the
+  // built-in office location (SRS Tower, Sector 31, Faridabad).
+  const resolveOfficeCentre = (): { lat: number; lng: number } => {
     const p = adminPolicyMaster;
     if (typeof p?.officeLat === 'number' && typeof p?.officeLng === 'number') {
       return { lat: p.officeLat, lng: p.officeLng };
     }
-    try {
-      const cached = localStorage.getItem('crm_office_geofence_centre');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (typeof parsed?.lat === 'number' && typeof parsed?.lng === 'number') return parsed;
-      }
-    } catch {
-      // ignore
-    }
-    const query =
-      p?.officeAddress ||
-      [supplierCompany?.address, supplierCompany?.city, supplierCompany?.state, 'India']
-        .filter(Boolean)
-        .join(', ');
-    if (!query) return null;
-    try {
-      const res = await fetch(`/api/maps/geocode?address=${encodeURIComponent(query)}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (typeof data?.lat === 'number' && typeof data?.lng === 'number') {
-          const centre = { lat: data.lat, lng: data.lng };
-          try {
-            localStorage.setItem('crm_office_geofence_centre', JSON.stringify(centre));
-          } catch {
-            // ignore
-          }
-          return centre;
-        }
-      }
-    } catch {
-      // geofence simply stays unconfigured
-    }
-    return null;
+    // Built-in office geofence centre (SRS Tower, Sector 31, Faridabad).
+    return { lat: OFFICE_GEOFENCE.lat, lng: OFFICE_GEOFENCE.lng };
   };
 
   const executePunchWithGoogleLocation = (
@@ -1571,7 +1541,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
     }
 
     // Geofence validation — Office-HQ punches must fall inside the office radius.
-    const radius = adminPolicyMaster?.geofenceRadiusMeters ?? 300;
+    const radius = adminPolicyMaster?.geofenceRadiusMeters ?? OFFICE_GEOFENCE.radiusMeters;
     const centre = await resolveOfficeCentre();
     const fence = checkGeofence(location.lat, location.lng, centre, radius);
     if (fence) {
@@ -1614,7 +1584,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
       return;
     }
 
-    const radius = adminPolicyMaster?.geofenceRadiusMeters ?? 300;
+    const radius = adminPolicyMaster?.geofenceRadiusMeters ?? OFFICE_GEOFENCE.radiusMeters;
     const centre = await resolveOfficeCentre();
     const fence = checkGeofence(location.lat, location.lng, centre, radius);
     if (fence) {
