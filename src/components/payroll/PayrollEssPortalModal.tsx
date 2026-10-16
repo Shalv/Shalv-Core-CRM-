@@ -157,6 +157,7 @@ import { PayrollAuditTrailSection } from './PayrollAuditTrailSection';
 import { PayrollAssetsSection } from './PayrollAssetsSection';
 import { PayrollTalentSection } from './PayrollTalentSection';
 import { PayrollHolidayMaster } from './PayrollHolidayMaster';
+import { AdminDashboardSection } from './AdminDashboardSection';
 import {
   fetchPayrollCollections,
   pushPayrollCollection,
@@ -2418,6 +2419,30 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
 
         {/* WORKFORCE OVERVIEW (admin only — company-wide workforce data) */}
         {payChakraTab === 'overview' && isAdminUser && (
+          <>
+          <div className="p-3 sm:p-4 lg:p-6">
+            <AdminDashboardSection
+              employees={enrolledEmployees}
+              leaves={leaves}
+              claims={claims}
+              regularization={regularizationRequests}
+              swaps={shiftSwaps}
+              tickets={helpDeskTickets}
+              lifecycle={lifecycleEvents}
+              jobOpenings={jobOpenings}
+              candidates={candidates}
+              payrollRuns={payrollRuns}
+              locations={payrollLocations}
+              policy={adminPolicyMaster}
+              formatCurrency={formatCurrency}
+              onNavigate={(target) => {
+                if (target === 'employees') { setActiveTab('admin_master'); setAdminFocusSection('salary_master'); setAdminFocusNonce((n) => n + 1); }
+                else if (target === 'payroll') { setActiveTab('admin_master'); setSectionAnchor('payroll-processing'); }
+                else if (target === 'recruitment') { setActiveTab('admin_master'); setSectionAnchor('admin-talent'); }
+                else setActiveTab('admin_master');
+              }}
+            />
+          </div>
           <PayChakraOverviewView
             onNavigateTab={(tab, sub) => {
               setPayChakraTab(tab as PayChakraTab);
@@ -2448,6 +2473,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
             pendingClaimsCount={claims.filter((c) => c.status === 'Under Verification').length}
             pendingLoansCount={0}
           />
+          </>
         )}
 
         {/* PERSISTENT ALERT MESSAGE WHILE LOCATION IS OFF (Attendance Not Recorded) */}
@@ -6465,6 +6491,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
               onChangeAllocations={setAssetAllocations}
               setStatusBanner={setStatusBanner}
             />
+            <div id="admin-talent">
             <PayrollTalentSection
               mode="admin"
               currentUserId={currentUser.id}
@@ -6489,6 +6516,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
               onChangeTrainingNominations={setTrainingNominations}
               setStatusBanner={setStatusBanner}
             />
+            </div>
             <PayrollAdminMasterSection
               focusSection={adminFocusSection}
               focusNonce={adminFocusNonce}
