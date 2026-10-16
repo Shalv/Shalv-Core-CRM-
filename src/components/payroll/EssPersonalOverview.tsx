@@ -18,6 +18,7 @@ import {
   UtensilsCrossed,
   Eye,
   EyeOff,
+  Plus,
   TrendingUp,
   Target,
   Home,
@@ -378,7 +379,7 @@ export function EssPersonalOverview({
               </div>
             </div>
             <button type="button" className="sh-btn sh-btn-primary" onClick={() => (onNewClaim ? onNewClaim() : onNavigate?.('reimbursements'))}>
-              New claim
+              <Plus className="w-3.5 h-3.5" /> New claim
             </button>
           </div>
           <div className="sh-card-body grid grid-cols-2 gap-3">
