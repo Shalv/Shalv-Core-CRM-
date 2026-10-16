@@ -3,6 +3,14 @@ import { EssAttendanceCalendar } from './EssAttendanceCalendar';
 import { Sparkline, DonutChart } from './EssCharts';
 import { WorkspaceIllustration } from './EssIllustration';
 import {
+  ClipartCalendar,
+  ClipartLeave,
+  ClipartClaim,
+  ClipartMoney,
+  ClipartClock,
+  ClipartPayslip,
+} from './EssClipart';
+import {
   CalendarCheck,
   FileText,
   Receipt,
@@ -228,10 +236,10 @@ export function EssPersonalOverview({
   ].slice(0, 6);
 
   const actions = [
-    { label: 'Apply for leave', hint: 'Leave & WFH requests', icon: <CalendarCheck className="w-4.5 h-4.5" />, onClick: () => onNavigate?.('leaves') },
-    { label: 'Download payslips', hint: 'Salary statements', icon: <Download className="w-4.5 h-4.5" />, onClick: () => (onDownloadPayslip ? onDownloadPayslip() : onNavigate?.('payslips')) },
-    { label: 'Submit a claim', hint: 'Reimbursements & expenses', icon: <Receipt className="w-4.5 h-4.5" />, onClick: () => (onNewClaim ? onNewClaim() : onNavigate?.('reimbursements')) },
-    { label: 'File regularization', hint: 'Missed punch or WFH', icon: <Timer className="w-4.5 h-4.5" />, onClick: () => (onFileRegularization ? onFileRegularization() : onNavigate?.('regularization')) },
+    { label: 'Apply for leave', hint: 'Leave & WFH requests', icon: <ClipartLeave size={40} />, onClick: () => onNavigate?.('leaves') },
+    { label: 'Download payslips', hint: 'Salary statements', icon: <ClipartPayslip size={40} />, onClick: () => (onDownloadPayslip ? onDownloadPayslip() : onNavigate?.('payslips')) },
+    { label: 'Submit a claim', hint: 'Reimbursements & expenses', icon: <ClipartClaim size={40} />, onClick: () => (onNewClaim ? onNewClaim() : onNavigate?.('reimbursements')) },
+    { label: 'File regularization', hint: 'Missed punch or WFH', icon: <ClipartClock size={40} />, onClick: () => (onFileRegularization ? onFileRegularization() : onNavigate?.('regularization')) },
   ];
 
   return (
@@ -355,7 +363,7 @@ export function EssPersonalOverview({
         {[
           {
             chip: 'ess-chip-blue',
-            icon: <CalendarCheck className="w-4.5 h-4.5" />,
+            icon: <ClipartCalendar size={38} />,
             title: 'Punched days',
             sub: 'This month',
             value: String(punchedDates.size),
@@ -364,7 +372,7 @@ export function EssPersonalOverview({
           },
           {
             chip: 'ess-chip-mint',
-            icon: <CalendarDays className="w-4.5 h-4.5" />,
+            icon: <ClipartLeave size={38} />,
             title: 'Leave remaining',
             sub: `${totalLeaveTaken} day(s) taken`,
             value: String(
@@ -375,7 +383,7 @@ export function EssPersonalOverview({
           },
           {
             chip: 'ess-chip-amber',
-            icon: <Receipt className="w-4.5 h-4.5" />,
+            icon: <ClipartClaim size={38} />,
             title: 'Claims in review',
             sub: `${approvedClaims.length} approved`,
             value: String(inReviewClaims.length),
@@ -384,7 +392,7 @@ export function EssPersonalOverview({
           },
           {
             chip: 'ess-chip-peach',
-            icon: <Wallet className="w-4.5 h-4.5" />,
+            icon: <ClipartMoney size={38} />,
             title: 'Net take-home',
             sub: 'Current cycle',
             value: money(netInHand),
@@ -394,7 +402,7 @@ export function EssPersonalOverview({
         ].map((k) => (
           <div key={k.title} className="ess-card p-4">
             <div className="flex items-start justify-between gap-3">
-              <span className={`ess-chip ${k.chip}`}>{k.icon}</span>
+              <span className="ess-clipart">{k.icon}</span>
               {k.spark && <Sparkline points={k.spark} color="#f26522" width={80} height={32} />}
             </div>
             <div className="mt-3 ess-kpi-title">{k.title}</div>
@@ -669,7 +677,7 @@ export function EssPersonalOverview({
               className="text-left p-3.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-orange-200 transition group"
             >
               <div className="flex items-center justify-between">
-                <span className="icon-depth w-9 h-9 group-hover:bg-orange-50">{a.icon}</span>
+                <span className="ess-clipart ess-clipart-sm group-hover:border-orange-200">{a.icon}</span>
                 <TrendingUp className="w-3.5 h-3.5 text-slate-300 group-hover:text-orange-400" />
               </div>
               <div className="mt-2 text-[12.5px] font-bold text-slate-800">{a.label}</div>

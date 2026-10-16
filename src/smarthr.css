@@ -358,3 +358,6 @@ body {
 .ess-tab:hover{color:#1b2a41}
 .ess-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f4f6fa}
 .ess-row:last-child{border-bottom:0}
+/* Clipart icon tile — holds a full-colour illustrated icon on a neutral tile. */
+.ess-clipart{width:46px;height:46px;border-radius:13px;background:#f6f8fc;border:1px solid #eef1f6;display:grid;place-items:center;flex:0 0 auto}
+.ess-clipart-sm{width:40px;height:40px;border-radius:11px}
