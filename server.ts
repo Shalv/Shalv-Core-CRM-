@@ -311,6 +311,9 @@ const PERSISTED_CRM_STATE: Record<string, any> = {
   payrollHelpDesk: [],
   payrollRuns: [],
   payrollLifecycle: [],
+  payrollAssets: [],
+  payrollAssetCategories: [],
+  payrollAssetAllocations: [],
   crmSlices: {},
 };
 
@@ -1171,6 +1174,9 @@ function buildPersistedStoreObject() {
     payrollHelpDesk: PERSISTED_CRM_STATE.payrollHelpDesk || [],
     payrollRuns: PERSISTED_CRM_STATE.payrollRuns || [],
     payrollLifecycle: PERSISTED_CRM_STATE.payrollLifecycle || [],
+    payrollAssets: PERSISTED_CRM_STATE.payrollAssets || [],
+    payrollAssetCategories: PERSISTED_CRM_STATE.payrollAssetCategories || [],
+    payrollAssetAllocations: PERSISTED_CRM_STATE.payrollAssetAllocations || [],
     crmSlices: PERSISTED_CRM_STATE.crmSlices,
     company_setup: MOCK_TABLES.company_setup,
     outlook_app_config: MOCK_TABLES.outlook_app_config,
@@ -1205,7 +1211,8 @@ const durableMiddleware = livePool ? postgresStateMiddleware(livePool, {
       payrollLoans: [], crmSlices: {},
       payrollLocations: [], payrollRegularization: [], payrollShifts: [],
       payrollShiftAssignments: [], payrollShiftSwaps: [], payrollHelpDesk: [],
-      payrollRuns: [], payrollLifecycle: [],
+      payrollRuns: [], payrollLifecycle: [], payrollAssets: [],
+      payrollAssetCategories: [], payrollAssetAllocations: [],
       ...value,
     });
     MOCK_TABLES.users = value.users || [];
@@ -3216,6 +3223,9 @@ const PAYROLL_COLLECTION_KEYS: Record<string, string> = {
   helpdesk: 'payrollHelpDesk',
   runs: 'payrollRuns',
   lifecycle: 'payrollLifecycle',
+  assets: 'payrollAssets',
+  assetCategories: 'payrollAssetCategories',
+  assetAllocations: 'payrollAssetAllocations',
 };
 // Collections only an admin/HR user may write. Employees may read all of them.
 const PAYROLL_ADMIN_ONLY_COLLECTIONS = ['locations', 'shifts', 'shiftAssignments', 'runs'];

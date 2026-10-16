@@ -100,6 +100,12 @@ import {
   savePayrollRuns,
   loadLifecycleEvents,
   saveLifecycleEvents,
+  loadAssetCategories,
+  saveAssetCategories,
+  loadAssets,
+  saveAssets,
+  loadAssetAllocations,
+  saveAssetAllocations,
   type PayrollLocation,
   type RegularizationRequest,
   type ShiftDefinition,
@@ -108,6 +114,9 @@ import {
   type HelpDeskTicket,
   type PayrollRun,
   type LifecycleEvent,
+  type AssetCategory,
+  type Asset,
+  type AssetAllocation,
 } from './payrollTypes';
 import { checkGeofence, formatDistance, localIsoDate, localTimeString } from '../../shared/geo';
 import { PayrollAdminMasterSection } from './PayrollAdminMasterSection';
@@ -126,6 +135,7 @@ import { PayrollHelpDeskSection } from './PayrollHelpDeskSection';
 import { PayrollProcessingSection } from './PayrollProcessingSection';
 import { PayrollLifecycleSection } from './PayrollLifecycleSection';
 import { PayrollAuditTrailSection } from './PayrollAuditTrailSection';
+import { PayrollAssetsSection } from './PayrollAssetsSection';
 import {
   fetchPayrollCollections,
   pushPayrollCollection,
@@ -306,6 +316,13 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
   const [lifecycleEvents, setLifecycleEvents] = useState<LifecycleEvent[]>(() => loadLifecycleEvents());
   useEffect(() => { saveLifecycleEvents(lifecycleEvents); }, [lifecycleEvents]);
 
+  const [assetCategories, setAssetCategories] = useState<AssetCategory[]>(() => loadAssetCategories());
+  useEffect(() => { saveAssetCategories(assetCategories); }, [assetCategories]);
+  const [assets, setAssets] = useState<Asset[]>(() => loadAssets());
+  useEffect(() => { saveAssets(assets); }, [assets]);
+  const [assetAllocations, setAssetAllocations] = useState<AssetAllocation[]>(() => loadAssetAllocations());
+  useEffect(() => { saveAssetAllocations(assetAllocations); }, [assetAllocations]);
+
   // ---- Real-time capture ----------------------------------------------------------
   // Load the HR collections from the server on mount (so this browser sees every other
   // user's changes), then push each collection back whenever it changes.
@@ -332,6 +349,9 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
       take('helpdesk', loadHelpDeskTickets(), setHelpDeskTickets);
       take('runs', loadPayrollRuns(), setPayrollRuns);
       take('lifecycle', loadLifecycleEvents(), setLifecycleEvents);
+      take('assetCategories', loadAssetCategories(), setAssetCategories, true);
+      take('assets', loadAssets(), setAssets);
+      take('assetAllocations', loadAssetAllocations(), setAssetAllocations);
       setCollectionsHydrated(true);
     })();
     return () => {
@@ -347,6 +367,9 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
   useCollectionSync('helpdesk', helpDeskTickets, collectionsHydrated, lastSyncedRef);
   useCollectionSync('runs', payrollRuns, collectionsHydrated, lastSyncedRef);
   useCollectionSync('lifecycle', lifecycleEvents, collectionsHydrated, lastSyncedRef);
+  useCollectionSync('assetCategories', assetCategories, collectionsHydrated, lastSyncedRef);
+  useCollectionSync('assets', assets, collectionsHydrated, lastSyncedRef);
+  useCollectionSync('assetAllocations', assetAllocations, collectionsHydrated, lastSyncedRef);
 
   // ---- Header sub-navigation focus -------------------------------------------------
   // Every header tab and dropdown option lands on the section it names, rather than
@@ -2217,6 +2240,24 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                 }))}
                 events={lifecycleEvents}
                 onChange={setLifecycleEvents}
+                setStatusBanner={setStatusBanner}
+              />
+              <PayrollAssetsSection
+                mode="employee"
+                currentUserId={currentUser.id}
+                currentUserName={currentUser.name || 'Employee'}
+                employees={enrolledEmployees.map((m) => ({
+                  userId: m.userId,
+                  name: m.name,
+                  empCode: m.empCode,
+                  department: m.department,
+                }))}
+                categories={assetCategories}
+                onChangeCategories={setAssetCategories}
+                assets={assets}
+                onChangeAssets={setAssets}
+                allocations={assetAllocations}
+                onChangeAllocations={setAssetAllocations}
                 setStatusBanner={setStatusBanner}
               />
             </div>
@@ -6247,6 +6288,24 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                 lifecycle={lifecycleEvents}
               />
             </div>
+            <PayrollAssetsSection
+              mode="admin"
+              currentUserId={currentUser.id}
+              currentUserName={currentUser.name || 'Administrator'}
+              employees={enrolledEmployees.map((m) => ({
+                userId: m.userId,
+                name: m.name,
+                empCode: m.empCode,
+                department: m.department,
+              }))}
+              categories={assetCategories}
+              onChangeCategories={setAssetCategories}
+              assets={assets}
+              onChangeAssets={setAssets}
+              allocations={assetAllocations}
+              onChangeAllocations={setAssetAllocations}
+              setStatusBanner={setStatusBanner}
+            />
             <PayrollAdminMasterSection
               focusSection={adminFocusSection}
               focusNonce={adminFocusNonce}

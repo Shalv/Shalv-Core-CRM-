@@ -133,6 +133,9 @@ interface CrmContextType {
   resetRolePermissions: (role?: UserRole) => void;
   payrollRolePermissions: Record<UserRole, PayrollPermissionsMap>;
   updatePayrollRolePermission: (role: UserRole, module: PayrollModuleKey, action: PayrollPermissionAction, value: boolean) => void;
+  /** Per-user payroll permission overrides — the primary authority for payroll access. */
+  userPayrollPermissions: Record<string, Partial<PayrollPermissionsMap>>;
+  updateUserPayrollPermissions: (userId: string, permissions?: Partial<PayrollPermissionsMap>) => void;
   resetPayrollRolePermissions: (role?: UserRole) => void;
   hasPayrollPermission: (module: PayrollModuleKey, action: PayrollPermissionAction) => boolean;
   canPayrollView: (module: PayrollModuleKey) => boolean;
@@ -497,6 +500,7 @@ const STORAGE_KEYS = {
   IS_AUTHENTICATED: 'corecrm_v2_is_authenticated',
   ROLE_PERMISSIONS: 'corecrm_v2_role_permissions',
   PAYROLL_ROLE_PERMISSIONS: 'corecrm_v2_payroll_role_permissions',
+  USER_PAYROLL_PERMISSIONS: 'corecrm_v2_user_payroll_permissions',
   USERS: 'corecrm_v2_users',
   STATES: 'corecrm_v2_states',
   PRODUCTS: 'corecrm_v2_products',
@@ -710,6 +714,27 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [rolePermissions]);
 
   // Payroll (PayChakra) RBAC matrix — parallel to rolePermissions above.
+  const [userPayrollPermissions, setUserPayrollPermissions] = useState<Record<string, Partial<PayrollPermissionsMap>>>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.USER_PAYROLL_PERMISSIONS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') return parsed;
+      }
+    } catch {
+      /* ignore */
+    }
+    return {};
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.USER_PAYROLL_PERMISSIONS, JSON.stringify(userPayrollPermissions));
+    } catch {
+      /* ignore */
+    }
+  }, [userPayrollPermissions]);
+
   const [payrollRolePermissions, setPayrollRolePermissions] = useState<Record<UserRole, PayrollPermissionsMap>>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.PAYROLL_ROLE_PERMISSIONS);
     if (saved) {
@@ -1143,6 +1168,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const currentSnapshot: Snapshot = React.useMemo(() => ({
     rolePermissions,
     payrollRolePermissions,
+    userPayrollPermissions,
     users,
     states,
     products,
@@ -1170,6 +1196,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }), [
     rolePermissions,
     payrollRolePermissions,
+    userPayrollPermissions,
     users,
     states,
     products,
@@ -3043,10 +3070,25 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
 
   // ---- Payroll (PayChakra) RBAC helpers — parallel to the CRM ones above ----
   const hasPayrollPermission = (module: PayrollModuleKey, action: PayrollPermissionAction): boolean => {
+    // Per-user payroll override is the primary authority, mirroring hasPermission.
+    const userPayrollMap = userPayrollPermissions[currentUser.id];
+    if (userPayrollMap?.[module]?.[action] !== undefined) return !!userPayrollMap[module]![action];
+
     if (currentUser.role === 'Super Admin') return true;
     const roleMap = payrollRolePermissions[currentUser.role] || DEFAULT_PAYROLL_ROLE_PERMISSIONS[currentUser.role];
     if (roleMap?.[module]?.[action] !== undefined) return !!roleMap[module][action];
     return !!DEFAULT_PAYROLL_ROLE_PERMISSIONS[currentUser.role]?.[module]?.[action];
+  };
+
+  const updateUserPayrollPermissions = (userId: string, permissions?: Partial<PayrollPermissionsMap>) => {
+    setUserPayrollPermissions((prev) => {
+      if (!permissions) {
+        const next = { ...prev };
+        delete next[userId];
+        return next;
+      }
+      return { ...prev, [userId]: permissions };
+    });
   };
 
   const canPayrollView = (module: PayrollModuleKey) => hasPayrollPermission(module, 'view');
@@ -8510,6 +8552,8 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
         resetRolePermissions,
         payrollRolePermissions,
         updatePayrollRolePermission,
+        userPayrollPermissions,
+        updateUserPayrollPermissions,
         resetPayrollRolePermissions,
         hasPayrollPermission,
         canPayrollView,
