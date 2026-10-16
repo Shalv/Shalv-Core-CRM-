@@ -1,3 +1,4 @@
+import { confirmSave } from '../../shared/confirm';
 import React, { useState } from 'react';
 import { useCrm } from '../../context/CrmContext';
 import { crmVisibleUsers } from '../../shared/userScope';
@@ -161,6 +162,7 @@ export const CustomersContactsMasterTab: React.FC<CustomersContactsMasterTabProp
   };
 
   const handleSaveCustomer = (e: React.FormEvent) => {
+    if (!confirmSave('customer')) return;
     e.preventDefault();
     const owner = users.find((u) => u.id === custForm.salesOwnerId) || currentUser;
     const pTerm =
@@ -290,6 +292,7 @@ export const CustomersContactsMasterTab: React.FC<CustomersContactsMasterTabProp
   };
 
   const handleSaveContact = (e: React.FormEvent) => {
+    if (!confirmSave('contact')) return;
     e.preventDefault();
     if (editingContactId) {
       updateCustomerContact(editingContactId, contactForm);

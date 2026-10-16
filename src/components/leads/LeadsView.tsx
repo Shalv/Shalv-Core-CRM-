@@ -1,3 +1,4 @@
+import { confirmSave } from '../../shared/confirm';
 import React, { useState, useEffect } from 'react';
 import { useCrm } from '../../context/CrmContext';
 import { crmVisibleUsers } from '../../shared/userScope';
@@ -322,6 +323,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
 
   // Save Lead (Add or Edit)
   const handleSaveLeadSubmit = (e: React.FormEvent) => {
+    if (!confirmSave('lead')) return;
     e.preventDefault();
     const owner = users.find((u) => u.id === formData.leadOwnerId);
     const ownerName = owner ? owner.name : 'Unassigned';
@@ -377,6 +379,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
   };
 
   const handleCreateContactSubmit = (e: React.FormEvent) => {
+    if (!confirmSave('contact')) return;
     e.preventDefault();
     if (!contactModalLead) return;
     createContactFromLead(contactModalLead.id, contactForm);
@@ -393,6 +396,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
   };
 
   const handleAddTimelineSubmit = (e: React.FormEvent) => {
+    if (!confirmSave('timeline entry')) return;
     e.preventDefault();
     if (!historyLeadId || !timelineRemarks.trim()) return;
 

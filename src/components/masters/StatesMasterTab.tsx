@@ -1,3 +1,4 @@
+import { confirmSave } from '../../shared/confirm';
 import React, { useState } from 'react';
 import { useCrm } from '../../context/CrmContext';
 import { StateMasterItem } from '../../types';
@@ -63,6 +64,7 @@ export const StatesMasterTab: React.FC<StatesMasterTabProps> = ({ searchQuery })
   };
 
   const handleSave = (e: React.FormEvent) => {
+    if (!confirmSave('record')) return;
     e.preventDefault();
     const formatted = {
       ...form,

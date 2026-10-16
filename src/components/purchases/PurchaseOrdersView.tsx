@@ -1,3 +1,4 @@
+import { confirmSave } from '../../shared/confirm';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useCrm } from '../../context/CrmContext';
 import { resolveGstRate } from '../../shared/gst';
@@ -342,6 +343,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({
 
   // Handle Save PO
   const handleSavePo = (e: React.FormEvent) => {
+    if (!confirmSave('purchase order')) return;
     e.preventDefault();
     if (!formVendorName.trim()) {
       setSuccessBanner('Please enter or select a vendor name before saving.');

@@ -1,3 +1,4 @@
+import { confirmSave } from '../../shared/confirm';
 import React, { useState, useEffect } from 'react';
 import { useCrm } from '../../context/CrmContext';
 import {
@@ -133,6 +134,7 @@ export const SalesOrdersView: React.FC<SalesOrdersViewProps> = ({
   };
 
   const handleCreateOrderSubmit = (e: React.FormEvent) => {
+    if (!confirmSave('sales order')) return;
     e.preventDefault();
     const cust = customers.find((c) => c.id === orderCustId);
     if (!cust) return;

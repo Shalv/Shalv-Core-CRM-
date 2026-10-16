@@ -1,3 +1,4 @@
+import { confirmSave } from '../../shared/confirm';
 import React, { useState, useEffect } from 'react';
 import { useCrm } from '../../context/CrmContext';
 import { ActivityType } from '../../types';
@@ -94,6 +95,7 @@ export const ActivitiesView: React.FC<ActivitiesViewProps> = ({
   });
 
   const handleCreateActivity = (e: React.FormEvent) => {
+    if (!confirmSave('activity')) return;
     e.preventDefault();
     const assigned = users.find((u) => u.id === actAssignedId) || currentUser;
 

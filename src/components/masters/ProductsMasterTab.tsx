@@ -1,3 +1,4 @@
+import { confirmSave } from '../../shared/confirm';
 import React, { useState } from 'react';
 import { useCrm } from '../../context/CrmContext';
 import { ProductMasterItem, ProductType } from '../../types';
@@ -90,6 +91,7 @@ export const ProductsMasterTab: React.FC<ProductsMasterTabProps> = ({ searchQuer
   };
 
   const handleSave = (e: React.FormEvent) => {
+    if (!confirmSave('record')) return;
     e.preventDefault();
     if (editingProdId) {
       updateProduct(editingProdId, form);
