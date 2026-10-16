@@ -195,10 +195,12 @@ export function EssAttendanceCalendar({ attendance, leaves = [], policy }: EssAt
                 className={`min-h-[74px] rounded-lg border p-1.5 flex flex-col gap-1 ${
                   isToday
                     ? 'border-[#f26522] bg-orange-50/60'
-                    : holiday
+                    : holiday?.kind === 'Public'
                     ? 'border-violet-300 bg-violet-50'
                     : off
                     ? 'border-slate-100 bg-slate-50'
+                    : holiday
+                    ? 'border-violet-200 bg-white'
                     : 'border-slate-200 bg-white'
                 }`}
                 title={`${dateIso}${holiday ? ` · ${holiday.name} (holiday)` : ''}${p?.in ? ` · in ${p.in}` : ''}${p?.out ? ` · out ${p.out}` : ''}${leaveType ? ` · ${leaveType}` : ''}`}
@@ -214,10 +216,19 @@ export function EssAttendanceCalendar({ attendance, leaves = [], policy }: EssAt
 
                 {holiday && (
                   <div
-                    className="inline-flex items-center gap-1 self-start rounded border border-violet-200 bg-violet-100 px-1.5 py-0.5 text-[9.5px] font-bold text-violet-800 max-w-full"
-                    title={holiday.name}
+                    className={`inline-flex items-center gap-1 self-start rounded border border-violet-200 px-1.5 py-0.5 text-[9.5px] font-bold max-w-full ${
+                      holiday.kind === 'Public' ? 'bg-violet-100 text-violet-800' : 'bg-white text-violet-700'
+                    }`}
+                    title={
+                      holiday.kind === 'Public'
+                        ? `${holiday.name} — public holiday`
+                        : `${holiday.name} — restricted holiday (opt-in)`
+                    }
                   >
-                    <Star className="w-2.5 h-2.5 shrink-0" /> <span className="truncate">{holiday.name}</span>
+                    <Star className="w-2.5 h-2.5 shrink-0" />
+                    <span className="truncate">
+                      {holiday.name}{holiday.kind !== 'Public' ? ' (RH)' : ''}
+                    </span>
                   </div>
                 )}
 
@@ -256,7 +267,10 @@ export function EssAttendanceCalendar({ attendance, leaves = [], policy }: EssAt
             <span className="w-3 h-3 rounded-[3px] bg-violet-100 border border-violet-200 inline-block" /> Privilege leave
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-[3px] bg-violet-100 border border-violet-200 inline-block" /> Public holiday
+            <span className="w-3 h-3 rounded-[3px] bg-violet-100 border border-violet-200 inline-block" /> Public holiday (day off)
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-[3px] bg-white border border-violet-200 inline-block" /> Restricted holiday (opt-in)
           </span>
           <span className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-[3px] bg-slate-50 border border-slate-200 inline-block" /> Week off
@@ -270,6 +284,7 @@ export function EssAttendanceCalendar({ attendance, leaves = [], policy }: EssAt
             {monthHolidays.map((d) => (
               <span key={d}>
                 <Star className="w-3 h-3 inline" /> {d.slice(8, 10)} {MONTH_LABELS[cursor.m].slice(0, 3)} — {holidayByDate[d].name}
+                {holidayByDate[d].kind !== 'Public' ? ' (RH)' : ''}
               </span>
             ))}
           </div>

@@ -1,3 +1,4 @@
+import { resolveHoliday, isPaidHoliday } from './payrollTypes';
 import type { AttendanceSession, AdminPolicyMaster, LeaveRequestItem } from './payrollTypes';
 
 /**
@@ -152,6 +153,12 @@ export const resolveDay = (
     return { iso, day, code, record: rec };
   }
   if (iso > todayIso) return { iso, day, code: 'FUT' };
+  // A PUBLIC holiday is a company-wide paid, non-working day — it must not read as an
+  // absence and must not attract loss of pay. Checked before the week-off rule so a
+  // holiday that falls on a Sunday or an off-Saturday still shows as the holiday it is.
+  // Restricted (RH) and Optional holidays are deliberately NOT treated as days off:
+  // they are opt-in, so the day stays a working day unless the employee takes it.
+  if (isPaidHoliday(policy, iso)) return { iso, day, code: 'H' };
   if (isWeekOff(iso, policy)) return { iso, day, code: 'WO' };
   const cov = leaveCoverage(iso, leaves);
   if (cov === 'full') return { iso, day, code: 'LV' };

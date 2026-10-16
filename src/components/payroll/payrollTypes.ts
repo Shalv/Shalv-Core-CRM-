@@ -2225,12 +2225,49 @@ export interface PublicHoliday {
   kind: PublicHolidayKind;
 }
 
-/** Fixed-date national holidays (same date every year). */
+/**
+ * The company holiday calendar for 2026, as supplied by the business.
+ * `(RH)` holidays are Restricted Holidays; the rest are Public holidays.
+ * Dates marked with an asterisk in the source list are moon-dependent (Id-ul-Fitr,
+ * Id-ul-Zuha, Muharram, Milad un Nabi) and may shift by a day.
+ */
 export const DEFAULT_PUBLIC_HOLIDAYS: PublicHoliday[] = [
-  { id: 'HOL-REPUBLIC', name: 'Republic Day', date: '2026-01-26', kind: 'Public' },
-  { id: 'HOL-INDEPENDENCE', name: 'Independence Day', date: '2026-08-15', kind: 'Public' },
-  { id: 'HOL-GANDHI', name: 'Gandhi Jayanti', date: '2026-10-02', kind: 'Public' },
+  { id: 'HOL-2026-01', name: 'Republic Day', date: '2026-01-26', kind: 'Public' },
+  { id: 'HOL-2026-02', name: 'Holi / Dhulivandan', date: '2026-03-03', kind: 'Public' },
+  { id: 'HOL-2026-03', name: 'Gudi Padava', date: '2026-03-19', kind: 'Public' },
+  { id: 'HOL-2026-04', name: 'Id-ul-Fitr (Ramzan Id)', date: '2026-03-21', kind: 'Public' },
+  { id: 'HOL-2026-05', name: 'Mahavir Jayanti', date: '2026-03-31', kind: 'Public' },
+  { id: 'HOL-2026-06', name: 'Good Friday', date: '2026-04-03', kind: 'Public' },
+  { id: 'HOL-2026-07', name: 'Vaisakhadi (Bengal) / Bohag Bihu (Assam)', date: '2026-04-15', kind: 'Restricted' },
+  { id: 'HOL-2026-08', name: 'Buddha Purnima', date: '2026-05-01', kind: 'Public' },
+  { id: 'HOL-2026-09', name: 'Id-ul-Zuha (Bakri-id)', date: '2026-05-27', kind: 'Public' },
+  { id: 'HOL-2026-10', name: 'Muharram', date: '2026-06-26', kind: 'Public' },
+  { id: 'HOL-2026-11', name: 'Independence Day', date: '2026-08-15', kind: 'Public' },
+  { id: 'HOL-2026-12', name: 'Nag Panchami', date: '2026-08-17', kind: 'Restricted' },
+  { id: 'HOL-2026-13', name: 'Milad un Nabi / Id-e-Milad', date: '2026-08-26', kind: 'Public' },
+  { id: 'HOL-2026-14', name: 'Raksha Bandhan', date: '2026-08-28', kind: 'Restricted' },
+  { id: 'HOL-2026-15', name: 'Ganesh Chaturthi / Vinayak Chaturthi', date: '2026-09-14', kind: 'Public' },
+  { id: 'HOL-2026-16', name: 'Mahatma Gandhi\u2019s Birthday', date: '2026-10-02', kind: 'Public' },
+  { id: 'HOL-2026-17', name: 'Dussehra (Vijayadashami)', date: '2026-10-20', kind: 'Public' },
+  { id: 'HOL-2026-18', name: 'Dhantrayodashi', date: '2026-11-06', kind: 'Restricted' },
+  { id: 'HOL-2026-19', name: 'Diwali (Deepavali)', date: '2026-11-08', kind: 'Public' },
+  { id: 'HOL-2026-20', name: 'Govardhan Puja', date: '2026-11-10', kind: 'Restricted' },
+  { id: 'HOL-2026-21', name: 'Bhaidooj / Balipratipada', date: '2026-11-11', kind: 'Restricted' },
+  { id: 'HOL-2026-22', name: 'Guru Nanak\u2019s Birthday', date: '2026-11-24', kind: 'Public' },
+  { id: 'HOL-2026-23', name: 'Christmas Day', date: '2026-12-25', kind: 'Public' },
 ];
+
+/**
+ * Whether a date is a company-wide paid day off.
+ *
+ * Only Public holidays are. Restricted (RH) and Optional holidays are opt-in: the day
+ * remains a working day unless the employee chooses to take it, so they must not be
+ * treated as a non-working paid day for everyone.
+ */
+export const isPaidHoliday = (policy: any, dateIso: string): boolean => {
+  const h = resolveHoliday(policy, dateIso);
+  return Boolean(h && h.kind === 'Public');
+};
 
 /** The holiday falling on a given date, if any. */
 export const resolveHoliday = (policy: any, dateIso: string): PublicHoliday | undefined =>
