@@ -1,4 +1,5 @@
 import React from 'react';
+import { EssAttendanceCalendar } from './EssAttendanceCalendar';
 import {
   CalendarCheck,
   FileText,
@@ -487,6 +488,9 @@ export function EssPersonalOverview({
           </div>
         </div>
       </section>
+
+      {/* ------------------------------------------------- attendance calendar */}
+      <EssAttendanceCalendar attendance={attendance} leaves={leaves} policy={policy} />
 
       {/* --------------------------------------------------------- action hub */}
       <section className="sh-card">
