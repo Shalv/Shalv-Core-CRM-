@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useCrm } from '../../context/CrmContext';
 import { PaymentMode, PaymentStage, Invoice } from '../../types';
-import { roundRupees } from '../../shared/integrity';
+import { money } from '../../shared/integrity';
 import { confirmSave, confirmDelete } from '../../shared/confirm';
 import {
   CreditCard,
@@ -302,8 +302,8 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
     let receipt;
     try {
       receipt = recordPayment({
-        // Round off decimals here too, so what is confirmed is exactly what is stored.
-        amount: roundRupees(paymentAmount),
+        // Keep the decimals, tidied to two places, so what is confirmed is exactly what is stored.
+        amount: money(paymentAmount),
         customerId: selectedCustomerId,
         salesOrderId: selectedOrderId || undefined,
         invoiceId: selectedInvoiceId || undefined,
@@ -890,16 +890,16 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                   <label className="font-bold text-slate-700 block mb-1">
                     Payment Amount (₹) *
                   </label>
-                  {/* Round off on blur so a typed decimal (100.50) becomes 101 before it is saved —
-                      the amount is recorded in whole rupees. */}
+                  {/* Decimals are allowed: step is 0.01 so the browser accepts paise, and the value is
+                      only tidied to two decimal places on blur — never forced to a whole rupee. */}
                   <input
                     type="number"
-                    min="1"
-                    step="1"
+                    min="0.01"
+                    step="0.01"
                     required
                     value={paymentAmount}
                     onChange={(e) => setPaymentAmount(Number(e.target.value))}
-                    onBlur={() => setPaymentAmount(roundRupees(paymentAmount))}
+                    onBlur={() => setPaymentAmount(money(paymentAmount))}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-mono font-bold text-slate-900"
                   />
                 </div>
