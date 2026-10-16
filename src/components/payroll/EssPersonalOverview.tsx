@@ -47,6 +47,8 @@ import {
   Home,
   Building2,
   Briefcase,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react';
 
 /**
@@ -83,7 +85,31 @@ export interface EssPersonalOverviewProps {
   payrollRuns?: any[];
   /** The employee's salary master — the salary structure the actual pay is calculated from. */
   salaryMaster?: any;
+  /** The employee's own punch regularizations — shown with their live approval status. */
+  regularization?: any[];
+  /** The employee's own shift swaps — shown with their live approval status. */
+  swaps?: any[];
+  /** The employee's own help desk tickets — shown with their live status. */
+  tickets?: any[];
 }
+
+/** Map every request status onto one of four employee-facing states. */
+export const REQUEST_TONE: Record<string, 'pending' | 'approved' | 'rejected' | 'neutral'> = {
+  'Pending Approval': 'pending',
+  'Under Verification': 'pending',
+  Pending: 'pending',
+  Open: 'pending',
+  'In Progress': 'pending',
+  Escalated: 'pending',
+  Approved: 'approved',
+  'Approved & Queued for Payroll': 'approved',
+  Resolved: 'approved',
+  'Paid in Payslip': 'approved',
+  Rejected: 'rejected',
+  Cancelled: 'neutral',
+  Closed: 'neutral',
+  'Unauthorized Absence (LOP)': 'rejected',
+};
 
 const WORK_MODES: { id: 'Office HQ' | 'Work From Home' | 'Client Site Visit'; label: string; icon: React.ReactNode }[] = [
   { id: 'Office HQ', label: 'Office HQ', icon: <Building2 className="w-3.5 h-3.5" /> },
@@ -136,7 +162,17 @@ export function EssPersonalOverview({
   officeLabel,
   payrollRuns,
   salaryMaster,
+  regularization,
+  swaps,
+  tickets,
 }: EssPersonalOverviewProps) {
+  // ---- isolation --------------------------------------------------------------
+  // This is a personal view: keep ONLY the signed-in employee's own leave and claim records, so
+  // nothing another employee submitted can ever render here — whatever the caller passes in.
+  const selfId = employee?.userId || employee?.id;
+  const myLeaves = (leaves || []).filter((l: any) => l?.employeeId === selfId);
+  const myClaims = (claims || []).filter((c: any) => c?.employeeId === selfId);
+
   const name = employee?.name || 'Employee';
   const empCode = employee?.empCode || employee?.userId || '—';
   const designation = employee?.designation || employee?.role || '—';
@@ -183,14 +219,14 @@ export function EssPersonalOverview({
         master: salaryMaster,
         policy: policy as AdminPolicyMaster,
         attendance,
-        leaves,
-        claims: claims || [],
+        leaves: myLeaves,
+        claims: myClaims,
         loansOverride: loans,
       });
     } catch {
       return null;
     }
-  }, [salaryMaster, monthKey, policy, attendance, leaves, claims, loans]);
+  }, [salaryMaster, monthKey, policy, attendance, myLeaves, myClaims, loans]);
   const prorated = payrollBreakdown
     ? proratePayrollToDate(payrollBreakdown, monthProgress.fraction)
     : null;
@@ -219,8 +255,55 @@ export function EssPersonalOverview({
   const deductionPct = payableBase > 0 ? Math.round((deductions / payableBase) * 100) : 0;
   const actualLopDays = payrollBreakdown ? payrollBreakdown.lopDays : lopDays;
 
+  // ---- my requests ------------------------------------------------------------
+  // Everything this employee has submitted, with its LIVE status — so the moment an admin
+  // approves or rejects it on their dashboard, the decision shows up here.
+  const myRequests = [
+    ...myLeaves.map((l: any) => ({
+      id: l.id,
+      kind: 'Leave',
+      detail: `${l.leaveType || 'Leave'} · ${l.days}d · ${l.startDate || ''}`,
+      status: String(l.status || 'Pending Approval'),
+      at: l.appliedOn || l.startDate || '',
+    })),
+    ...myClaims.map((c: any) => ({
+      id: c.id,
+      kind: 'Expense claim',
+      detail: `${c.category || 'Expense'} · ${formatCurrency(Number(c.amount) || 0)}`,
+      status: String(c.status || 'Under Verification'),
+      at: c.expenseDate || '',
+    })),
+    ...(regularization || []).map((r: any) => ({
+      id: r.id,
+      kind: 'Punch regularization',
+      detail: `${r.type || 'Request'} · ${r.date || ''}`,
+      status: String(r.status || 'Pending'),
+      at: r.date || '',
+    })),
+    ...(swaps || []).map((s: any) => ({
+      id: s.id,
+      kind: 'Shift swap',
+      detail: `Swap · ${s.date || ''}`,
+      status: String(s.status || 'Pending'),
+      at: s.date || '',
+    })),
+    ...(tickets || []).map((t: any) => ({
+      id: t.id,
+      kind: 'Help desk',
+      detail: `${t.category || 'Ticket'} · ${t.subject || ''}`.trim(),
+      status: String(t.status || 'Open'),
+      at: String(t.raisedAt || '').slice(0, 10),
+    })),
+  ]
+    .sort((a, b) => (String(a.at) < String(b.at) ? 1 : -1))
+    .slice(0, 8);
+
+  const requestTone = (status: string) => REQUEST_TONE[status] || 'neutral';
+  const pendingCount = myRequests.filter((r) => requestTone(r.status) === 'pending').length;
+  const approvedCount = myRequests.filter((r) => requestTone(r.status) === 'approved').length;
+
   // ---- leave -----------------------------------------------------------------
-  const approvedLeaves = leaves.filter(isApproved);
+  const approvedLeaves = myLeaves.filter(isApproved);
   const takenBy = (type: string) =>
     approvedLeaves.filter((l) => l?.leaveType === type).reduce((s, l) => s + leaveDays(l), 0);
   const graceLimit = Number(policy?.graceLimitPerMonth ?? 3) || 0;
@@ -234,7 +317,7 @@ export function EssPersonalOverview({
   const workingSaturdays = policy?.workingSaturdays || '1st, 3rd & 5th working; 2nd & 4th off';
 
   // ---- claims ----------------------------------------------------------------
-  const myClaims = claims || [];
+  // myClaims is scoped to the signed-in employee at the top of the component.
   const approvedClaims = myClaims.filter((c: any) => String(c?.status ?? '').toLowerCase() === 'approved');
   const inReviewClaims = myClaims.filter((c: any) => {
     const s = String(c?.status ?? '').toLowerCase();
@@ -484,7 +567,7 @@ export function EssPersonalOverview({
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2">
           {/* Attendance calendar — punches, leave, holidays and week offs, day by day */}
-          <EssAttendanceCalendar attendance={attendance} leaves={leaves} policy={policy} />
+          <EssAttendanceCalendar attendance={attendance} leaves={myLeaves} policy={policy} />
         </div>
 
         <div className="ess-card">
@@ -835,6 +918,81 @@ export function EssPersonalOverview({
               </div>
             )}
           </div>
+        </div>
+      </section>
+
+      {/* ---------------------------------------------------------- my requests */}
+      <section className="ess-card">
+        <div className="sh-card-header">
+          <div className="flex items-center gap-2.5">
+            <span className="ess-clipart ess-clipart-sm"><ClipartClaim size={32} /></span>
+            <div>
+              <h3 className="sh-card-title">My requests</h3>
+              <p className="text-[11.5px] text-slate-500">
+                Everything you have submitted, with its live approval status
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="sh-badge sh-badge-warning">{pendingCount} awaiting approval</span>
+            <span className="sh-badge sh-badge-success">{approvedCount} approved</span>
+          </div>
+        </div>
+        <div className="sh-card-body">
+          {myRequests.length > 0 ? (
+            myRequests.map((r) => {
+              const tone = requestTone(r.status);
+              return (
+                <div key={`${r.kind}-${r.id}`} className="ess-row">
+                  <span
+                    className="ess-avatar"
+                    style={{
+                      background:
+                        tone === 'approved'
+                          ? '#0f9d58'
+                          : tone === 'rejected'
+                          ? '#d93025'
+                          : tone === 'pending'
+                          ? '#f5b942'
+                          : '#8a94a6',
+                    }}
+                  >
+                    {tone === 'approved' ? (
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                    ) : tone === 'rejected' ? (
+                      <XCircle className="w-3.5 h-3.5" />
+                    ) : (
+                      <Clock className="w-3.5 h-3.5" />
+                    )}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[12.5px] font-semibold text-slate-800 truncate">
+                      {r.kind} · {r.id}
+                    </div>
+                    <div className="text-[11px] text-slate-500 truncate">{r.detail}</div>
+                  </div>
+                  <span
+                    className={`sh-badge ${
+                      tone === 'approved'
+                        ? 'sh-badge-success'
+                        : tone === 'rejected'
+                        ? 'sh-badge-danger'
+                        : tone === 'pending'
+                        ? 'sh-badge-warning'
+                        : 'sh-badge-neutral'
+                    }`}
+                  >
+                    {r.status}
+                  </span>
+                </div>
+              );
+            })
+          ) : (
+            <div className="py-8 text-center text-[12px] text-slate-400">
+              You have not submitted any requests yet. Anything you raise — leave, a claim, a
+              regularization or a ticket — will appear here and update as soon as it is decided.
+            </div>
+          )}
         </div>
       </section>
 

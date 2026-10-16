@@ -2243,6 +2243,10 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
       officeLabel={resolvePunchLocation(payrollLocations, activeUserMaster?.locationId).name}
       payrollRuns={payrollRuns}
       salaryMaster={employeeSalaryMasters[currentUser.id] || activeUserMaster}
+      /* The employee's OWN requests only, so an admin decision reflects straight back here. */
+      regularization={regularizationRequests.filter((r) => r.employeeId === currentUser.id)}
+      swaps={shiftSwaps.filter((s) => s.requesterId === currentUser.id)}
+      tickets={helpDeskTickets.filter((t) => t.employeeId === currentUser.id)}
       lopDays={essLopDays}
       payslipMonth={selectedMonthMeta?.label}
       onWorkModeChange={(mode) => setAttendance((prev) => ({ ...prev, workMode: mode }))}
