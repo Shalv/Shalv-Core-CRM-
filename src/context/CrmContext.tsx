@@ -735,6 +735,80 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [userPayrollPermissions]);
 
+  // Server sync for per-user payroll permissions, so they follow the user to any device.
+  // Stored as an array of { userId, permissions } in the durable payroll collections.
+  const payrollPermsHydrated = React.useRef(false);
+  const lastPayrollPermsSync = React.useRef<string>('');
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        let token: string | null = null;
+        try {
+          token = localStorage.getItem('crm_auth_token');
+        } catch {
+          /* ignore */
+        }
+        const res = await fetch('/api/payroll/collections', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const json = await res.json().catch(() => null);
+          const rows = json?.collections?.userPayrollPermissions;
+          if (!cancelled && Array.isArray(rows)) {
+            const map: Record<string, Partial<PayrollPermissionsMap>> = {};
+            for (const r of rows) {
+              if (r && r.userId) map[String(r.userId)] = r.permissions || {};
+            }
+            lastPayrollPermsSync.current = JSON.stringify(map);
+            setUserPayrollPermissions(map);
+          }
+        }
+      } catch {
+        /* offline — keep the local copy */
+      } finally {
+        if (!cancelled) payrollPermsHydrated.current = true;
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!payrollPermsHydrated.current) return;
+    let json = '';
+    try {
+      json = JSON.stringify(userPayrollPermissions);
+    } catch {
+      return;
+    }
+    if (lastPayrollPermsSync.current === json) return;
+    lastPayrollPermsSync.current = json;
+    const rows = Object.entries(userPayrollPermissions).map(([userId, permissions]) => ({ userId, permissions }));
+    (async () => {
+      try {
+        let token: string | null = null;
+        try {
+          token = localStorage.getItem('crm_auth_token');
+        } catch {
+          /* ignore */
+        }
+        await fetch('/api/payroll/collections/userPayrollPermissions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ data: rows }),
+        });
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, [userPayrollPermissions]);
+
   const [payrollRolePermissions, setPayrollRolePermissions] = useState<Record<UserRole, PayrollPermissionsMap>>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.PAYROLL_ROLE_PERMISSIONS);
     if (saved) {
