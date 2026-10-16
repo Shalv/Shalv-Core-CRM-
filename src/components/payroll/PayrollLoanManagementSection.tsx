@@ -1251,7 +1251,7 @@ export const PayrollLoanManagementSection: React.FC<PayrollLoanManagementSection
   };
 
   return (
-    <div className="space-y-4 text-xs">
+    <div className="sh-scope space-y-4 text-xs">
       {/* 8-STEP WORKFLOW ARCHITECTURE HEADER */}
       <div className="bg-slate-900 text-white rounded-xl p-4 border border-slate-800 space-y-3">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">

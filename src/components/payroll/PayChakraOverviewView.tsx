@@ -293,7 +293,7 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
   };
 
   return (
-    <div className="w-full flex-1 overflow-y-auto bg-[#f8fafc] text-slate-800 p-4 sm:p-6 lg:p-8 space-y-6">
+    <div className="sh-scope w-full flex-1 overflow-y-auto bg-[#f8fafc] text-slate-800 p-4 sm:p-6 lg:p-8 space-y-6">
       {/* 1. TOP PAGE HEADER BAR: Title, Shift Status, Punch, Workspace, Run Payroll */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

@@ -256,7 +256,7 @@ export const PayrollMonthlyAttendanceSection: React.FC<Props> = ({
   const pct = totals.working ? Math.round((totals.attended / totals.working) * 100) : 0;
 
   return (
-    <section className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+    <section className="sh-scope bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
       <div className="p-4 border-b border-slate-200 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">

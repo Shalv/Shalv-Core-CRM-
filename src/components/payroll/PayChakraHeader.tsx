@@ -102,7 +102,7 @@ export const PayChakraHeader: React.FC<PayChakraHeaderProps> = ({
   }, [currentUser?.name]);
 
   return (
-    <header className="w-full shrink-0 select-none z-30 sticky top-0">
+    <header className="sh-scope w-full shrink-0 select-none z-30 sticky top-0">
       {/* 1. TOP NAVY BRAND & GLOBAL UTILITY BAR */}
       <div className="w-full bg-[#0d1829] text-white px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4 border-b border-slate-800">
         {/* Left: Brand Logo & Wordmark */}

@@ -252,7 +252,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-xl border-b border-slate-200/80 px-3 sm:px-6 py-2.5 shadow-[0_8px_24px_-22px_rgba(15,23,42,0.5)]">
+      <header className="sh-scope sh-topbar sticky top-0 z-30 bg-white/90 border-b border-slate-200/80 px-3 sm:px-6 py-2.5">
       <div className="flex items-center justify-between gap-2 sm:gap-4 min-w-0">
         {/* Show compact menu icon button only when sidebar is hidden/closed */}
         {onToggleSidebar && !isSidebarOpen && (

@@ -1,6 +1,7 @@
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import './smarthr.css';
 
 // Tier 1 Google Maps Platform Quota & Auth Failure Listener
 let gmpQuotaEventDispatched = false;
