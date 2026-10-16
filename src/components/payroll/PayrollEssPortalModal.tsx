@@ -83,6 +83,7 @@ import {
   reconcileMonthlyLoanDeductions,
   forgetDeletedPayrollMasterIds,
 } from './payrollTypes';
+import { checkGeofence, formatDistance, localIsoDate, localTimeString } from '../../shared/geo';
 import { PayrollAdminMasterSection } from './PayrollAdminMasterSection';
 import { PayrollAdminDashboardReportSection } from './PayrollAdminDashboardReportSection';
 import { PayrollReportsSection } from './PayrollReportsSection';
@@ -745,7 +746,9 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
   const storagePrefix = activeEmployee ? `crm_ess_${activeEmployee.id}` : '';
 
   // 1. Attendance State & Google Maps Location State
-  const todayIso = new Date().toISOString().split('T')[0];
+  // Local calendar date (NOT toISOString(), which returns the UTC date — the previous
+  // day for early-morning punches in IST).
+  const todayIso = localIsoDate();
   const [attendance, setAttendance] = useState<AttendanceSession>(() => {
     try {
       const saved = localStorage.getItem(`${storagePrefix}_attendance`);
@@ -1303,116 +1306,77 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Fetch verified location from Browser GPS -> Reverse Geocoding API -> Live Network Geolocation -> Corporate Hub Geocoding
-  const fetchGoogleLocationForPunch = async (
-    _allowConsentedGeocodeFallback: boolean
-  ): Promise<{ location: GooglePunchLocation | null; permissionDenied: boolean }> => {
-    const nowTime = new Date().toLocaleTimeString('en-IN', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  // Fetch the device's genuine GPS fix for a punch. We deliberately do NOT fall back
+  // to IP geolocation or to the office address: a punch must record where the employee
+  // actually is, otherwise the office geofence check below is meaningless.
+  const fetchGoogleLocationForPunch = async (): Promise<{
+    location: GooglePunchLocation | null;
+    permissionDenied: boolean;
+    reason: 'OK' | 'UNSUPPORTED' | 'DENIED' | 'UNAVAILABLE';
+  }> => {
+    const nowTime = localTimeString();
 
-    // 1. Attempt live browser Geolocation first (high accuracy, then standard accuracy fallback)
     const getBrowserCoords = (): Promise<{
       coords: GeolocationCoordinates | null;
-      permissionDenied: boolean;
+      reason: 'OK' | 'UNSUPPORTED' | 'DENIED' | 'UNAVAILABLE';
     }> =>
       new Promise((resolve) => {
         if (typeof navigator === 'undefined' || !navigator.geolocation) {
-          resolve({ coords: null, permissionDenied: true });
+          resolve({ coords: null, reason: 'UNSUPPORTED' });
           return;
         }
         navigator.geolocation.getCurrentPosition(
-          (pos) => resolve({ coords: pos.coords, permissionDenied: false }),
+          (pos) => resolve({ coords: pos.coords, reason: 'OK' }),
           (err) => {
             if (err.code === err.PERMISSION_DENIED || err.code === 1) {
-              resolve({ coords: null, permissionDenied: true });
+              resolve({ coords: null, reason: 'DENIED' });
               return;
             }
-            // Retry with standard accuracy if high accuracy timed out on desktop/laptop
+            // One retry at standard accuracy — high-accuracy often times out on laptops.
             navigator.geolocation.getCurrentPosition(
-              (pos2) => resolve({ coords: pos2.coords, permissionDenied: false }),
+              (pos2) => resolve({ coords: pos2.coords, reason: 'OK' }),
               (err2) => {
                 const denied = err2.code === err2.PERMISSION_DENIED || err2.code === 1;
-                resolve({ coords: null, permissionDenied: denied });
+                resolve({ coords: null, reason: denied ? 'DENIED' : 'UNAVAILABLE' });
               },
-              { enableHighAccuracy: false, timeout: 4000, maximumAge: 300000 }
+              { enableHighAccuracy: false, timeout: 6000, maximumAge: 0 }
             );
           },
-          { enableHighAccuracy: true, timeout: 4500, maximumAge: 60000 }
+          { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
         );
       });
 
-    const { coords } = await getBrowserCoords();
-
-    if (coords) {
-      let resolvedAddress = '';
-      let resolvedPlaceId = '';
-      let resolvedPlusCode = '';
-
-      try {
-        const res = await fetch(
-          `/api/maps/reverse-geocode?lat=${coords.latitude}&lng=${coords.longitude}`
-        );
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.formattedAddress) {
-            resolvedAddress = data.formattedAddress;
-            resolvedPlaceId = data.placeId || '';
-            resolvedPlusCode = data.plusCode || '';
-          }
-        }
-      } catch {
-        // Continue to client-side reverse geocode fallback
-      }
-
-      if (!resolvedAddress || resolvedAddress.startsWith('Verified GPS Coordinates')) {
-        try {
-          const bdcRes = await fetch(
-            `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${coords.latitude}&longitude=${coords.longitude}&localityLanguage=en`
-          );
-          if (bdcRes.ok) {
-            const bdc = await bdcRes.json();
-            const parts = [
-              bdc.locality,
-              bdc.city && bdc.city !== bdc.locality ? bdc.city : '',
-              bdc.principalSubdivision,
-              bdc.postcode,
-              bdc.countryName,
-            ].filter(Boolean);
-            if (parts.length > 0) {
-              resolvedAddress = parts.join(', ');
-            }
-          }
-        } catch {
-          // ignore
-        }
-      }
-
-      return {
-        location: {
-          lat: coords.latitude,
-          lng: coords.longitude,
-          formattedAddress:
-            resolvedAddress ||
-            `GPS Coordinates (${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)})`,
-          placeId: resolvedPlaceId,
-          plusCode: resolvedPlusCode,
-          accuracyMeters: Math.round(coords.accuracy || 15),
-          fetchedAt: nowTime,
-        },
-        permissionDenied: false,
-      };
+    const { coords, reason } = await getBrowserCoords();
+    if (!coords) {
+      return { location: null, permissionDenied: reason === 'DENIED', reason };
     }
 
-    // 2. If browser GPS is restricted (e.g. iframe permissions policy or desktop without GPS), try live client network geolocation
+    // Reverse-geocode purely for a human-readable address; the coordinates stay the raw GPS fix.
+    let resolvedAddress = '';
+    let resolvedPlaceId = '';
+    let resolvedPlusCode = '';
     try {
-      const bdcRes = await fetch(
-        'https://api.bigdatacloud.net/data/reverse-geocode-client?localityLanguage=en'
+      const res = await fetch(
+        `/api/maps/reverse-geocode?lat=${coords.latitude}&lng=${coords.longitude}`
       );
-      if (bdcRes.ok) {
-        const bdc = await bdcRes.json();
-        if (typeof bdc?.latitude === 'number' && typeof bdc?.longitude === 'number') {
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.formattedAddress) {
+          resolvedAddress = data.formattedAddress;
+          resolvedPlaceId = data.placeId || '';
+          resolvedPlusCode = data.plusCode || '';
+        }
+      }
+    } catch {
+      // cosmetic only — ignore
+    }
+    if (!resolvedAddress) {
+      try {
+        const bdcRes = await fetch(
+          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${coords.latitude}&longitude=${coords.longitude}&localityLanguage=en`
+        );
+        if (bdcRes.ok) {
+          const bdc = await bdcRes.json();
           const parts = [
             bdc.locality,
             bdc.city && bdc.city !== bdc.locality ? bdc.city : '',
@@ -1420,69 +1384,71 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
             bdc.postcode,
             bdc.countryName,
           ].filter(Boolean);
-          return {
-            location: {
-              lat: bdc.latitude,
-              lng: bdc.longitude,
-              formattedAddress:
-                parts.length > 0
-                  ? parts.join(', ')
-                  : `${activeEmployee?.location || supplierCompany?.city || 'Mumbai'}, India`,
-              placeId: '',
-              plusCode: '',
-              accuracyMeters: 25,
-              fetchedAt: nowTime,
-            },
-            permissionDenied: false,
-          };
+          if (parts.length > 0) resolvedAddress = parts.join(', ');
         }
+      } catch {
+        // ignore
       }
-    } catch {
-      // Fall through to server geocode
     }
 
-    // 3. Fallback to server geocoding for the employee's work mode / office location
-    const fallbackQuery =
-      attendance.workMode === 'Client Site Visit'
-        ? `${customers[0]?.addresses?.[0]?.city || activeEmployee?.location || 'New Delhi'}, India`
-        : `${activeEmployee?.location || supplierCompany?.city || 'Mumbai'}, India`;
+    return {
+      location: {
+        lat: coords.latitude,
+        lng: coords.longitude,
+        formattedAddress:
+          resolvedAddress ||
+          `GPS Coordinates (${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)})`,
+        placeId: resolvedPlaceId,
+        plusCode: resolvedPlusCode,
+        accuracyMeters: Math.round(coords.accuracy || 15),
+        fetchedAt: nowTime,
+        source: 'gps',
+      },
+      permissionDenied: false,
+      reason: 'OK',
+    };
+  };
 
+  // Resolve the office geofence centre: explicit policy coordinates win, otherwise geocode
+  // the configured office / company address once and cache it in localStorage.
+  const resolveOfficeCentre = async (): Promise<{ lat: number; lng: number } | null> => {
+    const p = adminPolicyMaster;
+    if (typeof p?.officeLat === 'number' && typeof p?.officeLng === 'number') {
+      return { lat: p.officeLat, lng: p.officeLng };
+    }
     try {
-      const res = await fetch(`/api/maps/geocode?address=${encodeURIComponent(fallbackQuery)}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (typeof data?.lat === 'number' && typeof data?.lng === 'number') {
-          return {
-            location: {
-              lat: data.lat,
-              lng: data.lng,
-              formattedAddress: data.formattedAddress || fallbackQuery,
-              placeId: data.placeId || '',
-              plusCode: data.plusCode || '',
-              accuracyMeters: 20,
-              fetchedAt: nowTime,
-            },
-            permissionDenied: false,
-          };
-        }
+      const cached = localStorage.getItem('crm_office_geofence_centre');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (typeof parsed?.lat === 'number' && typeof parsed?.lng === 'number') return parsed;
       }
     } catch {
       // ignore
     }
-
-    // 4. Guaranteed corporate hub coordinates fallback so Punch In / Out never gets stuck
-    return {
-      location: {
-        lat: 18.9256,
-        lng: 72.8242,
-        formattedAddress: `${fallbackQuery} (Verified Work Location)`,
-        placeId: '',
-        plusCode: '',
-        accuracyMeters: 25,
-        fetchedAt: nowTime,
-      },
-      permissionDenied: false,
-    };
+    const query =
+      p?.officeAddress ||
+      [supplierCompany?.address, supplierCompany?.city, supplierCompany?.state, 'India']
+        .filter(Boolean)
+        .join(', ');
+    if (!query) return null;
+    try {
+      const res = await fetch(`/api/maps/geocode?address=${encodeURIComponent(query)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (typeof data?.lat === 'number' && typeof data?.lng === 'number') {
+          const centre = { lat: data.lat, lng: data.lng };
+          try {
+            localStorage.setItem('crm_office_geofence_centre', JSON.stringify(centre));
+          } catch {
+            // ignore
+          }
+          return centre;
+        }
+      }
+    } catch {
+      // geofence simply stays unconfigured
+    }
+    return null;
   };
 
   const executePunchWithGoogleLocation = (
@@ -1534,8 +1500,8 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
       const evalResult = evaluateAttendancePolicy({
         punchInTime: attendance.punchInTime || adminPolicyMaster.shiftStartTime || '09:30 AM',
         punchOutTime: nowTime,
-        priorGraceUsed: Math.max(0, (attendance.graceUsedThisMonth || 1) - 1),
-        priorLateCount: Math.max(0, (attendance.lateCountThisMonth || 1) - 1),
+        priorGraceUsed: attendance.graceUsedThisMonth || 0,
+        priorLateCount: attendance.lateCountThisMonth || 0,
         hasPriorApproval: attendance.hasPriorApproval || false,
         managementAuthorizedEarly: attendance.managementAuthorizedEarly || false,
         breakDurationMins: attendance.breakDurationMins || 45,
@@ -1559,48 +1525,112 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
   };
 
   const handleTogglePunch = async () => {
+    // State-machine guards: never punch out without a punch-in, and never re-punch-in
+    // once today's attendance is already complete.
+    if (!attendance.punchedIn && attendance.punchInTime && attendance.punchOutTime) {
+      setStatusBanner(
+        'You have already punched out for today — this day\'s attendance is complete.'
+      );
+      return;
+    }
+    if (attendance.punchedIn && !attendance.punchInTime) {
+      setAttendance((prev) => ({ ...prev, punchedIn: false }));
+      setStatusBanner('Attendance session was incomplete and has been reset. Please punch in again.');
+      return;
+    }
+
     const nextAction: 'PUNCH_IN' | 'PUNCH_OUT' = attendance.punchedIn ? 'PUNCH_OUT' : 'PUNCH_IN';
 
     setIsFetchingLocation(true);
-    const { location, permissionDenied } = await fetchGoogleLocationForPunch(false);
+    const { location, reason } = await fetchGoogleLocationForPunch();
     setIsFetchingLocation(false);
 
-    // If location is OFF or denied/unavailable: DO NOT record attendance, and show persistent alert message until location is turned ON
-    if (!location || permissionDenied) {
+    if (!location) {
       setAttendance((prev) => ({ ...prev, locationSharingEnabled: false }));
+      const why =
+        reason === 'DENIED'
+          ? 'Location permission was denied.'
+          : reason === 'UNSUPPORTED'
+          ? 'This device or browser does not support location.'
+          : 'Your device could not obtain a GPS fix.';
       setLocationSharePromptReason(
-        `Your location is currently OFF. Attendance cannot be recorded while location is off. Please turn on location services to ${
+        `${why} Attendance is only recorded with a verified GPS location, so nothing was saved. Please enable location and try again to ${
           nextAction === 'PUNCH_IN' ? 'Punch In' : 'Punch Out'
-        } with Google Maps coordinates.`
+        }.`
       );
       setLocationOffAlertAction(nextAction);
       setIsLocationOffModalOpen(true);
       return;
     }
 
-    // Location is ON: clear any location-off alert and record attendance with Google coordinates
+    // Geofence validation — Office-HQ punches must fall inside the office radius.
+    const radius = adminPolicyMaster?.geofenceRadiusMeters ?? 300;
+    const centre = await resolveOfficeCentre();
+    const fence = checkGeofence(location.lat, location.lng, centre, radius);
+    if (fence) {
+      location.distanceMeters = fence.distanceMeters;
+      location.withinGeofence = fence.within;
+    }
+
+    const isOfficeMode = attendance.workMode === 'Office HQ';
+    if (
+      isOfficeMode &&
+      fence &&
+      !fence.within &&
+      !adminPolicyMaster?.allowOutOfGeofencePunch
+    ) {
+      setStatusBanner(
+        `Punch ${nextAction === 'PUNCH_IN' ? 'In' : 'Out'} blocked: you are ${formatDistance(
+          fence.distanceMeters
+        )} from the office (allowed radius ${formatDistance(
+          fence.radiusMeters
+        )}). Please move within the office premises, or change your work mode.`
+      );
+      return;
+    }
+
     setLocationOffAlertAction(null);
     setIsLocationOffModalOpen(false);
     executePunchWithGoogleLocation(nextAction, location);
   };
 
   const handleConfirmShareLocationAndPunch = async () => {
-    const actionToRun =
-      locationOffAlertAction || (attendance.punchedIn ? 'PUNCH_OUT' : 'PUNCH_IN');
+    const actionToRun = locationOffAlertAction || (attendance.punchedIn ? 'PUNCH_OUT' : 'PUNCH_IN');
     setIsFetchingLocation(true);
-    const { location } = await fetchGoogleLocationForPunch(true);
+    const { location } = await fetchGoogleLocationForPunch();
     setIsFetchingLocation(false);
 
-    if (location) {
-      // Location has been turned ON and Google coordinates fetched -> clear alert and record attendance
-      setLocationOffAlertAction(null);
-      setIsLocationOffModalOpen(false);
-      executePunchWithGoogleLocation(actionToRun, location);
-    } else {
+    if (!location) {
       setStatusBanner(
-        'Alert: Location is still OFF. Attendance was NOT recorded. Please enable location permissions and try again.'
+        'Location is still unavailable. Attendance was NOT recorded. Please enable location permissions and try again.'
       );
+      return;
     }
+
+    const radius = adminPolicyMaster?.geofenceRadiusMeters ?? 300;
+    const centre = await resolveOfficeCentre();
+    const fence = checkGeofence(location.lat, location.lng, centre, radius);
+    if (fence) {
+      location.distanceMeters = fence.distanceMeters;
+      location.withinGeofence = fence.within;
+    }
+    if (
+      attendance.workMode === 'Office HQ' &&
+      fence &&
+      !fence.within &&
+      !adminPolicyMaster?.allowOutOfGeofencePunch
+    ) {
+      setStatusBanner(
+        `Punch blocked: you are ${formatDistance(fence.distanceMeters)} from the office (allowed radius ${formatDistance(
+          fence.radiusMeters
+        )}).`
+      );
+      return;
+    }
+
+    setLocationOffAlertAction(null);
+    setIsLocationOffModalOpen(false);
+    executePunchWithGoogleLocation(actionToRun, location);
   };
 
   const handleApplyLeave = (e: React.FormEvent) => {

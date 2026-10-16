@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { localIsoDate } from '../../shared/geo';
 import { CalendarDays, ChevronLeft, ChevronRight, Download, Search, X } from 'lucide-react';
 import {
   AdminPolicyMaster,
@@ -92,7 +93,7 @@ export const PayrollMonthlyAttendanceSection: React.FC<Props> = ({
   onChanged,
   setStatusBanner,
 }) => {
-  const todayIso = new Date().toISOString().split('T')[0];
+  const todayIso = localIsoDate();
   const [monthKey, setMonthKey] = useState<string>(todayIso.slice(0, 7));
   const [search, setSearch] = useState('');
   const [dept, setDept] = useState('ALL');
