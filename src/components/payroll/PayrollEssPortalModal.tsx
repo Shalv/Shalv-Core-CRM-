@@ -125,6 +125,7 @@ import { PayrollShiftRosterSection } from './PayrollShiftRosterSection';
 import { PayrollHelpDeskSection } from './PayrollHelpDeskSection';
 import { PayrollProcessingSection } from './PayrollProcessingSection';
 import { PayrollLifecycleSection } from './PayrollLifecycleSection';
+import { PayrollAuditTrailSection } from './PayrollAuditTrailSection';
 import {
   fetchPayrollCollections,
   pushPayrollCollection,
@@ -346,6 +347,23 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
   useCollectionSync('helpdesk', helpDeskTickets, collectionsHydrated, lastSyncedRef);
   useCollectionSync('runs', payrollRuns, collectionsHydrated, lastSyncedRef);
   useCollectionSync('lifecycle', lifecycleEvents, collectionsHydrated, lastSyncedRef);
+
+  // ---- Header sub-navigation focus -------------------------------------------------
+  // Every header tab and dropdown option lands on the section it names, rather than
+  // all of them opening the first section of the same screen.
+  const [adminFocusSection, setAdminFocusSection] = useState<string | undefined>(undefined);
+  const [adminFocusNonce, setAdminFocusNonce] = useState(0);
+  const [adminOpenCreate, setAdminOpenCreate] = useState(false);
+  const [sectionAnchor, setSectionAnchor] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!sectionAnchor) return;
+    const t = window.setTimeout(() => {
+      const el = document.getElementById(sectionAnchor);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 140);
+    return () => window.clearTimeout(t);
+  }, [sectionAnchor, adminFocusNonce, payChakraTab]);
 
   const [adminPolicyMaster, setAdminPolicyMaster] = useState<AdminPolicyMaster>(() =>
     loadAdminPolicyMaster()
@@ -2079,14 +2097,36 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
           activeTab={payChakraTab}
           onSelectTab={(tab, sub) => {
             setPayChakraTab(tab);
+            setAdminOpenCreate(false);
+            setSectionAnchor(null);
+            const focusAdmin = (section: string, openCreate = false) => {
+              setActiveTab('admin_master');
+              setAdminFocusSection(section);
+              setAdminFocusNonce((n) => n + 1);
+              setAdminOpenCreate(openCreate);
+            };
             if (tab === 'overview') setActiveTab('overview');
-            else if (tab === 'employees') setActiveTab('admin_master');
+            else if (tab === 'employees') {
+              if (sub === 'org_structure') focusAdmin('org_masters');
+              else if (sub === 'add_employee') focusAdmin('salary_master', true);
+              else focusAdmin('salary_master');
+            }
             else if (tab === 'attendance') setActiveTab('admin_dashboard');
             else if (tab === 'leaves') setActiveTab('leaves');
-            else if (tab === 'payroll') setActiveTab(sub === 'loans' ? 'loans' : sub === 'tax' ? 'tax' : 'payslips');
+            else if (tab === 'payroll') {
+              if (sub === 'loans') setActiveTab('loans');
+              else if (sub === 'tax') setActiveTab('tax');
+              else if (sub === 'run_payroll') { setActiveTab('admin_master'); setSectionAnchor('payroll-processing'); }
+              else setActiveTab('payslips');
+            }
             else if (tab === 'expenses') setActiveTab('reimbursements');
             else if (tab === 'reports') setActiveTab('reports');
-            else if (tab === 'administration') setActiveTab(sub === 'integrations' ? 'integration' : 'admin_dashboard');
+            else if (tab === 'administration') {
+              if (sub === 'integrations') setActiveTab('integration');
+              else if (sub === 'policies') focusAdmin('policy_master');
+              else if (sub === 'audit') { setActiveTab('admin_master'); setSectionAnchor('payroll-audit-trail'); }
+              else setActiveTab('admin_dashboard');
+            }
             else if (tab === 'profile') setActiveTab('profile');
           }}
           searchQuery={globalPayrollSearch}
@@ -2099,11 +2139,15 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
           }}
           onOpenRunPayroll={() => {
             setPayChakraTab('payroll');
-            setActiveTab('payslips');
+            setActiveTab('admin_master');
+            setSectionAnchor('payroll-processing');
           }}
           onOpenAddEmployee={() => {
             setPayChakraTab('employees');
             setActiveTab('admin_master');
+            setAdminFocusSection('salary_master');
+            setAdminFocusNonce((n) => n + 1);
+            setAdminOpenCreate(true);
           }}
           notificationsCount={3}
         />
@@ -6168,14 +6212,16 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
               onChange={setHelpDeskTickets}
               setStatusBanner={setStatusBanner}
             />
-            <PayrollProcessingSection
-              employees={enrolledEmployees}
-              runs={payrollRuns}
-              onChangeRuns={setPayrollRuns}
-              currentUserName={currentUser.name || 'Administrator'}
-              formatCurrency={formatCurrency}
-              setStatusBanner={setStatusBanner}
-            />
+            <div id="payroll-processing">
+              <PayrollProcessingSection
+                employees={enrolledEmployees}
+                runs={payrollRuns}
+                onChangeRuns={setPayrollRuns}
+                currentUserName={currentUser.name || 'Administrator'}
+                formatCurrency={formatCurrency}
+                setStatusBanner={setStatusBanner}
+              />
+            </div>
             <PayrollLifecycleSection
               mode="admin"
               currentUserId={currentUser.id}
@@ -6192,7 +6238,19 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
               onChange={setLifecycleEvents}
               setStatusBanner={setStatusBanner}
             />
+            <div id="payroll-audit-trail">
+              <PayrollAuditTrailSection
+                runs={payrollRuns}
+                regularization={regularizationRequests}
+                swaps={shiftSwaps}
+                tickets={helpDeskTickets}
+                lifecycle={lifecycleEvents}
+              />
+            </div>
             <PayrollAdminMasterSection
+              focusSection={adminFocusSection}
+              focusNonce={adminFocusNonce}
+              openCreateUser={adminOpenCreate}
               selectedAdminUserId={selectedAdminUserId}
               setSelectedAdminUserId={setSelectedAdminUserId}
               adminPolicyMaster={adminPolicyMaster}
