@@ -88,8 +88,17 @@ import {
   resolvePunchLocation,
   loadRegularizationRequests,
   saveRegularizationRequests,
+  loadShifts,
+  saveShifts,
+  loadShiftAssignments,
+  saveShiftAssignments,
+  loadShiftSwapRequests,
+  saveShiftSwapRequests,
   type PayrollLocation,
   type RegularizationRequest,
+  type ShiftDefinition,
+  type ShiftAssignment,
+  type ShiftSwapRequest,
 } from './payrollTypes';
 import { checkGeofence, formatDistance, localIsoDate, localTimeString } from '../../shared/geo';
 import { PayrollAdminMasterSection } from './PayrollAdminMasterSection';
@@ -103,6 +112,7 @@ import { EssPersonalOverview } from './EssPersonalOverview';
 import { AdminPunchOnBehalf } from './AdminPunchOnBehalf';
 import { PayrollLocationMaster } from './PayrollLocationMaster';
 import { PayrollRegularizationSection } from './PayrollRegularizationSection';
+import { PayrollShiftRosterSection } from './PayrollShiftRosterSection';
 import { PayChakraFooter } from './PayChakraFooter';
 
 export type { EssTabKey };
@@ -237,6 +247,13 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
   useEffect(() => {
     saveRegularizationRequests(regularizationRequests);
   }, [regularizationRequests]);
+
+  const [shifts, setShifts] = useState<ShiftDefinition[]>(() => loadShifts());
+  useEffect(() => { saveShifts(shifts); }, [shifts]);
+  const [shiftAssignments, setShiftAssignments] = useState<ShiftAssignment[]>(() => loadShiftAssignments());
+  useEffect(() => { saveShiftAssignments(shiftAssignments); }, [shiftAssignments]);
+  const [shiftSwaps, setShiftSwaps] = useState<ShiftSwapRequest[]>(() => loadShiftSwapRequests());
+  useEffect(() => { saveShiftSwapRequests(shiftSwaps); }, [shiftSwaps]);
 
   const [adminPolicyMaster, setAdminPolicyMaster] = useState<AdminPolicyMaster>(() =>
     loadAdminPolicyMaster()
@@ -2016,6 +2033,24 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                 }))}
                 requests={regularizationRequests}
                 onChange={setRegularizationRequests}
+                setStatusBanner={setStatusBanner}
+              />
+              <PayrollShiftRosterSection
+                mode="employee"
+                currentUserId={currentUser.id}
+                currentUserName={currentUser.name || 'Employee'}
+                employees={enrolledEmployees.map((m) => ({
+                  userId: m.userId,
+                  name: m.name,
+                  empCode: m.empCode,
+                  department: m.department,
+                }))}
+                shifts={shifts}
+                onChangeShifts={setShifts}
+                assignments={shiftAssignments}
+                onChangeAssignments={setShiftAssignments}
+                swaps={shiftSwaps}
+                onChangeSwaps={setShiftSwaps}
                 setStatusBanner={setStatusBanner}
               />
             </div>
@@ -5977,6 +6012,24 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
               }))}
               requests={regularizationRequests}
               onChange={setRegularizationRequests}
+              setStatusBanner={setStatusBanner}
+            />
+            <PayrollShiftRosterSection
+              mode="admin"
+              currentUserId={currentUser.id}
+              currentUserName={currentUser.name || 'Administrator'}
+              employees={enrolledEmployees.map((m) => ({
+                userId: m.userId,
+                name: m.name,
+                empCode: m.empCode,
+                department: m.department,
+              }))}
+              shifts={shifts}
+              onChangeShifts={setShifts}
+              assignments={shiftAssignments}
+              onChangeAssignments={setShiftAssignments}
+              swaps={shiftSwaps}
+              onChangeSwaps={setShiftSwaps}
               setStatusBanner={setStatusBanner}
             />
             <PayrollAdminMasterSection

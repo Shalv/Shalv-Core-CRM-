@@ -1804,6 +1804,159 @@ export const decideRegularization = (
     };
   });
 
+/* ------------------------------------------------- Shifts, rosters & swaps ----
+ * Shift definitions carry working hours, break, grace and weekly offs. Employees are
+ * allocated a shift (effective-dated) and may request a swap with a colleague, which
+ * an approver decides. Every transition is recorded for audit.
+ * ------------------------------------------------------------------------------ */
+export const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+
+export interface ShiftDefinition {
+  id: string;
+  name: string;
+  code: string;
+  startTime: string;
+  endTime: string;
+  breakMins: number;
+  graceMins: number;
+  /** Weekly off days — 0 = Sunday … 6 = Saturday. */
+  weeklyOffs: number[];
+  /** True when the shift crosses midnight (e.g. 10:00 PM → 06:00 AM). */
+  overnight: boolean;
+  active: boolean;
+}
+
+export const DEFAULT_SHIFTS: ShiftDefinition[] = [
+  {
+    id: 'SHIFT-GEN',
+    name: 'General Shift',
+    code: 'GEN',
+    startTime: '09:30 AM',
+    endTime: '06:00 PM',
+    breakMins: 60,
+    graceMins: 15,
+    weeklyOffs: [0, 6],
+    overnight: false,
+    active: true,
+  },
+  {
+    id: 'SHIFT-MORN',
+    name: 'Morning Shift',
+    code: 'MOR',
+    startTime: '06:00 AM',
+    endTime: '02:00 PM',
+    breakMins: 45,
+    graceMins: 10,
+    weeklyOffs: [0],
+    overnight: false,
+    active: true,
+  },
+  {
+    id: 'SHIFT-NIGHT',
+    name: 'Night Shift',
+    code: 'NGT',
+    startTime: '10:00 PM',
+    endTime: '06:00 AM',
+    breakMins: 45,
+    graceMins: 10,
+    weeklyOffs: [0],
+    overnight: true,
+    active: true,
+  },
+];
+
+export interface ShiftAssignment {
+  employeeId: string;
+  shiftId: string;
+  /** YYYY-MM-DD from which this allocation applies. */
+  effectiveFrom: string;
+}
+
+export interface ShiftSwapRequest {
+  id: string;
+  requesterId: string;
+  requesterName?: string;
+  targetId: string;
+  targetName?: string;
+  /** The day the swap applies to (YYYY-MM-DD). */
+  date: string;
+  reason: string;
+  status: RegularizationStatus;
+  raisedAt: string;
+  decidedBy?: string;
+  decidedAt?: string;
+  decisionRemarks?: string;
+  history?: RegularizationHistoryEntry[];
+}
+
+const SHIFTS_KEY = 'crm_payroll_shifts';
+const SHIFT_ASSIGN_KEY = 'crm_payroll_shift_assignments';
+const SHIFT_SWAP_KEY = 'crm_payroll_shift_swaps';
+
+const loadJson = <T,>(key: string, fallback: T): T => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed as T;
+    }
+  } catch {
+    /* ignore */
+  }
+  return fallback;
+};
+const saveJson = (key: string, value: unknown): void => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* ignore */
+  }
+};
+
+export const loadShifts = (): ShiftDefinition[] => loadJson(SHIFTS_KEY, DEFAULT_SHIFTS.map((s) => ({ ...s })));
+export const saveShifts = (list: ShiftDefinition[]): void => saveJson(SHIFTS_KEY, list);
+export const loadShiftAssignments = (): ShiftAssignment[] => loadJson<ShiftAssignment[]>(SHIFT_ASSIGN_KEY, []);
+export const saveShiftAssignments = (list: ShiftAssignment[]): void => saveJson(SHIFT_ASSIGN_KEY, list);
+export const loadShiftSwapRequests = (): ShiftSwapRequest[] => loadJson<ShiftSwapRequest[]>(SHIFT_SWAP_KEY, []);
+export const saveShiftSwapRequests = (list: ShiftSwapRequest[]): void => saveJson(SHIFT_SWAP_KEY, list);
+
+/** The shift allocated to an employee (latest effective allocation), or the default. */
+export const resolveEmployeeShift = (
+  shifts: ShiftDefinition[],
+  assignments: ShiftAssignment[],
+  employeeId: string
+): ShiftDefinition => {
+  const mine = assignments
+    .filter((a) => a.employeeId === employeeId)
+    .sort((a, b) => (a.effectiveFrom < b.effectiveFrom ? 1 : -1));
+  const assigned = mine.length ? shifts.find((s) => s.id === mine[0].shiftId) : undefined;
+  return assigned || shifts.find((s) => s.active) || DEFAULT_SHIFTS[0];
+};
+
+/** Approve/reject a swap request, recording the transition on its history. */
+export const decideShiftSwap = (
+  list: ShiftSwapRequest[],
+  id: string,
+  decision: RegularizationStatus,
+  by: string,
+  remarks?: string
+): ShiftSwapRequest[] =>
+  list.map((r) => {
+    if (r.id !== id) return r;
+    const at = new Date().toISOString();
+    return {
+      ...r,
+      status: decision,
+      decidedBy: by,
+      decidedAt: at,
+      decisionRemarks: remarks || r.decisionRemarks,
+      history: [
+        ...(r.history || []),
+        { at, by, action: `Status → ${decision}`, from: r.status, to: decision },
+      ],
+    };
+  });
+
 export const DEFAULT_ADMIN_POLICY_MASTER: AdminPolicyMaster = {
   policyCode: 'CS-HR-POL-001',
   policyVersion: '1.0',
