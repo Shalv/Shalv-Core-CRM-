@@ -1933,6 +1933,8 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
       leaves={leaves}
       claims={claims}
       formatCurrency={formatCurrency}
+      isFetchingLocation={isFetchingLocation}
+      onPunch={handleTogglePunch}
       onNavigate={(tab) => {
         if (tab === 'payslips') { setPayChakraTab('payroll'); setActiveTab('payslips'); }
         else if (tab === 'leaves') { setPayChakraTab('leaves'); setActiveTab('leaves'); }

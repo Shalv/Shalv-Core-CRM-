@@ -7,6 +7,10 @@ import {
   Wallet,
   ArrowUpRight,
   ShieldCheck,
+  LogIn,
+  LogOut,
+  MapPin,
+  Loader2,
 } from 'lucide-react';
 import { StatTile } from '../ui/StatTile';
 
@@ -23,6 +27,9 @@ export interface EssPersonalOverviewProps {
   claims?: any[];
   onNavigate?: (tab: 'payslips' | 'leaves' | 'reimbursements' | 'profile' | 'attendance') => void;
   formatCurrency?: (n: number) => string;
+  /** Attendance punch (self-service) — GPS + office geofence enforced by the caller. */
+  isFetchingLocation?: boolean;
+  onPunch?: () => void;
 }
 
 function sumLeaveBalance(balance: any): number {
@@ -41,6 +48,8 @@ export function EssPersonalOverview({
   claims = [],
   onNavigate,
   formatCurrency = (n) => String(n),
+  isFetchingLocation = false,
+  onPunch,
 }: EssPersonalOverviewProps) {
   const name = employee?.name || 'Employee';
   const empCode = employee?.empCode || employee?.userId || '—';
@@ -59,6 +68,10 @@ export function EssPersonalOverview({
 
   const isPunchedIn = Boolean(attendance?.punchedIn);
   const punchTime = attendance?.punchInTime || '—';
+  const punchOutTime = attendance?.punchOutTime || null;
+  const workMode = attendance?.workMode;
+  const alreadyOut = Boolean(!isPunchedIn && attendance?.punchInTime && attendance?.punchOutTime);
+  const nextPunchLabel = isPunchedIn ? 'Punch Out' : 'Punch In';
 
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
@@ -81,6 +94,56 @@ export function EssPersonalOverview({
             <ShieldCheck className="w-3 h-3" /> Self-service · only your own records
           </span>
         </div>
+      </section>
+
+      {/* Punch in / out — the employee's own attendance, with GPS + office geofence */}
+      <section className="panel-depth p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="icon-depth w-9 h-9"><CalendarCheck className="w-4.5 h-4.5" /></span>
+            <div className="min-w-0">
+              <div className="text-[13px] font-extrabold text-slate-900 leading-tight">Attendance punch</div>
+              <div className="text-[11.5px] text-slate-500">
+                {alreadyOut
+                  ? `Completed today · punched out at ${punchOutTime}`
+                  : isPunchedIn
+                  ? `Punched in at ${punchTime}`
+                  : 'Not punched in yet today'}
+                {workMode ? ` · ${workMode}` : ''}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onPunch}
+            disabled={alreadyOut || isFetchingLocation}
+            className={`btn px-4 py-2 text-xs inline-flex items-center gap-2 ${
+              alreadyOut || isFetchingLocation
+                ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                : isPunchedIn
+                ? 'btn-outline'
+                : 'btn-primary'
+            }`}
+            title={
+              alreadyOut
+                ? 'You have already punched out for today'
+                : `${nextPunchLabel} with GPS location`
+            }
+          >
+            {isFetchingLocation ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : isPunchedIn ? (
+              <LogOut className="w-3.5 h-3.5" />
+            ) : (
+              <LogIn className="w-3.5 h-3.5" />
+            )}
+            {isFetchingLocation ? 'Getting location…' : alreadyOut ? 'Completed' : nextPunchLabel}
+            {!alreadyOut && !isFetchingLocation && <MapPin className="w-3 h-3 opacity-70" />}
+          </button>
+        </div>
+        <p className="mt-2 text-[11px] text-slate-500">
+          Your location is verified by GPS and must be within the office premises to record attendance.
+        </p>
       </section>
 
       {/* The employee's own key figures */}
