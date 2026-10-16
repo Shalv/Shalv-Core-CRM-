@@ -1606,6 +1606,17 @@ export const parseTimeToMinutes = (timeStr: string | null | undefined): number |
   return null;
 };
 
+/**
+ * Office geofence centre — SRS Tower, Sector 31, Faridabad.
+ * Attendance punches are allowed only within OFFICE_GEOFENCE.radiusMeters of this point.
+ */
+export const OFFICE_GEOFENCE = {
+  lat: 28.4457691,
+  lng: 77.3082054,
+  radiusMeters: 100,
+  label: 'SRS Tower, Sector 31, Faridabad',
+} as const;
+
 export const DEFAULT_ADMIN_POLICY_MASTER: AdminPolicyMaster = {
   policyCode: 'CS-HR-POL-001',
   policyVersion: '1.0',
@@ -1617,7 +1628,10 @@ export const DEFAULT_ADMIN_POLICY_MASTER: AdminPolicyMaster = {
   monthlyLeaveLimit: 1,
   shiftStartTime: '09:30 AM',
   shiftEndTime: '06:00 PM',
-  geofenceRadiusMeters: 300,
+  geofenceRadiusMeters: OFFICE_GEOFENCE.radiusMeters,
+  officeLat: OFFICE_GEOFENCE.lat,
+  officeLng: OFFICE_GEOFENCE.lng,
+  officeAddress: OFFICE_GEOFENCE.label,
   earlyArrivalCutoff: '09:00 AM',
   capEarlyArrival: true,
   graceEndTime: '09:45 AM',
