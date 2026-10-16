@@ -1957,6 +1957,87 @@ export const decideShiftSwap = (
     };
   });
 
+/* ------------------------------------------------------------- Employee help desk ----
+ * Phase 4 (full HRMS). Employees raise tickets; an agent/HR assigns, prioritises,
+ * escalates and resolves them. Every transition is recorded on the ticket history.
+ * ----------------------------------------------------------------------------------- */
+export type HelpDeskCategory = 'IT' | 'HR' | 'Payroll' | 'Facilities' | 'Access' | 'Other';
+export const HELP_DESK_CATEGORIES: HelpDeskCategory[] = ['IT', 'HR', 'Payroll', 'Facilities', 'Access', 'Other'];
+
+export type HelpDeskPriority = 'Low' | 'Medium' | 'High' | 'Critical';
+export const HELP_DESK_PRIORITIES: HelpDeskPriority[] = ['Low', 'Medium', 'High', 'Critical'];
+
+export type HelpDeskStatus = 'Open' | 'In Progress' | 'Escalated' | 'Resolved' | 'Closed';
+
+export interface HelpDeskTicket {
+  id: string;
+  employeeId: string;
+  employeeName?: string;
+  subject: string;
+  description: string;
+  category: HelpDeskCategory;
+  priority: HelpDeskPriority;
+  status: HelpDeskStatus;
+  assignedTo?: string;
+  raisedAt: string;
+  updatedAt: string;
+  /** Response target derived from priority at raise time. */
+  slaDueAt?: string;
+  resolution?: string;
+  history: RegularizationHistoryEntry[];
+}
+
+const HELP_DESK_KEY = 'crm_payroll_helpdesk';
+
+/** Response target in hours, by priority. */
+export const HELP_DESK_SLA_HOURS: Record<HelpDeskPriority, number> = {
+  Critical: 4,
+  High: 8,
+  Medium: 24,
+  Low: 48,
+};
+
+export const loadHelpDeskTickets = (): HelpDeskTicket[] => {
+  try {
+    const raw = localStorage.getItem(HELP_DESK_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed as HelpDeskTicket[];
+    }
+  } catch {
+    /* ignore */
+  }
+  return [];
+};
+
+export const saveHelpDeskTickets = (list: HelpDeskTicket[]): void => {
+  try {
+    localStorage.setItem(HELP_DESK_KEY, JSON.stringify(list));
+  } catch {
+    /* ignore */
+  }
+};
+
+/** Apply a change to one ticket, appending an audit entry. */
+export const updateHelpDeskTicket = (
+  list: HelpDeskTicket[],
+  id: string,
+  patch: Partial<HelpDeskTicket>,
+  by: string,
+  action: string
+): HelpDeskTicket[] =>
+  list.map((t) => {
+    if (t.id !== id) return t;
+    const at = new Date().toISOString();
+    const from = patch.status && patch.status !== t.status ? t.status : undefined;
+    return {
+      ...t,
+      ...patch,
+      updatedAt: at,
+      history: [...(t.history || []), { at, by, action, from, to: patch.status }],
+    };
+  });
+
 export const DEFAULT_ADMIN_POLICY_MASTER: AdminPolicyMaster = {
   policyCode: 'CS-HR-POL-001',
   policyVersion: '1.0',

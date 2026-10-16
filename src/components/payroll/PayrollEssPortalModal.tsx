@@ -94,11 +94,14 @@ import {
   saveShiftAssignments,
   loadShiftSwapRequests,
   saveShiftSwapRequests,
+  loadHelpDeskTickets,
+  saveHelpDeskTickets,
   type PayrollLocation,
   type RegularizationRequest,
   type ShiftDefinition,
   type ShiftAssignment,
   type ShiftSwapRequest,
+  type HelpDeskTicket,
 } from './payrollTypes';
 import { checkGeofence, formatDistance, localIsoDate, localTimeString } from '../../shared/geo';
 import { PayrollAdminMasterSection } from './PayrollAdminMasterSection';
@@ -113,6 +116,7 @@ import { AdminPunchOnBehalf } from './AdminPunchOnBehalf';
 import { PayrollLocationMaster } from './PayrollLocationMaster';
 import { PayrollRegularizationSection } from './PayrollRegularizationSection';
 import { PayrollShiftRosterSection } from './PayrollShiftRosterSection';
+import { PayrollHelpDeskSection } from './PayrollHelpDeskSection';
 import { PayChakraFooter } from './PayChakraFooter';
 
 export type { EssTabKey };
@@ -254,6 +258,9 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
   useEffect(() => { saveShiftAssignments(shiftAssignments); }, [shiftAssignments]);
   const [shiftSwaps, setShiftSwaps] = useState<ShiftSwapRequest[]>(() => loadShiftSwapRequests());
   useEffect(() => { saveShiftSwapRequests(shiftSwaps); }, [shiftSwaps]);
+
+  const [helpDeskTickets, setHelpDeskTickets] = useState<HelpDeskTicket[]>(() => loadHelpDeskTickets());
+  useEffect(() => { saveHelpDeskTickets(helpDeskTickets); }, [helpDeskTickets]);
 
   const [adminPolicyMaster, setAdminPolicyMaster] = useState<AdminPolicyMaster>(() =>
     loadAdminPolicyMaster()
@@ -2051,6 +2058,20 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                 onChangeAssignments={setShiftAssignments}
                 swaps={shiftSwaps}
                 onChangeSwaps={setShiftSwaps}
+                setStatusBanner={setStatusBanner}
+              />
+              <PayrollHelpDeskSection
+                mode="employee"
+                currentUserId={currentUser.id}
+                currentUserName={currentUser.name || 'Employee'}
+                employees={enrolledEmployees.map((m) => ({
+                  userId: m.userId,
+                  name: m.name,
+                  empCode: m.empCode,
+                  department: m.department,
+                }))}
+                tickets={helpDeskTickets}
+                onChange={setHelpDeskTickets}
                 setStatusBanner={setStatusBanner}
               />
             </div>
@@ -6030,6 +6051,20 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
               onChangeAssignments={setShiftAssignments}
               swaps={shiftSwaps}
               onChangeSwaps={setShiftSwaps}
+              setStatusBanner={setStatusBanner}
+            />
+            <PayrollHelpDeskSection
+              mode="agent"
+              currentUserId={currentUser.id}
+              currentUserName={currentUser.name || 'Administrator'}
+              employees={enrolledEmployees.map((m) => ({
+                userId: m.userId,
+                name: m.name,
+                empCode: m.empCode,
+                department: m.department,
+              }))}
+              tickets={helpDeskTickets}
+              onChange={setHelpDeskTickets}
               setStatusBanner={setStatusBanner}
             />
             <PayrollAdminMasterSection
