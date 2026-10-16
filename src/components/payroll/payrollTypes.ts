@@ -301,6 +301,8 @@ export interface EmployeeSalaryMasterRecord {
   department?: string;
   designation?: string;
   location?: string;
+  /** Location Master assignment — the location this employee's punches are validated against. */
+  locationId?: string;
   status?: 'Active' | 'Inactive';
   reportingManager?: string;
   assignedTerritory?: string;
@@ -1616,6 +1618,93 @@ export const OFFICE_GEOFENCE = {
   radiusMeters: 100,
   label: 'SRS Tower, Sector 31, Faridabad',
 } as const;
+
+/* ---------------------------------------------------------------- Location Master ----
+ * The authoritative list of work locations. Attendance punches are validated against
+ * the location assigned to the employee (falling back to the default active location).
+ * ---------------------------------------------------------------------------------- */
+export type PayrollLocationType =
+  | 'Office HQ'
+  | 'Branch'
+  | 'Factory'
+  | 'Client Site'
+  | 'Project Site'
+  | 'Field Duty';
+
+export const PAYROLL_LOCATION_TYPES: PayrollLocationType[] = [
+  'Office HQ',
+  'Branch',
+  'Factory',
+  'Client Site',
+  'Project Site',
+  'Field Duty',
+];
+
+export interface PayrollLocation {
+  id: string;
+  name: string;
+  type: PayrollLocationType;
+  address?: string;
+  lat: number;
+  lng: number;
+  /** Permitted punch radius around this location, in metres. */
+  radiusMeters: number;
+  active: boolean;
+  notes?: string;
+}
+
+/** Seeded default location — SRS Tower, Sector 31, Faridabad (100 m). */
+export const DEFAULT_PAYROLL_LOCATIONS: PayrollLocation[] = [
+  {
+    id: 'LOC-HQ-FARIDABAD',
+    name: 'SRS Tower — Sector 31, Faridabad',
+    type: 'Office HQ',
+    address: OFFICE_GEOFENCE.label,
+    lat: OFFICE_GEOFENCE.lat,
+    lng: OFFICE_GEOFENCE.lng,
+    radiusMeters: OFFICE_GEOFENCE.radiusMeters,
+    active: true,
+  },
+];
+
+const PAYROLL_LOCATIONS_KEY = 'crm_payroll_locations';
+
+export const loadPayrollLocations = (): PayrollLocation[] => {
+  try {
+    const raw = localStorage.getItem(PAYROLL_LOCATIONS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed as PayrollLocation[];
+    }
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_PAYROLL_LOCATIONS.map((l) => ({ ...l }));
+};
+
+export const savePayrollLocations = (list: PayrollLocation[]): void => {
+  try {
+    localStorage.setItem(PAYROLL_LOCATIONS_KEY, JSON.stringify(list));
+  } catch {
+    /* ignore */
+  }
+};
+
+/** The location a punch should be validated against, and its radius. */
+export const resolvePunchLocation = (
+  locations: PayrollLocation[],
+  locationId?: string | null
+): { lat: number; lng: number; radiusMeters: number; name: string } => {
+  const assigned = locationId ? locations.find((l) => l.id === locationId) : undefined;
+  const fallback = locations.find((l) => l.active) || DEFAULT_PAYROLL_LOCATIONS[0];
+  const loc = assigned || fallback;
+  return {
+    lat: loc.lat,
+    lng: loc.lng,
+    radiusMeters: loc.radiusMeters,
+    name: loc.name,
+  };
+};
 
 export const DEFAULT_ADMIN_POLICY_MASTER: AdminPolicyMaster = {
   policyCode: 'CS-HR-POL-001',
