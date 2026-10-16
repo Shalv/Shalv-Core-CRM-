@@ -301,6 +301,16 @@ const PERSISTED_CRM_STATE: Record<string, any> = {
   payrollClaims: {},
   payrollStatutory: {},
   payrollIntegrationConfig: null,
+  // Real-time HR collections (Phase 2-4). Persisted with the rest of the durable state
+  // so they are captured server-side and shared across users and devices.
+  payrollLocations: [],
+  payrollRegularization: [],
+  payrollShifts: [],
+  payrollShiftAssignments: [],
+  payrollShiftSwaps: [],
+  payrollHelpDesk: [],
+  payrollRuns: [],
+  payrollLifecycle: [],
   crmSlices: {},
 };
 
@@ -1153,6 +1163,14 @@ function buildPersistedStoreObject() {
     payrollClaims: PERSISTED_CRM_STATE.payrollClaims,
     payrollStatutory: PERSISTED_CRM_STATE.payrollStatutory,
     payrollIntegrationConfig: PERSISTED_CRM_STATE.payrollIntegrationConfig,
+    payrollLocations: PERSISTED_CRM_STATE.payrollLocations || [],
+    payrollRegularization: PERSISTED_CRM_STATE.payrollRegularization || [],
+    payrollShifts: PERSISTED_CRM_STATE.payrollShifts || [],
+    payrollShiftAssignments: PERSISTED_CRM_STATE.payrollShiftAssignments || [],
+    payrollShiftSwaps: PERSISTED_CRM_STATE.payrollShiftSwaps || [],
+    payrollHelpDesk: PERSISTED_CRM_STATE.payrollHelpDesk || [],
+    payrollRuns: PERSISTED_CRM_STATE.payrollRuns || [],
+    payrollLifecycle: PERSISTED_CRM_STATE.payrollLifecycle || [],
     crmSlices: PERSISTED_CRM_STATE.crmSlices,
     company_setup: MOCK_TABLES.company_setup,
     outlook_app_config: MOCK_TABLES.outlook_app_config,
@@ -1184,7 +1202,11 @@ const durableMiddleware = livePool ? postgresStateMiddleware(livePool, {
     for (const key of Object.keys(PERSISTED_CRM_STATE)) delete PERSISTED_CRM_STATE[key];
     Object.assign(PERSISTED_CRM_STATE, {
       payrollMasters: {}, deletedPayrollMasterIds: [], deletedLoanIds: [],
-      payrollLoans: [], crmSlices: {}, ...value,
+      payrollLoans: [], crmSlices: {},
+      payrollLocations: [], payrollRegularization: [], payrollShifts: [],
+      payrollShiftAssignments: [], payrollShiftSwaps: [], payrollHelpDesk: [],
+      payrollRuns: [], payrollLifecycle: [],
+      ...value,
     });
     MOCK_TABLES.users = value.users || [];
     if (Array.isArray(MOCK_TABLES.users)) {
@@ -3177,6 +3199,57 @@ app.delete('/api/payroll/masters/:id', async (req: Request, res: Response) => {
   }
   await flushStateToDatabase();
   res.json({ success: true, id });
+});
+
+/* ---------------------------------------------------------------------------------
+ * Real-time HR collections. These back the Location Master, attendance regularization
+ * and WFH, shifts/rosters/swaps, the help desk, payroll runs and employee lifecycle.
+ * Stored in the durable state so every write is captured server-side and visible to
+ * all users and devices immediately.
+ * --------------------------------------------------------------------------------- */
+const PAYROLL_COLLECTION_KEYS: Record<string, string> = {
+  locations: 'payrollLocations',
+  regularization: 'payrollRegularization',
+  shifts: 'payrollShifts',
+  shiftAssignments: 'payrollShiftAssignments',
+  shiftSwaps: 'payrollShiftSwaps',
+  helpdesk: 'payrollHelpDesk',
+  runs: 'payrollRuns',
+  lifecycle: 'payrollLifecycle',
+};
+// Collections only an admin/HR user may write. Employees may read all of them.
+const PAYROLL_ADMIN_ONLY_COLLECTIONS = ['locations', 'shifts', 'shiftAssignments', 'runs'];
+
+const isAdminActor = (req: Request): boolean => {
+  const actor = (req as any).account;
+  return !actor || ['Super Admin', 'Administrator'].includes(actor.role);
+};
+
+app.get('/api/payroll/collections', (_req: Request, res: Response) => {
+  const collections: Record<string, any> = {};
+  for (const [key, stateKey] of Object.entries(PAYROLL_COLLECTION_KEYS)) {
+    const value = PERSISTED_CRM_STATE[stateKey];
+    collections[key] = Array.isArray(value) ? value : [];
+  }
+  res.json({ success: true, collections });
+});
+
+app.post('/api/payroll/collections/:key', (req: Request, res: Response) => {
+  const key = String(req.params.key || '');
+  const stateKey = PAYROLL_COLLECTION_KEYS[key];
+  if (!stateKey) {
+    return res.status(404).json({ success: false, message: 'Unknown collection' });
+  }
+  if (PAYROLL_ADMIN_ONLY_COLLECTIONS.includes(key) && !isAdminActor(req)) {
+    return res.status(403).json({ success: false, message: 'Not permitted for this collection' });
+  }
+  const data = req.body?.data;
+  if (!Array.isArray(data)) {
+    return res.status(400).json({ success: false, message: 'data must be an array' });
+  }
+  PERSISTED_CRM_STATE[stateKey] = data;
+  flushStateToDatabase();
+  res.json({ success: true, key, count: data.length });
 });
 
 app.get('/api/payroll/loans', (req: Request, res: Response) => {
