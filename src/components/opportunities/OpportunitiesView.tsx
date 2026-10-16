@@ -1,3 +1,4 @@
+import { confirmSave } from '../../shared/confirm';
 import React, { useState, useEffect } from 'react';
 import { useCrm } from '../../context/CrmContext';
 import { crmVisibleUsers } from '../../shared/userScope';
@@ -235,6 +236,7 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({
   };
 
   const handleCreateOpportunitySubmit = (e: React.FormEvent) => {
+    if (!confirmSave('opportunity')) return;
     e.preventDefault();
     if (!newOppName.trim() || !newOppCustomerName.trim()) return;
 
@@ -274,6 +276,7 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({
   };
 
   const handleAddTaskSubmit = (e: React.FormEvent) => {
+    if (!confirmSave('task')) return;
     e.preventDefault();
     if (!taskModalOppId || !newTaskTitle.trim()) return;
 

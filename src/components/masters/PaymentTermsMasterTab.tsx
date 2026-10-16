@@ -1,3 +1,4 @@
+import { confirmSave } from '../../shared/confirm';
 import React, { useState } from 'react';
 import { useCrm } from '../../context/CrmContext';
 import { PaymentTermItem } from '../../types';
@@ -75,6 +76,7 @@ export const PaymentTermsMasterTab: React.FC<PaymentTermsMasterTabProps> = ({
   };
 
   const handleSave = (e: React.FormEvent) => {
+    if (!confirmSave('record')) return;
     e.preventDefault();
     if (editingTermId) {
       updatePaymentTerm(editingTermId, form);

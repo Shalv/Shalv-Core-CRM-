@@ -1,3 +1,4 @@
+import { confirmSave } from '../../shared/confirm';
 import React, { useState, useEffect } from 'react';
 import { useCrm } from '../../context/CrmContext';
 import { PaymentMilestone } from '../../types';
@@ -121,6 +122,7 @@ export const MilestonesView: React.FC<MilestonesViewProps> = ({
     : false;
 
   const handleSaveRevisedSchedule = (e: React.FormEvent) => {
+    if (!confirmSave('revised schedule')) return;
     e.preventDefault();
     if (!editingOrderId || !currentEditOrder) return;
     if (!isPctValid || !isAmtValid) return;

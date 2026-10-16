@@ -1,3 +1,4 @@
+import { confirmSave } from '../../shared/confirm';
 import React, { useState, useEffect } from 'react';
 import { useCrm } from '../../context/CrmContext';
 import { crmVisibleUsers } from '../../shared/userScope';
@@ -227,6 +228,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
   );
 
   const handleCreateCustomer = (e: React.FormEvent) => {
+    if (!confirmSave('customer')) return;
     e.preventDefault();
     const owner =
       users.find((u) => u.id === newCust.salesOwnerId) || crmVisibleUsers(users)[0];
@@ -327,6 +329,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
   };
 
   const handleAddAddress = (e: React.FormEvent) => {
+    if (!confirmSave('address')) return;
     e.preventDefault();
     if (!selectedCustomer) return;
     const computedCode = getStateCode(newAddr.state);
@@ -366,6 +369,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
   };
 
   const handleSaveContact = (e: React.FormEvent) => {
+    if (!confirmSave('contact')) return;
     e.preventDefault();
     if (!selectedCustomer) return;
     if (editingContactId) {

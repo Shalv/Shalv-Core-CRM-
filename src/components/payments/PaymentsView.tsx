@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useCrm } from '../../context/CrmContext';
 import { PaymentMode, PaymentStage, Invoice } from '../../types';
+import { roundRupees } from '../../shared/integrity';
+import { confirmSave, confirmDelete } from '../../shared/confirm';
 import {
   CreditCard,
   Plus,
@@ -294,15 +296,19 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
       return;
     }
 
+    // Confirm before writing, as on every other save in the app.
+    if (!confirmSave('payment receipt')) return;
+
     let receipt;
     try {
       receipt = recordPayment({
+        // Round off decimals here too, so what is confirmed is exactly what is stored.
+        amount: roundRupees(paymentAmount),
         customerId: selectedCustomerId,
         salesOrderId: selectedOrderId || undefined,
         invoiceId: selectedInvoiceId || undefined,
         milestoneId: selectedMilestoneId || undefined,
         paymentStage,
-        amount: paymentAmount,
         tdsDeducted,
         paymentMode,
         bankCashAccount,
@@ -330,6 +336,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
   };
 
   const handleDeletePayment = (paymentId: string) => {
+    if (!confirmDelete('payment receipt')) return;
     const res = deletePayment(paymentId);
     showFeedback(res.success ? 'success' : 'error', res.message);
   };
@@ -883,12 +890,16 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                   <label className="font-bold text-slate-700 block mb-1">
                     Payment Amount (₹) *
                   </label>
+                  {/* Round off on blur so a typed decimal (100.50) becomes 101 before it is saved —
+                      the amount is recorded in whole rupees. */}
                   <input
                     type="number"
                     min="1"
+                    step="1"
                     required
                     value={paymentAmount}
                     onChange={(e) => setPaymentAmount(Number(e.target.value))}
+                    onBlur={() => setPaymentAmount(roundRupees(paymentAmount))}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-mono font-bold text-slate-900"
                   />
                 </div>

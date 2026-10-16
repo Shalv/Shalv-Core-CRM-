@@ -1,3 +1,4 @@
+import { confirmSave } from '../../shared/confirm';
 import React, { useState, useEffect, useRef } from 'react';
 import { useCrm } from '../../context/CrmContext';
 import { resolveGstRate } from '../../shared/gst';
@@ -512,6 +513,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   };
 
   const handleCreateInvoiceSubmit = (e: React.FormEvent) => {
+    if (!confirmSave('invoice')) return;
     e.preventDefault();
     const customer = customers.find((c) => c.id === formCustomerId);
     if (!customer) return;

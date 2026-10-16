@@ -1,3 +1,4 @@
+import { confirmSave } from '../../shared/confirm';
 import React, { useState, useRef, useEffect } from 'react';
 import { useCrm } from '../../context/CrmContext';
 import { BrandLogo } from '../common/BrandLogo';
@@ -167,6 +168,7 @@ export const OrganizationMasterTab: React.FC = () => {
   };
 
   const handleSave = (e: React.FormEvent) => {
+    if (!confirmSave('record')) return;
     e.preventDefault();
     updateSupplierCompany(companyForm);
     setSavedToast(true);

@@ -1,3 +1,4 @@
+import { confirmSave } from '../../shared/confirm';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useCrm } from '../../context/CrmContext';
 import { crmVisibleUsers } from '../../shared/userScope';
@@ -246,6 +247,7 @@ export const SupportAmcView: React.FC<SupportAmcViewProps> = ({
   }, [tktCustomerId, customers, amcContracts, contacts]);
 
   const handleCreateTicket = (e: React.FormEvent) => {
+    if (!confirmSave('support ticket')) return;
     e.preventDefault();
     if (!tktSubject.trim()) return;
     const cust = customers.find((c) => c.id === tktCustomerId) || customers[0];
@@ -433,6 +435,7 @@ export const SupportAmcView: React.FC<SupportAmcViewProps> = ({
   const [amcNotes, setAmcNotes] = useState('');
 
   const handleCreateAmc = (e: React.FormEvent) => {
+    if (!confirmSave('AMC contract')) return;
     e.preventDefault();
     const cust = customers.find((c) => c.id === amcCustomerId) || customers[0];
     const codePrefix = cust.customerCode.split('-')[0] || 'CUS';
@@ -487,6 +490,7 @@ export const SupportAmcView: React.FC<SupportAmcViewProps> = ({
   const [crDeveloper, setCrDeveloper] = useState('Rohan Verma');
 
   const handleCreateStandaloneCr = (e: React.FormEvent) => {
+    if (!confirmSave('change request')) return;
     e.preventDefault();
     if (!crTitle.trim()) return;
     const cust = customers.find((c) => c.id === crCustomerId) || customers[0];

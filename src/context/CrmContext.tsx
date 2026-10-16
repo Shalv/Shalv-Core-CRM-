@@ -81,7 +81,7 @@ import {
   INITIAL_LICENSE_TYPES,
 } from '../data/supportAmcData';
 import { useApplicationSync, SyncStatus } from './useApplicationSync';
-import { Snapshot, recordPendingUserPassword, isRemovedPredefinedUser, milestoneInvoiceItems, validatePaymentLinks } from '../shared/integrity';
+import { Snapshot, recordPendingUserPassword, isRemovedPredefinedUser, milestoneInvoiceItems, validatePaymentLinks, money, roundRupees } from '../shared/integrity';
 import { resolveGstRate } from '../shared/gst';
 import { isAuthoritativeAuthRejection } from '../shared/authFallback';
 
@@ -7264,6 +7264,13 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
     const customer = customers.find((c) => c.id === paymentData.customerId);
     if (!customer) throw new Error('Customer not found');
 
+    // Money is recorded in whole rupees. A decimal amount is rounded off here — at the single
+    // point every caller funnels through — so a value like 100.50 cannot leave a half-paisa
+    // balance behind or trip the invoice balance check.
+    const amount = roundRupees(paymentData.amount);
+    const rawTds = roundRupees(paymentData.tdsDeducted || 0);
+    if (amount <= 0) throw new Error('Payment amount must be at least \u20b91 after rounding off.');
+
     // Validate the receipt against its linked invoice/milestone/order BEFORE mutating state, so an
     // overpayment, a cross-customer allocation, an out-of-range TDS or a payment against a
     // cancelled/converted/draft invoice is rejected up front with a clear message instead of
@@ -7271,8 +7278,8 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
     validatePaymentLinks(
       { invoices, milestones, orders, customers, payments } as unknown as Snapshot,
       {
-        amount: paymentData.amount,
-        tdsDeducted: paymentData.tdsDeducted,
+        amount: amount,
+        tdsDeducted: rawTds,
         customerId: paymentData.customerId,
         invoiceId: paymentData.invoiceId,
         milestoneId: paymentData.milestoneId,
@@ -7282,8 +7289,8 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
 
     const nextRecSeq = payments.length + 1;
     const receiptNumber = `REC-2026-${String(nextRecSeq).padStart(5, '0')}`;
-    const tds = paymentData.tdsDeducted || 0;
-    const netReceived = paymentData.amount - tds;
+    const tds = rawTds || 0;
+    const netReceived = amount - tds;
     const now = new Date().toISOString();
 
     const targetInvoice = paymentData.invoiceId
@@ -7306,9 +7313,9 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
 
     // Compute remaining_balance after this payment
     const computedRemainingBalance = targetInvoice
-      ? Math.max(0, targetInvoice.balanceAmount - paymentData.amount)
+      ? Math.max(0, targetInvoice.balanceAmount - amount)
       : targetMilestone
-      ? Math.max(0, targetMilestone.amount - (targetMilestone.paidAmount + paymentData.amount))
+      ? Math.max(0, targetMilestone.amount - (targetMilestone.paidAmount + amount))
       : targetOrder
       ? Math.max(
           0,
@@ -7316,7 +7323,7 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
             (payments
               .filter((p) => p.salesOrderId === targetOrder.id)
               .reduce((sum, p) => sum + p.amount, 0) +
-              paymentData.amount)
+              amount)
         )
       : 0;
 
@@ -7339,7 +7346,7 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
       milestoneId: targetMilestone?.id,
       milestoneCode: targetMilestone?.milestoneCode,
       paymentStage: resolvedStage,
-      amount: paymentData.amount,
+      amount: amount,
       tdsDeducted: tds,
       netReceived,
       remainingBalance: computedRemainingBalance,
@@ -7359,8 +7366,8 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
       setInvoices((prev) =>
         prev.map((inv) => {
           if (inv.id === targetInvoice.id) {
-            const newPaid = inv.paidAmount + paymentData.amount;
-            const newBal = Math.max(0, inv.grandTotal - newPaid);
+            const newPaid = money(inv.paidAmount + amount);
+            const newBal = Math.max(0, money(inv.grandTotal - newPaid));
             const status: Invoice['status'] =
               inv.status === 'Converted'
                 ? 'Converted'
@@ -7385,7 +7392,7 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
       setMilestones((prev) =>
         prev.map((m) => {
           if (m.id === targetMilestone.id) {
-            const newPaid = m.paidAmount + paymentData.amount;
+            const newPaid = money(m.paidAmount + amount);
             const status: PaymentMilestone['status'] = newPaid >= m.amount ? 'Paid' : 'Partially Paid';
             return {
               ...m,
@@ -7401,7 +7408,7 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
     // Append to Customer Ledger: PAYMENT (Credit - reduces customer balance)
     const prevLedger = ledgerEntries.filter((l) => l.customerId === customer.id);
     const lastBalance = prevLedger.length > 0 ? prevLedger[prevLedger.length - 1].runningBalance : 0;
-    const newRunningBalance = lastBalance - paymentData.amount;
+    const newRunningBalance = money(lastBalance - amount);
 
     const ledgerEntry: CustomerLedgerEntry = {
       id: `ldg-${Date.now()}`,
@@ -7411,7 +7418,7 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
       referenceNumber: newPayment.receiptNumber,
       description: `Payment (${resolvedStage}) via ${newPayment.paymentMode} · Ref: ${newPayment.transactionReference}`,
       debit: 0,
-      credit: paymentData.amount,
+      credit: amount,
       runningBalance: newRunningBalance,
       paymentId: newPayment.id,
     };
@@ -7423,13 +7430,13 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
       entityId: newPayment.id,
       entityNumber: newPayment.receiptNumber,
       action: 'Payment Recorded',
-      description: `Payment receipt of ${formatCurrency(paymentData.amount)} (${resolvedStage}) logged for ${customer.name}. Remaining balance: ${formatCurrency(computedRemainingBalance)}`,
+      description: `Payment receipt of ${formatCurrency(amount)} (${resolvedStage}) logged for ${customer.name}. Remaining balance: ${formatCurrency(computedRemainingBalance)}`,
     });
 
     addNotification({
       type: 'PAYMENT',
       title: 'Payment Receipt Created',
-      message: `${formatCurrency(paymentData.amount)} received from ${customer.name} (${newPayment.receiptNumber})`,
+      message: `${formatCurrency(amount)} received from ${customer.name} (${newPayment.receiptNumber})`,
       timestamp: 'Just now',
       linkType: 'payment',
       linkId: newPayment.id,

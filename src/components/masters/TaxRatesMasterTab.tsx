@@ -1,3 +1,4 @@
+import { confirmSave } from '../../shared/confirm';
 import React, { useState } from 'react';
 import { useCrm } from '../../context/CrmContext';
 import { TaxRateMasterItem } from '../../types';
@@ -100,6 +101,7 @@ export const TaxRatesMasterTab: React.FC<TaxRatesMasterTabProps> = ({ searchQuer
   };
 
   const handleSave = (e: React.FormEvent) => {
+    if (!confirmSave('record')) return;
     e.preventDefault();
     if (editingTaxId) {
       updateTaxRate(editingTaxId, form);

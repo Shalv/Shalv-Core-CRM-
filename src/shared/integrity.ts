@@ -31,6 +31,16 @@ export function getPendingUserPasswords(): Record<string, string> {
   }
 }
 export const money = (value: number): number => Math.round((value + Number.EPSILON) * 100) / 100;
+/**
+ * Round a money value to whole rupees.
+ *
+ * Payments are recorded in rupees: a decimal amount is rounded off on entry so a value like
+ * 100.50 cannot leave a half-paisa balance behind or trip the invoice balance check.
+ */
+export const roundRupees = (value: unknown): number => {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.round(n) : 0;
+};
 export const rows = (s: Snapshot, key: string): any[] => Array.isArray(s[key]) ? s[key] : [];
 let idCounter = 0;
 export const newRecordId = (): string => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${++idCounter}-${Math.random().toString(36).slice(2)}`;

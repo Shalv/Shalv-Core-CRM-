@@ -1,3 +1,4 @@
+import { confirmSave } from '../../shared/confirm';
 import React, { useState, useEffect } from 'react';
 import { useCrm } from '../../context/CrmContext';
 import {
@@ -419,6 +420,7 @@ export const UsersMasterTab: React.FC<UsersMasterTabProps> = ({
   };
 
   const handleSave = (e: React.FormEvent) => {
+    if (!confirmSave('record')) return;
     e.preventDefault();
     if (!editingUserId && !form.password.trim()) {
       showToast('error', 'Please set a login password for the new user. Passwords are not auto-generated.');
