@@ -429,14 +429,57 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
     return line?.lopDays ?? 0;
   })();
 
-  const essViewTabs: { id: typeof essView; label: string }[] = [
-    { id: 'dashboard', label: 'Dashboard Hub' },
-    { id: 'shifts', label: 'My Shifts & Swaps' },
-    { id: 'regularization', label: 'Punch Regularization' },
-    { id: 'helpdesk', label: 'HR Helpdesk' },
-    { id: 'career', label: 'Career & Milestones' },
-    { id: 'assets', label: 'My Assets' },
+  // One consistent navigation for the whole employee portal: entries either switch the
+  // in-portal view (essView) or move to a detailed self-service tab.
+  const essNav: {
+    id: string;
+    label: string;
+    view?: typeof essView;
+    tab?: EssTabKey;
+    pay?: 'overview' | 'leaves' | 'payroll' | 'expenses' | 'profile';
+  }[] = [
+    { id: 'home', label: 'Home', view: 'dashboard', pay: 'overview' },
+    { id: 'shifts', label: 'My Shifts & Swaps', view: 'shifts', pay: 'overview' },
+    { id: 'regularization', label: 'Punch Regularization', view: 'regularization', pay: 'overview' },
+    { id: 'helpdesk', label: 'HR Helpdesk', view: 'helpdesk', pay: 'overview' },
+    { id: 'career', label: 'Career & Milestones', view: 'career', pay: 'overview' },
+    { id: 'assets', label: 'My Assets', view: 'assets', pay: 'overview' },
+    { id: 'leave', label: 'My Leave', tab: 'leaves', pay: 'leaves' },
+    { id: 'pay', label: 'My Pay', tab: 'payslips', pay: 'payroll' },
+    { id: 'claims', label: 'My Claims', tab: 'reimbursements', pay: 'expenses' },
+    { id: 'profile', label: 'My Profile', tab: 'profile', pay: 'profile' },
   ];
+
+  const goEss = (item: (typeof essNav)[number]) => {
+    if (item.view) {
+      setEssView(item.view);
+      setPayChakraTab('overview');
+      setActiveTab('overview');
+      return;
+    }
+    if (item.tab) {
+      setActiveTab(item.tab);
+      setPayChakraTab((item.pay || 'overview') as any);
+    }
+  };
+
+  const essNavActive = (item: (typeof essNav)[number]): boolean =>
+    item.view ? payChakraTab === 'overview' && essView === item.view : payChakraTab !== 'overview' && activeTab === item.tab;
+
+  const essNavBar = (
+    <div className="sticky top-0 z-20 flex flex-wrap items-center gap-1.5 bg-[#f8fafc] py-1">
+      {essNav.map((v) => (
+        <button
+          key={v.id}
+          type="button"
+          onClick={() => goEss(v)}
+          className={`sh-btn ${essNavActive(v) ? 'sh-btn-soft' : ''}`}
+        >
+          {v.label}
+        </button>
+      ))}
+    </div>
+  );
 
   // ---- Header sub-navigation focus -------------------------------------------------
   // Every header tab and dropdown option lands on the section it names, rather than
@@ -2206,18 +2249,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
   const essPortalView = (
     <div className="flex-1 overflow-y-auto">
       <div className="p-3 sm:p-4 lg:p-6 space-y-4">
-        <div className="flex flex-wrap items-center gap-1.5">
-          {essViewTabs.map((v) => (
-            <button
-              key={v.id}
-              type="button"
-              onClick={() => setEssView(v.id)}
-              className={`sh-btn ${essView === v.id ? 'sh-btn-soft' : ''}`}
-            >
-              {v.label}
-            </button>
-          ))}
-        </div>
+        {essNavBar}
 
         {essView === 'dashboard' && personalOverview}
         {essView === 'shifts' && (
@@ -2379,116 +2411,6 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
 
         {/* SELF-SERVICE OVERVIEW — employees see only their own information */}
         {payChakraTab === 'overview' && !isAdminUser && essPortalView}
-        {false && (
-          <>
-            <div className="sh-scope p-3 sm:p-4">
-              <PayrollRegularizationSection
-                mode="employee"
-                currentUserId={currentUser.id}
-                currentUserName={currentUser.name || 'Employee'}
-                employees={enrolledEmployees.map((m) => ({
-                  userId: m.userId,
-                  name: m.name,
-                  empCode: m.empCode,
-                  department: m.department,
-                }))}
-                requests={regularizationRequests}
-                onChange={setRegularizationRequests}
-                setStatusBanner={setStatusBanner}
-              />
-              <PayrollShiftRosterSection
-                mode="employee"
-                currentUserId={currentUser.id}
-                currentUserName={currentUser.name || 'Employee'}
-                employees={enrolledEmployees.map((m) => ({
-                  userId: m.userId,
-                  name: m.name,
-                  empCode: m.empCode,
-                  department: m.department,
-                }))}
-                shifts={shifts}
-                onChangeShifts={setShifts}
-                assignments={shiftAssignments}
-                onChangeAssignments={setShiftAssignments}
-                swaps={shiftSwaps}
-                onChangeSwaps={setShiftSwaps}
-                setStatusBanner={setStatusBanner}
-              />
-              <PayrollHelpDeskSection
-                mode="employee"
-                currentUserId={currentUser.id}
-                currentUserName={currentUser.name || 'Employee'}
-                employees={enrolledEmployees.map((m) => ({
-                  userId: m.userId,
-                  name: m.name,
-                  empCode: m.empCode,
-                  department: m.department,
-                }))}
-                tickets={helpDeskTickets}
-                onChange={setHelpDeskTickets}
-                setStatusBanner={setStatusBanner}
-              />
-              <PayrollLifecycleSection
-                mode="employee"
-                currentUserId={currentUser.id}
-                currentUserName={currentUser.name || 'Employee'}
-                employees={enrolledEmployees.map((m) => ({
-                  userId: m.userId,
-                  name: m.name,
-                  empCode: m.empCode,
-                  department: m.department,
-                  designation: m.designation,
-                  monthlyGross: m.monthlyGross,
-                }))}
-                events={lifecycleEvents}
-                onChange={setLifecycleEvents}
-                setStatusBanner={setStatusBanner}
-              />
-              <PayrollAssetsSection
-                mode="employee"
-                currentUserId={currentUser.id}
-                currentUserName={currentUser.name || 'Employee'}
-                employees={enrolledEmployees.map((m) => ({
-                  userId: m.userId,
-                  name: m.name,
-                  empCode: m.empCode,
-                  department: m.department,
-                }))}
-                categories={assetCategories}
-                onChangeCategories={setAssetCategories}
-                assets={assets}
-                onChangeAssets={setAssets}
-                allocations={assetAllocations}
-                onChangeAllocations={setAssetAllocations}
-                setStatusBanner={setStatusBanner}
-              />
-              <PayrollTalentSection
-                mode="employee"
-                currentUserId={currentUser.id}
-                currentUserName={currentUser.name || 'Employee'}
-                employees={enrolledEmployees.map((m) => ({
-                  userId: m.userId,
-                  name: m.name,
-                  empCode: m.empCode,
-                  department: m.department,
-                }))}
-                jobOpenings={jobOpenings}
-                onChangeJobOpenings={setJobOpenings}
-                candidates={candidates}
-                onChangeCandidates={setCandidates}
-                onboardingPlans={onboardingPlans}
-                onChangeOnboardingPlans={setOnboardingPlans}
-                performanceReviews={performanceReviews}
-                onChangePerformanceReviews={setPerformanceReviews}
-                trainingPrograms={trainingPrograms}
-                onChangeTrainingPrograms={setTrainingPrograms}
-                trainingNominations={trainingNominations}
-                onChangeTrainingNominations={setTrainingNominations}
-                setStatusBanner={setStatusBanner}
-              />
-            </div>
-          </>
-        )}
 
         {/* WORKFORCE OVERVIEW (admin only — company-wide workforce data) */}
         {payChakraTab === 'overview' && isAdminUser && (
@@ -2584,7 +2506,9 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
 
         {/* MAIN PORTAL BODY (SHOWN FOR DETAILED SUB-TABS) */}
         {payChakraTab !== 'overview' && (
-          <div className="p-5 overflow-y-auto flex-1 space-y-4 bg-slate-50/50">
+          <div className="overflow-y-auto flex-1 p-3 sm:p-4 lg:p-6 space-y-4">
+          {/* Employees get the same consistent navigation on every self-service tab */}
+          {!isAdminUser && essNavBar}
           {/* Helper: No Enrolled Employees Empty State */}
           {(() => null)()}
 
