@@ -1706,6 +1706,104 @@ export const resolvePunchLocation = (
   };
 };
 
+/* ------------------------------------------- Attendance regularization & WFH ----
+ * Employees raise requests to correct or authorise attendance (missed punch, late
+ * arrival, early exit, work-from-home, field duty, overtime). An approver decides;
+ * every transition is recorded on the request's history for audit.
+ * ------------------------------------------------------------------------------ */
+export type RegularizationType =
+  | 'Missed Punch'
+  | 'Late Arrival'
+  | 'Early Exit'
+  | 'Work From Home'
+  | 'Field Duty'
+  | 'Overtime';
+
+export const REGULARIZATION_TYPES: RegularizationType[] = [
+  'Missed Punch',
+  'Late Arrival',
+  'Early Exit',
+  'Work From Home',
+  'Field Duty',
+  'Overtime',
+];
+
+export type RegularizationStatus = 'Pending' | 'Approved' | 'Rejected' | 'Cancelled';
+
+export interface RegularizationHistoryEntry {
+  at: string;
+  by: string;
+  action: string;
+  from?: string;
+  to?: string;
+}
+
+export interface RegularizationRequest {
+  id: string;
+  employeeId: string;
+  employeeName?: string;
+  /** The attendance day being corrected / authorised (YYYY-MM-DD). */
+  date: string;
+  type: RegularizationType;
+  requestedIn?: string;
+  requestedOut?: string;
+  reason: string;
+  status: RegularizationStatus;
+  raisedAt: string;
+  raisedBy?: string;
+  decidedBy?: string;
+  decidedAt?: string;
+  decisionRemarks?: string;
+  history?: RegularizationHistoryEntry[];
+}
+
+const REGULARIZATION_KEY = 'crm_payroll_regularization';
+
+export const loadRegularizationRequests = (): RegularizationRequest[] => {
+  try {
+    const raw = localStorage.getItem(REGULARIZATION_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed as RegularizationRequest[];
+    }
+  } catch {
+    /* ignore */
+  }
+  return [];
+};
+
+export const saveRegularizationRequests = (list: RegularizationRequest[]): void => {
+  try {
+    localStorage.setItem(REGULARIZATION_KEY, JSON.stringify(list));
+  } catch {
+    /* ignore */
+  }
+};
+
+/** Move a request to a new status, recording who/when/from/to on its history. */
+export const decideRegularization = (
+  list: RegularizationRequest[],
+  id: string,
+  decision: RegularizationStatus,
+  by: string,
+  remarks?: string
+): RegularizationRequest[] =>
+  list.map((r) => {
+    if (r.id !== id) return r;
+    const at = new Date().toISOString();
+    return {
+      ...r,
+      status: decision,
+      decidedBy: by,
+      decidedAt: at,
+      decisionRemarks: remarks || r.decisionRemarks,
+      history: [
+        ...(r.history || []),
+        { at, by, action: `Status → ${decision}`, from: r.status, to: decision },
+      ],
+    };
+  });
+
 export const DEFAULT_ADMIN_POLICY_MASTER: AdminPolicyMaster = {
   policyCode: 'CS-HR-POL-001',
   policyVersion: '1.0',

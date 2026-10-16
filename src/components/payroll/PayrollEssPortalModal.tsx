@@ -86,7 +86,10 @@ import {
   loadPayrollLocations,
   savePayrollLocations,
   resolvePunchLocation,
+  loadRegularizationRequests,
+  saveRegularizationRequests,
   type PayrollLocation,
+  type RegularizationRequest,
 } from './payrollTypes';
 import { checkGeofence, formatDistance, localIsoDate, localTimeString } from '../../shared/geo';
 import { PayrollAdminMasterSection } from './PayrollAdminMasterSection';
@@ -99,6 +102,7 @@ import { PayChakraOverviewView } from './PayChakraOverviewView';
 import { EssPersonalOverview } from './EssPersonalOverview';
 import { AdminPunchOnBehalf } from './AdminPunchOnBehalf';
 import { PayrollLocationMaster } from './PayrollLocationMaster';
+import { PayrollRegularizationSection } from './PayrollRegularizationSection';
 import { PayChakraFooter } from './PayChakraFooter';
 
 export type { EssTabKey };
@@ -226,6 +230,13 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
   useEffect(() => {
     savePayrollLocations(payrollLocations);
   }, [payrollLocations]);
+
+  const [regularizationRequests, setRegularizationRequests] = useState<RegularizationRequest[]>(() =>
+    loadRegularizationRequests()
+  );
+  useEffect(() => {
+    saveRegularizationRequests(regularizationRequests);
+  }, [regularizationRequests]);
 
   const [adminPolicyMaster, setAdminPolicyMaster] = useState<AdminPolicyMaster>(() =>
     loadAdminPolicyMaster()
@@ -1989,7 +2000,27 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
         />
 
         {/* SELF-SERVICE OVERVIEW — employees see only their own information */}
-        {payChakraTab === 'overview' && !isAdminUser && personalOverview}
+        {payChakraTab === 'overview' && !isAdminUser && (
+          <>
+            {personalOverview}
+            <div className="sh-scope p-3 sm:p-4">
+              <PayrollRegularizationSection
+                mode="employee"
+                currentUserId={currentUser.id}
+                currentUserName={currentUser.name || 'Employee'}
+                employees={enrolledEmployees.map((m) => ({
+                  userId: m.userId,
+                  name: m.name,
+                  empCode: m.empCode,
+                  department: m.department,
+                }))}
+                requests={regularizationRequests}
+                onChange={setRegularizationRequests}
+                setStatusBanner={setStatusBanner}
+              />
+            </div>
+          </>
+        )}
 
         {/* WORKFORCE OVERVIEW (admin only — company-wide workforce data) */}
         {payChakraTab === 'overview' && isAdminUser && (
@@ -5932,6 +5963,20 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                   return { ...prev, [userId]: { ...current, locationId } };
                 });
               }}
+              setStatusBanner={setStatusBanner}
+            />
+            <PayrollRegularizationSection
+              mode="approver"
+              currentUserId={currentUser.id}
+              currentUserName={currentUser.name || 'Administrator'}
+              employees={enrolledEmployees.map((m) => ({
+                userId: m.userId,
+                name: m.name,
+                empCode: m.empCode,
+                department: m.department,
+              }))}
+              requests={regularizationRequests}
+              onChange={setRegularizationRequests}
               setStatusBanner={setStatusBanner}
             />
             <PayrollAdminMasterSection
