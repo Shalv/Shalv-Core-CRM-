@@ -98,6 +98,8 @@ import {
   saveHelpDeskTickets,
   loadPayrollRuns,
   savePayrollRuns,
+  loadLifecycleEvents,
+  saveLifecycleEvents,
   type PayrollLocation,
   type RegularizationRequest,
   type ShiftDefinition,
@@ -105,6 +107,7 @@ import {
   type ShiftSwapRequest,
   type HelpDeskTicket,
   type PayrollRun,
+  type LifecycleEvent,
 } from './payrollTypes';
 import { checkGeofence, formatDistance, localIsoDate, localTimeString } from '../../shared/geo';
 import { PayrollAdminMasterSection } from './PayrollAdminMasterSection';
@@ -121,6 +124,7 @@ import { PayrollRegularizationSection } from './PayrollRegularizationSection';
 import { PayrollShiftRosterSection } from './PayrollShiftRosterSection';
 import { PayrollHelpDeskSection } from './PayrollHelpDeskSection';
 import { PayrollProcessingSection } from './PayrollProcessingSection';
+import { PayrollLifecycleSection } from './PayrollLifecycleSection';
 import { PayChakraFooter } from './PayChakraFooter';
 
 export type { EssTabKey };
@@ -268,6 +272,9 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
 
   const [payrollRuns, setPayrollRuns] = useState<PayrollRun[]>(() => loadPayrollRuns());
   useEffect(() => { savePayrollRuns(payrollRuns); }, [payrollRuns]);
+
+  const [lifecycleEvents, setLifecycleEvents] = useState<LifecycleEvent[]>(() => loadLifecycleEvents());
+  useEffect(() => { saveLifecycleEvents(lifecycleEvents); }, [lifecycleEvents]);
 
   const [adminPolicyMaster, setAdminPolicyMaster] = useState<AdminPolicyMaster>(() =>
     loadAdminPolicyMaster()
@@ -2079,6 +2086,22 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                 }))}
                 tickets={helpDeskTickets}
                 onChange={setHelpDeskTickets}
+                setStatusBanner={setStatusBanner}
+              />
+              <PayrollLifecycleSection
+                mode="employee"
+                currentUserId={currentUser.id}
+                currentUserName={currentUser.name || 'Employee'}
+                employees={enrolledEmployees.map((m) => ({
+                  userId: m.userId,
+                  name: m.name,
+                  empCode: m.empCode,
+                  department: m.department,
+                  designation: m.designation,
+                  monthlyGross: m.monthlyGross,
+                }))}
+                events={lifecycleEvents}
+                onChange={setLifecycleEvents}
                 setStatusBanner={setStatusBanner}
               />
             </div>
@@ -6080,6 +6103,22 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
               onChangeRuns={setPayrollRuns}
               currentUserName={currentUser.name || 'Administrator'}
               formatCurrency={formatCurrency}
+              setStatusBanner={setStatusBanner}
+            />
+            <PayrollLifecycleSection
+              mode="admin"
+              currentUserId={currentUser.id}
+              currentUserName={currentUser.name || 'Administrator'}
+              employees={enrolledEmployees.map((m) => ({
+                userId: m.userId,
+                name: m.name,
+                empCode: m.empCode,
+                department: m.department,
+                designation: m.designation,
+                monthlyGross: m.monthlyGross,
+              }))}
+              events={lifecycleEvents}
+              onChange={setLifecycleEvents}
               setStatusBanner={setStatusBanner}
             />
             <PayrollAdminMasterSection
