@@ -7,6 +7,7 @@
  */
 
 export type PayrollCollectionKey =
+  | 'dailyAttendance'
   | 'locations'
   | 'regularization'
   | 'shifts'
