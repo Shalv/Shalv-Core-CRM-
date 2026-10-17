@@ -2466,7 +2466,9 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
                 if (target === 'employees') { setActiveTab('admin_master'); setAdminFocusSection('salary_master'); setAdminFocusNonce((n) => n + 1); }
                 else if (target === 'payroll') { setActiveTab('admin_master'); setSectionAnchor('payroll-processing'); }
                 else if (target === 'recruitment') { setActiveTab('admin_master'); setSectionAnchor('admin-talent'); }
-                else setActiveTab('admin_master');
+                // Every other target is a section anchor inside the admin master, so the dashboard's
+                // request buttons land on the exact queue they point at.
+                else { setActiveTab('admin_master'); setSectionAnchor(target); }
               }}
               /* --- approvals straight from the dashboard, so a submitted request can be decided
                      without hunting for the right admin screen. --- */
@@ -2503,6 +2505,14 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
               onDecideSwap={(id, decision) => {
                 setShiftSwaps((prev) => decideShiftSwap(prev, id, decision, currentUser.name));
                 setStatusBanner(`Shift swap ${id} ${decision.toLowerCase()}.`);
+              }}
+              /* Where each request type's full list lives, so "Open the full list" lands on it. */
+              requestTargets={{
+                leave: 'admin-leaves',
+                claim: 'admin-claims',
+                regularization: 'admin-regularization',
+                swap: 'admin-shifts',
+                ticket: 'admin-helpdesk',
               }}
               onDecideTicket={(id, decision) => {
                 setHelpDeskTickets((prev) =>
@@ -6465,52 +6475,58 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
               onChangePolicy={(patch) => setAdminPolicyMaster((prev) => ({ ...prev, ...patch }))}
               setStatusBanner={setStatusBanner}
             />
+            <div id="admin-regularization">
             <PayrollRegularizationSection
-              mode="approver"
-              currentUserId={currentUser.id}
-              currentUserName={currentUser.name || 'Administrator'}
-              employees={enrolledEmployees.map((m) => ({
-                userId: m.userId,
-                name: m.name,
-                empCode: m.empCode,
-                department: m.department,
-              }))}
-              requests={regularizationRequests}
-              onChange={setRegularizationRequests}
-              setStatusBanner={setStatusBanner}
-            />
+                mode="approver"
+                currentUserId={currentUser.id}
+                currentUserName={currentUser.name || 'Administrator'}
+                employees={enrolledEmployees.map((m) => ({
+                  userId: m.userId,
+                  name: m.name,
+                  empCode: m.empCode,
+                  department: m.department,
+                }))}
+                requests={regularizationRequests}
+                onChange={setRegularizationRequests}
+                setStatusBanner={setStatusBanner}
+              />
+            </div>
+            <div id="admin-shifts">
             <PayrollShiftRosterSection
-              mode="admin"
-              currentUserId={currentUser.id}
-              currentUserName={currentUser.name || 'Administrator'}
-              employees={enrolledEmployees.map((m) => ({
-                userId: m.userId,
-                name: m.name,
-                empCode: m.empCode,
-                department: m.department,
-              }))}
-              shifts={shifts}
-              onChangeShifts={setShifts}
-              assignments={shiftAssignments}
-              onChangeAssignments={setShiftAssignments}
-              swaps={shiftSwaps}
-              onChangeSwaps={setShiftSwaps}
-              setStatusBanner={setStatusBanner}
-            />
+                mode="admin"
+                currentUserId={currentUser.id}
+                currentUserName={currentUser.name || 'Administrator'}
+                employees={enrolledEmployees.map((m) => ({
+                  userId: m.userId,
+                  name: m.name,
+                  empCode: m.empCode,
+                  department: m.department,
+                }))}
+                shifts={shifts}
+                onChangeShifts={setShifts}
+                assignments={shiftAssignments}
+                onChangeAssignments={setShiftAssignments}
+                swaps={shiftSwaps}
+                onChangeSwaps={setShiftSwaps}
+                setStatusBanner={setStatusBanner}
+              />
+            </div>
+            <div id="admin-helpdesk">
             <PayrollHelpDeskSection
-              mode="agent"
-              currentUserId={currentUser.id}
-              currentUserName={currentUser.name || 'Administrator'}
-              employees={enrolledEmployees.map((m) => ({
-                userId: m.userId,
-                name: m.name,
-                empCode: m.empCode,
-                department: m.department,
-              }))}
-              tickets={helpDeskTickets}
-              onChange={setHelpDeskTickets}
-              setStatusBanner={setStatusBanner}
-            />
+                mode="agent"
+                currentUserId={currentUser.id}
+                currentUserName={currentUser.name || 'Administrator'}
+                employees={enrolledEmployees.map((m) => ({
+                  userId: m.userId,
+                  name: m.name,
+                  empCode: m.empCode,
+                  department: m.department,
+                }))}
+                tickets={helpDeskTickets}
+                onChange={setHelpDeskTickets}
+                setStatusBanner={setStatusBanner}
+              />
+            </div>
             <div id="payroll-processing">
               <PayrollProcessingSection
                 employees={enrolledEmployees}
