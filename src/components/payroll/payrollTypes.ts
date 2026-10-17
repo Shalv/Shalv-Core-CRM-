@@ -2678,12 +2678,227 @@ export const prorateForLop = (
   return { payableDays, net: Math.round((gross * payableDays) / wd) };
 };
 
+/* ------------------------------------------------ daily attendance register ----
+ * One record per employee per DAY, written the moment they punch in or out from the web app.
+ * This is the shared, server-persisted source the admin dashboard reads to answer "who is in
+ * and who is not" — punches only ever come from the web app, never a separate device.
+ * ---------------------------------------------------------------------------- */
+
+export interface DailyAttendanceRecord {
+  /** `${employeeId}|${date}` — exactly one record per employee per day. */
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  empCode?: string;
+  /** The attendance date, IST. */
+  date: string;
+  punchInTime?: string;
+  punchOutTime?: string;
+  workMode?: string;
+  locationId?: string;
+  locationName?: string;
+  /** Set when an admin/HR user punched on this employee's behalf. */
+  recordedByName?: string;
+  updatedAt: string;
+}
+
+const DAILY_ATTENDANCE_KEY = 'crm_daily_attendance';
+export const DAILY_ATTENDANCE_SYNC_EVENT = 'crm-daily-attendance-sync';
+
+export const dailyAttendanceId = (employeeId: string, date: string): string =>
+  `${employeeId}|${date}`;
+
+export const loadDailyAttendance = (): DailyAttendanceRecord[] => {
+  try {
+    const raw = localStorage.getItem(DAILY_ATTENDANCE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed as DailyAttendanceRecord[];
+    }
+  } catch {
+    /* ignore */
+  }
+  return [];
+};
+
+export const saveDailyAttendance = (list: DailyAttendanceRecord[], broadcast = true): void => {
+  try {
+    localStorage.setItem(DAILY_ATTENDANCE_KEY, JSON.stringify(list));
+    if (broadcast) window.dispatchEvent(new Event(DAILY_ATTENDANCE_SYNC_EVENT));
+  } catch {
+    /* ignore */
+  }
+};
+
+/**
+ * Create or update the record for one employee on one day.
+ * A punch in sets the in time; a punch out sets the out time — the two never overwrite each other.
+ */
+export const upsertDailyAttendance = (
+  list: DailyAttendanceRecord[],
+  patch: {
+    employeeId: string;
+    employeeName: string;
+    empCode?: string;
+    date: string;
+    punchInTime?: string;
+    punchOutTime?: string;
+    workMode?: string;
+    locationId?: string;
+    locationName?: string;
+    recordedByName?: string;
+  }
+): DailyAttendanceRecord[] => {
+  const id = dailyAttendanceId(patch.employeeId, patch.date);
+  const at = new Date().toISOString();
+  const existing = list.find((r) => r.id === id);
+  if (!existing) {
+    return [
+      ...list,
+      {
+        id,
+        employeeId: patch.employeeId,
+        employeeName: patch.employeeName,
+        empCode: patch.empCode,
+        date: patch.date,
+        punchInTime: patch.punchInTime,
+        punchOutTime: patch.punchOutTime,
+        workMode: patch.workMode,
+        locationId: patch.locationId,
+        locationName: patch.locationName,
+        recordedByName: patch.recordedByName,
+        updatedAt: at,
+      },
+    ];
+  }
+  return list.map((r) =>
+    r.id === id
+      ? {
+          ...r,
+          employeeName: patch.employeeName || r.employeeName,
+          empCode: patch.empCode || r.empCode,
+          punchInTime: patch.punchInTime ?? r.punchInTime,
+          punchOutTime: patch.punchOutTime ?? r.punchOutTime,
+          workMode: patch.workMode || r.workMode,
+          locationId: patch.locationId || r.locationId,
+          locationName: patch.locationName || r.locationName,
+          recordedByName: patch.recordedByName || r.recordedByName,
+          updatedAt: at,
+        }
+      : r
+  );
+};
+
+export type AttendanceDayState = 'Present' | 'Completed' | 'On leave' | 'Not punched';
+
+export interface AttendanceDayRow {
+  employeeId: string;
+  employeeName: string;
+  empCode?: string;
+  state: AttendanceDayState;
+  punchInTime?: string;
+  punchOutTime?: string;
+  workMode?: string;
+  locationName?: string;
+}
+
+/**
+ * Today's attendance across the whole workforce.
+ *
+ * Anyone whose day is covered by an APPROVED leave reads as "On leave"; everyone else is
+ * "Completed" once they have punched out, "Present" once they have punched in, and
+ * "Not punched" if there is no record for the day at all.
+ */
+export const summariseAttendanceForDate = (
+  records: DailyAttendanceRecord[],
+  employees: any[],
+  dateIso: string,
+  leaves: any[] = []
+): { rows: AttendanceDayRow[]; present: number; completed: number; onLeave: number; notPunched: number } => {
+  const byEmployee = new Map<string, DailyAttendanceRecord>();
+  for (const r of records || []) {
+    if (r?.date === dateIso && r?.employeeId) byEmployee.set(String(r.employeeId), r);
+  }
+
+  const onApprovedLeave = new Set<string>();
+  for (const l of leaves || []) {
+    if (!l?.startDate || String(l.status || '') !== 'Approved') continue;
+    const end = String(l.endDate || l.startDate);
+    if (String(l.startDate) <= dateIso && dateIso <= end && l.employeeId) {
+      onApprovedLeave.add(String(l.employeeId));
+    }
+  }
+
+  const rows: AttendanceDayRow[] = (employees || [])
+    .filter((e) => String(e?.status || 'Active') !== 'Inactive')
+    .map((e) => {
+      const id = String(e.userId || e.id);
+      const rec = byEmployee.get(id);
+      const state: AttendanceDayState = rec?.punchInTime
+        ? rec.punchOutTime
+          ? 'Completed'
+          : 'Present'
+        : onApprovedLeave.has(id)
+        ? 'On leave'
+        : 'Not punched';
+      return {
+        employeeId: id,
+        employeeName: e.name || e.employeeName || id,
+        empCode: e.empCode,
+        state,
+        punchInTime: rec?.punchInTime,
+        punchOutTime: rec?.punchOutTime,
+        workMode: rec?.workMode,
+        locationName: rec?.locationName,
+      };
+    });
+
+  return {
+    rows,
+    present: rows.filter((r) => r.state === 'Present').length,
+    completed: rows.filter((r) => r.state === 'Completed').length,
+    onLeave: rows.filter((r) => r.state === 'On leave').length,
+    notPunched: rows.filter((r) => r.state === 'Not punched').length,
+  };
+};
+
 /* -------------------------------------------------- till-date pro-rating ----
  * The ESS dashboard shows what has accrued SO FAR this month, not a full-month figure:
  * earnings, statutory deductions, loan recovery and reimbursements are prorated against the
  * working days that have already elapsed. A day is "worked" when it is not a Sunday, not an
  * off-Saturday (2nd/4th by default) and not a paid public holiday.
  * -------------------------------------------------------------------------- */
+
+/**
+ * Every day in the month that an APPROVED leave actually covers.
+ *
+ * A leave is expanded across its whole span and clipped to the month, so a leave running 5th-8th
+ * marks four days rather than just its start date. Rejected, cancelled and still-pending requests
+ * mark nothing — only a granted leave removes someone from the working day.
+ */
+export const approvedLeaveDaysInMonth = (leaves: any[], monthKey: string): Set<string> => {
+  const out = new Set<string>();
+  const parts = String(monthKey).split('-');
+  const y = Number(parts[0]);
+  const m = Number(parts[1]);
+  if (!y || !m) return out;
+  const lastDay = new Date(y, m, 0).getDate();
+  const monthStart = `${monthKey}-01`;
+  const monthEnd = `${monthKey}-${String(lastDay).padStart(2, '0')}`;
+  for (const l of leaves || []) {
+    if (!l?.startDate) continue;
+    if (String(l.status || '') !== 'Approved') continue;
+    const rawStart = String(l.startDate);
+    const rawEnd = String(l.endDate || l.startDate);
+    const from = rawStart < monthStart ? monthStart : rawStart;
+    const to = rawEnd > monthEnd ? monthEnd : rawEnd;
+    if (from > to) continue;
+    for (let d = Number(from.slice(8, 10)); d <= Number(to.slice(8, 10)); d++) {
+      out.add(`${monthKey}-${String(d).padStart(2, '0')}`);
+    }
+  }
+  return out;
+};
 
 /** True when the date is a non-working day: weekly off or a paid public holiday. */
 export const isNonWorkingDay = (dateIso: string, policy?: Partial<AdminPolicyMaster>): boolean => {

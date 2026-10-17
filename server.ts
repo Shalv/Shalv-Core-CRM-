@@ -321,6 +321,7 @@ const PERSISTED_CRM_STATE: Record<string, any> = {
   payrollTrainingPrograms: [],
   payrollTrainingNominations: [],
   payrollUserPermissions: [],
+  payrollDailyAttendance: [],
   crmSlices: {},
 };
 
@@ -1191,6 +1192,7 @@ function buildPersistedStoreObject() {
     payrollTrainingPrograms: PERSISTED_CRM_STATE.payrollTrainingPrograms || [],
     payrollTrainingNominations: PERSISTED_CRM_STATE.payrollTrainingNominations || [],
     payrollUserPermissions: PERSISTED_CRM_STATE.payrollUserPermissions || [],
+    payrollDailyAttendance: PERSISTED_CRM_STATE.payrollDailyAttendance || [],
     crmSlices: PERSISTED_CRM_STATE.crmSlices,
     company_setup: MOCK_TABLES.company_setup,
     outlook_app_config: MOCK_TABLES.outlook_app_config,
@@ -1230,6 +1232,7 @@ const durableMiddleware = livePool ? postgresStateMiddleware(livePool, {
       payrollJobOpenings: [], payrollCandidates: [], payrollOnboarding: [],
       payrollPerformance: [], payrollTrainingPrograms: [], payrollTrainingNominations: [],
       payrollUserPermissions: [],
+      payrollDailyAttendance: [],
       ...value,
     });
     MOCK_TABLES.users = value.users || [];
@@ -3250,6 +3253,7 @@ const PAYROLL_COLLECTION_KEYS: Record<string, string> = {
   trainingPrograms: 'payrollTrainingPrograms',
   trainingNominations: 'payrollTrainingNominations',
   userPayrollPermissions: 'payrollUserPermissions',
+  dailyAttendance: 'payrollDailyAttendance',
 };
 /*
  * Per-collection write policy.
@@ -3278,6 +3282,7 @@ const PAYROLL_COLLECTION_POLICY: Record<string, { adminOnly?: boolean; ownerFiel
   performance: { ownerField: 'employeeId' },
   trainingNominations: { ownerField: 'employeeId' },
   assetAllocations: { ownerField: 'employeeId' },
+  dailyAttendance: { ownerField: 'employeeId' },
 };
 
 const isAdminActor = (req: Request): boolean => {

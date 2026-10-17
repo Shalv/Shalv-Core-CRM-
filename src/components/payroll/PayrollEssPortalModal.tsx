@@ -78,6 +78,7 @@ import {
   getSaturdayCalendarInfo,
   calculateDailyShiftHours,
   calculateEmployeePolicyPayroll,
+  type DailyAttendanceRecord,
   PAYROLL_LOANS_SYNC_EVENT,
   loadAllEmployeeLoans,
   reconcileMonthlyLoanDeductions,
@@ -89,6 +90,10 @@ import {
   resolveEmployeeShift,
   decideRegularization,
   decideShiftSwap,
+  loadDailyAttendance,
+  saveDailyAttendance,
+  upsertDailyAttendance,
+  DAILY_ATTENDANCE_SYNC_EVENT,
   loadRegularizationRequests,
   saveRegularizationRequests,
   loadShifts,
@@ -409,6 +414,25 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
   useCollectionSync('shiftAssignments', shiftAssignments, collectionsHydrated, lastSyncedRef);
   useCollectionSync('shiftSwaps', shiftSwaps, collectionsHydrated, lastSyncedRef);
   useCollectionSync('helpdesk', helpDeskTickets, collectionsHydrated, lastSyncedRef);
+
+  // ---- shared daily attendance register -----------------------------------------
+  // One record per employee per day, written the moment anyone punches in or out from the web
+  // app. Server-persisted and owner-scoped, so an employee can only ever write their own day
+  // while the admin dashboard reads the whole workforce.
+  const [dailyAttendance, setDailyAttendance] = useState<DailyAttendanceRecord[]>(() => loadDailyAttendance());
+  useEffect(() => {
+    saveDailyAttendance(dailyAttendance, false);
+  }, [dailyAttendance]);
+  useEffect(() => {
+    const sync = () => setDailyAttendance((prev) => {
+      const loaded = loadDailyAttendance();
+      return JSON.stringify(prev) === JSON.stringify(loaded) ? prev : loaded;
+    });
+    window.addEventListener(DAILY_ATTENDANCE_SYNC_EVENT, sync);
+    return () => window.removeEventListener(DAILY_ATTENDANCE_SYNC_EVENT, sync);
+  }, []);
+  useCollectionSync('dailyAttendance', dailyAttendance, collectionsHydrated, lastSyncedRef);
+
   useCollectionSync('runs', payrollRuns, collectionsHydrated, lastSyncedRef);
   useCollectionSync('lifecycle', lifecycleEvents, collectionsHydrated, lastSyncedRef);
   useCollectionSync('assetCategories', assetCategories, collectionsHydrated, lastSyncedRef);
@@ -1729,6 +1753,24 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
         ? `On behalf of ${activeEmployee.name} · `
         : '';
 
+    // Write the day into the SHARED register, so the admin dashboard can answer "who is in and
+    // who is not" without ever reading another employee's private session.
+    setDailyAttendance((prev) =>
+      upsertDailyAttendance(prev, {
+        employeeId: String(activeEmployee?.id || currentUser.id),
+        employeeName: activeEmployee?.name || currentUser.name || 'Employee',
+        empCode: (activeEmployee as any)?.empCode,
+        date: todayIso,
+        ...(action === 'PUNCH_IN'
+          ? { punchInTime: nowTime }
+          : { punchOutTime: nowTime }),
+        workMode: attendance.workMode,
+        locationId: activeUserMaster?.locationId,
+        locationName: googleLoc.formattedAddress,
+        recordedByName: onBehalfOf ? currentUser.name : undefined,
+      })
+    );
+
     if (action === 'PUNCH_IN') {
       const evalResult = evaluateAttendancePolicy({
         punchInTime: nowTime,
@@ -2461,6 +2503,7 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
               payrollRuns={payrollRuns}
               locations={payrollLocations}
               policy={adminPolicyMaster}
+              dailyAttendance={dailyAttendance}
               formatCurrency={formatCurrency}
               onNavigate={(target) => {
                 if (target === 'employees') { setActiveTab('admin_master'); setAdminFocusSection('salary_master'); setAdminFocusNonce((n) => n + 1); }

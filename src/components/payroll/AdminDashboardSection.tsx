@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { isNonWorkingDay, approvedLeaveDaysInMonth, summariseAttendanceForDate } from './payrollTypes';
 import {
   Users,
   CalendarOff,
@@ -60,6 +61,8 @@ export interface AdminDashboardSectionProps {
   onDecideTicket?: (id: string, decision: 'Resolved' | 'Closed') => void;
   /** Where each request type's full list lives, so the dashboard can link to it. */
   requestTargets?: Record<string, string>;
+  /** The shared daily attendance register — one record per employee per day, written on punch. */
+  dailyAttendance?: any[];
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -97,6 +100,7 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
   onDecideSwap,
   onDecideTicket,
   requestTargets,
+  dailyAttendance = [],
 }) => {
   // Which request type the queue is filtered to. 'all' shows everything.
   const [kindFilter, setKindFilter] = useState<string>('all');
@@ -107,13 +111,24 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
   /* ------------------------------------------------------------------ figures ---- */
   const active = employees.filter((e) => String(e?.status || 'Active') !== 'Inactive');
 
-  const onLeaveToday = leaves.filter((l) => {
+  /** A leave only counts once it has actually been GRANTED. */
+  const isApprovedLeave = (l: any) => String(l?.status || '') === 'Approved';
+
+  /** Does this leave cover the given day? */
+  const coversDay = (l: any, iso: string) => {
     if (!l?.startDate) return false;
-    const st = String(l.status || '').toLowerCase();
-    if (st === 'rejected' || st === 'cancelled') return false;
-    const end = l.endDate || l.startDate;
-    return l.startDate <= todayIso && todayIso <= end;
-  });
+    const end = String(l.endDate || l.startDate);
+    return String(l.startDate) <= iso && iso <= end;
+  };
+
+  // "On leave today" means APPROVED leave. A request still awaiting a decision is not a granted
+  // leave — counting it here overstated the figure and contradicted the approval workflow.
+  const onLeaveToday = leaves.filter((l) => isApprovedLeave(l) && coversDay(l, todayIso));
+
+  /** Requested for today but not yet decided — shown separately, never counted as leave. */
+  const pendingLeaveToday = leaves.filter(
+    (l) => String(l?.status || '') === 'Pending Approval' && coversDay(l, todayIso)
+  );
 
   const newJoiners = active.filter((e) => String(e?.dateOfJoining || e?.joiningDate || '').startsWith(monthPrefix));
 
@@ -213,6 +228,15 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
   const visibleRequests = kindFilter === 'all' ? pending : pending.filter((r) => r.kind === kindFilter);
   const activeTarget = kindFilter !== 'all' ? requestTargets?.[kindFilter] : undefined;
 
+  /**
+   * Today's attendance across the whole workforce, from the shared register that every punch
+   * writes to. Punches come from the web app only, so this is the complete picture of who has
+   * punched in, who has finished, who is on approved leave and who has not punched at all.
+   */
+  const attendanceToday = summariseAttendanceForDate(dailyAttendance, active, todayIso, leaves);
+  const notPunchedYet = attendanceToday.rows.filter((r) => r.state === 'Not punched');
+  const punchedInYet = attendanceToday.rows.filter((r) => r.state === 'Present');
+
   /** The latest payroll run — processing and payment status. */
   const latestRun = [...payrollRuns].sort((a, b) => (a.month < b.month ? 1 : -1))[0];
 
@@ -220,13 +244,13 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
   const monthHolidays = (Array.isArray(policy?.publicHolidays) ? policy.publicHolidays : []).filter((h: any) =>
     String(h?.date || '').startsWith(monthPrefix)
   );
-  const payDate = latestRun ? `${latestRun.month}-28` : null;
+  // Only mark a pay date we actually know. This previously assumed the 28th of the run month,
+  // which was an invented date — a run that has been paid carries its real payment date.
+  const payDate = latestRun?.paymentStatus === 'Paid' && latestRun?.paidAt
+    ? String(latestRun.paidAt).slice(0, 10)
+    : null;
 
-  const leaveDaysThisMonth = new Set(
-    leaves
-      .filter((l) => l?.startDate && String(l.startDate).startsWith(monthPrefix))
-      .map((l) => l.startDate)
-  );
+  const leaveDaysThisMonth = approvedLeaveDaysInMonth(leaves, monthPrefix);
 
   /** Birthdays and work anniversaries in the current month. */
   const mIdx = now.getMonth() + 1;
@@ -280,7 +304,9 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
     {
       clipart: <ClipartLeave size={38} />,
       title: 'On leave today',
-      sub: `${leaves.length} request(s) on record`,
+      sub: pendingLeaveToday.length
+        ? `Approved today · ${pendingLeaveToday.length} awaiting approval`
+        : `${leaves.length} request(s) on record`,
       value: String(onLeaveToday.length),
       delta: null,
       spark: null,
@@ -370,6 +396,87 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
             <div className="py-6 text-center text-[11.5px] text-slate-400">No employees enrolled yet.</div>
           )}
         </button>
+      </section>
+
+      {/* ------------------------------------------------- attendance today */}
+      <section className="ess-card">
+        <div className="sh-card-header">
+          <div className="flex items-center gap-2.5">
+            <span className="ess-clipart ess-clipart-sm"><ClipartClock size={32} /></span>
+            <div>
+              <h3 className="sh-card-title">Attendance today</h3>
+              <p className="text-[11.5px] text-slate-500">
+                Who has punched in and who has not — punches come from the web app only
+              </p>
+            </div>
+          </div>
+          <span className="sh-badge sh-badge-neutral">{todayIso}</span>
+        </div>
+        <div className="sh-card-body">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-3 py-2.5">
+              <div className="ess-kpi-sub">Present now</div>
+              <div className="ess-kpi-value text-emerald-700">{attendanceToday.present}</div>
+              <div className="ess-kpi-sub">punched in, still on the clock</div>
+            </div>
+            <div className="rounded-xl bg-sky-50 border border-sky-100 px-3 py-2.5">
+              <div className="ess-kpi-sub">Completed</div>
+              <div className="ess-kpi-value text-sky-700">{attendanceToday.completed}</div>
+              <div className="ess-kpi-sub">punched in and out</div>
+            </div>
+            <div className="rounded-xl bg-violet-50 border border-violet-100 px-3 py-2.5">
+              <div className="ess-kpi-sub">On approved leave</div>
+              <div className="ess-kpi-value text-violet-700">{attendanceToday.onLeave}</div>
+              <div className="ess-kpi-sub">not expected in</div>
+            </div>
+            <div className={`rounded-xl px-3 py-2.5 border ${attendanceToday.notPunched > 0 ? 'bg-rose-50 border-rose-100' : 'bg-slate-50 border-slate-100'}`}>
+              <div className="ess-kpi-sub">Not punched</div>
+              <div className={`ess-kpi-value ${attendanceToday.notPunched > 0 ? 'text-rose-700' : 'text-slate-700'}`}>
+                {attendanceToday.notPunched}
+              </div>
+              <div className="ess-kpi-sub">no punch recorded today</div>
+            </div>
+          </div>
+
+          {punchedInYet.length > 0 && (
+            <div className="mt-3">
+              <div className="ess-kpi-sub mb-2">Currently in ({punchedInYet.length})</div>
+              <div className="flex flex-wrap gap-1.5">
+                {punchedInYet.slice(0, 12).map((r) => (
+                  <span key={r.employeeId} className="sh-badge sh-badge-success" title={`In at ${r.punchInTime || '—'}`}>
+                    {r.employeeName} · {r.punchInTime || '—'}
+                  </span>
+                ))}
+                {punchedInYet.length > 12 && (
+                  <span className="sh-badge sh-badge-neutral">+{punchedInYet.length - 12} more</span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {notPunchedYet.length > 0 && (
+            <div className="mt-3">
+              <div className="ess-kpi-sub mb-2">Not punched yet ({notPunchedYet.length})</div>
+              <div className="flex flex-wrap gap-1.5">
+                {notPunchedYet.slice(0, 12).map((r) => (
+                  <span key={r.employeeId} className="sh-badge sh-badge-danger">
+                    {r.employeeName}
+                    {r.empCode ? ` · ${r.empCode}` : ''}
+                  </span>
+                ))}
+                {notPunchedYet.length > 12 && (
+                  <span className="sh-badge sh-badge-neutral">+{notPunchedYet.length - 12} more</span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {attendanceToday.rows.length === 0 && (
+            <div className="py-6 text-center text-[12px] text-slate-400">
+              No employees enrolled yet, so there is nothing to report.
+            </div>
+          )}
+        </div>
       </section>
 
       {/* payroll + requests + calendar */}
@@ -565,6 +672,7 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
                 const hol = holidayOn(d);
                 const pay = isPayDate(d);
                 const lv = leaveOn(d);
+                const off = isNonWorkingDay(isoOf(d), policy);
                 const isToday = isoOf(d) === todayIso;
                 return (
                   <div
@@ -575,10 +683,12 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
                         ? 'bg-[#f26522] text-white'
                         : hol
                         ? 'bg-violet-100 text-violet-800'
-                        : pay
-                        ? 'bg-emerald-100 text-emerald-800'
+                        : off
+                        ? 'bg-slate-100 text-slate-400'
                         : lv
                         ? 'bg-rose-50 text-rose-700'
+                        : pay
+                        ? 'bg-emerald-100 text-emerald-800'
                         : 'text-slate-600'
                     }`}
                   >
@@ -589,8 +699,16 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
             </div>
             <div className="flex flex-wrap gap-3 mt-3 text-[10.5px] text-slate-500">
               <span className="flex items-center gap-1.5"><span className="ess-legend-dot" style={{ background: '#6d4bd1' }} /> Holiday</span>
-              <span className="flex items-center gap-1.5"><span className="ess-legend-dot" style={{ background: '#03c95a' }} /> Pay date</span>
-              <span className="flex items-center gap-1.5"><span className="ess-legend-dot" style={{ background: '#f2726f' }} /> Leave</span>
+              <span className="flex items-center gap-1.5"><span className="ess-legend-dot" style={{ background: '#cbd5e1' }} /> Weekly off</span>
+              <span className="flex items-center gap-1.5"><span className="ess-legend-dot" style={{ background: '#f2726f' }} /> Approved leave</span>
+              {payDate && (
+                <span className="flex items-center gap-1.5"><span className="ess-legend-dot" style={{ background: '#03c95a' }} /> Paid</span>
+              )}
+            </div>
+            <div className="mt-2 text-[11px] text-slate-500">
+              {onLeaveToday.length} on approved leave today
+              {pendingLeaveToday.length > 0 && ` · ${pendingLeaveToday.length} request(s) still awaiting a decision`}
+              {` · ${leaveDaysThisMonth.size} approved leave day(s) this month`}
             </div>
             {monthHolidays.length > 0 && (
               <div className="mt-2 space-y-1">
