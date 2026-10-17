@@ -274,6 +274,8 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
       delta: joinerSeries.some((v) => v > 0) ? `+${joinerSeries[joinerSeries.length - 1]}` : null,
       spark: joinerSeries.some((v) => v > 0) ? joinerSeries : null,
       tone: 'up',
+      target: 'employees',
+      hint: 'Open the employee master',
     },
     {
       clipart: <ClipartLeave size={38} />,
@@ -283,6 +285,8 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
       delta: null,
       spark: null,
       tone: 'down',
+      target: 'admin-leaves',
+      hint: 'Open the leave applications queue',
     },
     {
       clipart: <ClipartMoney size={38} />,
@@ -292,6 +296,8 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
       delta: newJoiners.length ? `+${newJoiners.length}` : null,
       spark: null,
       tone: 'up',
+      target: 'employees',
+      hint: 'Open the employee master',
     },
   ];
 
@@ -312,7 +318,13 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
       {/* KPI row + workforce donut */}
       <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {kpi.map((k) => (
-          <div key={k.title} className="ess-card p-4">
+          <button
+            key={k.title}
+            type="button"
+            onClick={() => onNavigate?.(k.target)}
+            title={k.hint}
+            className="ess-card p-4 text-left w-full hover:border-[#1e4d5c]/30 hover:shadow-md transition cursor-pointer"
+          >
             <div className="flex items-start justify-between gap-3">
               <span className="ess-clipart">{k.clipart}</span>
               {k.spark && <Sparkline points={k.spark} color="#4a6cf7" width={80} height={32} />}
@@ -326,11 +338,17 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
                   {k.tone === 'down' ? '↓' : '↑'} {k.delta}
                 </span>
               )}
+              <ChevronRight className="w-3.5 h-3.5 text-slate-300 ml-auto" />
             </div>
-          </div>
+          </button>
         ))}
 
-        <div className="ess-card p-4">
+        <button
+          type="button"
+          onClick={() => onNavigate?.('employees')}
+          title="Open the employee master"
+          className="ess-card p-4 text-left w-full hover:border-[#1e4d5c]/30 hover:shadow-md transition cursor-pointer"
+        >
           <div className="flex items-start justify-between gap-3">
             <span className="ess-clipart"><ClipartPayslip size={38} /></span>
             <span className="ess-kpi-sub">Workforce</span>
@@ -351,7 +369,7 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
           ) : (
             <div className="py-6 text-center text-[11.5px] text-slate-400">No employees enrolled yet.</div>
           )}
-        </div>
+        </button>
       </section>
 
       {/* payroll + requests + calendar */}
@@ -601,7 +619,13 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
             {[...birthdays.map((e) => ({ e, kind: 'Birthday' })), ...anniversaries.map((e) => ({ e, kind: 'Work anniversary' }))]
               .slice(0, 6)
               .map(({ e, kind }, i) => (
-                <div key={`${e.userId}-${kind}`} className="ess-row">
+                <button
+                  key={`${e.userId}-${kind}`}
+                  type="button"
+                  onClick={() => onNavigate?.('employees')}
+                  title="Open the employee master"
+                  className="ess-row w-full text-left cursor-pointer hover:bg-slate-50 rounded-lg px-1"
+                >
                   <span className="ess-avatar" style={{ background: palette[i % palette.length] }}>{initials(e.name)}</span>
                   <div className="min-w-0 flex-1">
                     <div className="text-[12.5px] font-semibold text-slate-800 truncate">{e.name || e.userId}</div>
@@ -610,7 +634,7 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
                   <span className="text-[11px] text-slate-400">
                     {String((kind === 'Birthday' ? e.dateOfBirth : e.dateOfJoining) || '').slice(8, 10) || '—'}
                   </span>
-                </div>
+                </button>
               ))}
             {birthdays.length === 0 && anniversaries.length === 0 && (
               <div className="py-8 text-center text-[12px] text-slate-400">Nothing this month.</div>
@@ -636,7 +660,12 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
               <thead><tr><th>Job title</th><th>Seats</th><th>Department</th></tr></thead>
               <tbody>
                 {openJobs.slice(0, 5).map((j: any) => (
-                  <tr key={j.id}>
+                  <tr
+                    key={j.id}
+                    onClick={() => onNavigate?.('recruitment')}
+                    title="Open recruitment"
+                    className="cursor-pointer hover:bg-slate-50"
+                  >
                     <td className="font-semibold text-slate-800">{j.title}</td>
                     <td>{j.openings || 0}</td>
                     <td className="text-slate-500">{j.department || '—'}</td>
@@ -682,7 +711,12 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
             <thead><tr><th>Full name</th><th>Department</th><th>Designation</th><th>Contact</th></tr></thead>
             <tbody>
               {active.slice(0, 8).map((e, i) => (
-                <tr key={e.userId}>
+                <tr
+                  key={e.userId}
+                  onClick={() => onNavigate?.('employees')}
+                  title="Open the employee master"
+                  className="cursor-pointer hover:bg-slate-50"
+                >
                   <td>
                     <span className="flex items-center gap-2">
                       <span className="ess-avatar" style={{ background: palette[i % palette.length] }}>{initials(e.name)}</span>
