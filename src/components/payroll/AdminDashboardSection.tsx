@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Users,
   CalendarOff,
@@ -58,6 +58,8 @@ export interface AdminDashboardSectionProps {
   onDecideSwap?: (id: string, decision: 'Approved' | 'Rejected') => void;
   /** Decide a help desk ticket. */
   onDecideTicket?: (id: string, decision: 'Resolved' | 'Closed') => void;
+  /** Where each request type's full list lives, so the dashboard can link to it. */
+  requestTargets?: Record<string, string>;
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -94,7 +96,10 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
   onDecideRegularization,
   onDecideSwap,
   onDecideTicket,
+  requestTargets,
 }) => {
+  // Which request type the queue is filtered to. 'all' shows everything.
+  const [kindFilter, setKindFilter] = useState<string>('all');
   const now = new Date();
   const todayIso = now.toISOString().slice(0, 10);
   const monthPrefix = todayIso.slice(0, 7);
@@ -195,6 +200,18 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
     (row.kind === 'regularization' && Boolean(onDecideRegularization)) ||
     (row.kind === 'swap' && Boolean(onDecideSwap)) ||
     (row.kind === 'ticket' && Boolean(onDecideTicket));
+
+  /** Every request type, its pending count and the label shown on its button. */
+  const REQUEST_KINDS: { kind: string; label: string; icon: React.ReactNode }[] = [
+    { kind: 'leave', label: 'Leave', icon: <CalendarOff className="w-3.5 h-3.5" /> },
+    { kind: 'claim', label: 'Expense claims', icon: <Wallet className="w-3.5 h-3.5" /> },
+    { kind: 'regularization', label: 'Regularization', icon: <ClipboardList className="w-3.5 h-3.5" /> },
+    { kind: 'swap', label: 'Shift swaps', icon: <Users className="w-3.5 h-3.5" /> },
+    { kind: 'ticket', label: 'Help desk', icon: <Briefcase className="w-3.5 h-3.5" /> },
+  ];
+  const countFor = (kind: string) => pending.filter((r) => r.kind === kind).length;
+  const visibleRequests = kindFilter === 'all' ? pending : pending.filter((r) => r.kind === kindFilter);
+  const activeTarget = kindFilter !== 'all' ? requestTargets?.[kindFilter] : undefined;
 
   /** The latest payroll run — processing and payment status. */
   const latestRun = [...payrollRuns].sort((a, b) => (a.month < b.month ? 1 : -1))[0];
@@ -396,16 +413,62 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
                 <p className="text-[11.5px] text-slate-500">Waiting on an admin or HR decision</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 text-[11px] text-slate-500">
-              <span className="flex items-center gap-1.5"><span className="ess-legend-dot" style={{ background: '#f5b942' }} /> Pending</span>
-              <span className="flex items-center gap-1.5"><span className="ess-legend-dot" style={{ background: '#03c95a' }} /> Approved</span>
+            <div className="flex items-center gap-2">
+              {activeTarget && onNavigate && (
+                <button type="button" className="sh-btn" onClick={() => onNavigate(activeTarget)}>
+                  Open the full list <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
+
+          {/* One button per request type, with its live count. Clicking filters the queue below —
+              so every request an employee raises is reachable from the dashboard itself. */}
+          <div className="sh-card-body flex flex-wrap items-center gap-2 border-b border-slate-100">
+            <button
+              type="button"
+              onClick={() => setKindFilter('all')}
+              className={`sh-btn ${kindFilter === 'all' ? 'sh-btn-primary' : ''}`}
+            >
+              All requests
+              <span className="ml-1.5 rounded-full bg-black/10 px-1.5 text-[10.5px] font-bold">
+                {pending.length}
+              </span>
+            </button>
+            {REQUEST_KINDS.map((k) => {
+              const n = countFor(k.kind);
+              const active = kindFilter === k.kind;
+              return (
+                <button
+                  key={k.kind}
+                  type="button"
+                  onClick={() => setKindFilter(active ? 'all' : k.kind)}
+                  className={`sh-btn ${active ? 'sh-btn-primary' : ''} ${n === 0 ? 'opacity-60' : ''}`}
+                  title={
+                    n === 0
+                      ? `No ${k.label.toLowerCase()} awaiting a decision`
+                      : `${n} ${k.label.toLowerCase()} awaiting a decision`
+                  }
+                >
+                  {k.icon}
+                  {k.label}
+                  <span
+                    className={`ml-1.5 rounded-full px-1.5 text-[10.5px] font-bold ${
+                      n > 0 ? 'bg-[#f5b942] text-[#7a5200]' : 'bg-black/10'
+                    }`}
+                  >
+                    {n}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
           <div className="overflow-x-auto">
             <table className="sh-table w-full">
               <thead><tr><th>Request type</th><th>Employee</th><th>Detail</th><th>Status</th><th>Date</th><th className="text-right">Action</th></tr></thead>
               <tbody>
-                {pending.slice(0, 8).map((r, i) => (
+                {visibleRequests.slice(0, 8).map((r, i) => (
                   <tr key={`${r.kind}-${r.id}-${i}`}>
                     <td className="font-semibold text-slate-800">{r.type}</td>
                     <td>
@@ -449,8 +512,12 @@ export const AdminDashboardSection: React.FC<AdminDashboardSectionProps> = ({
                     </td>
                   </tr>
                 ))}
-                {pending.length === 0 && (
-                  <tr><td colSpan={6} className="text-center py-8 text-slate-400">Nothing waiting — every request is decided.</td></tr>
+                {visibleRequests.length === 0 && (
+                  <tr><td colSpan={6} className="text-center py-8 text-slate-400">
+                    {pending.length === 0
+                      ? 'Nothing waiting — every request is decided.'
+                      : `No ${kindFilter === 'all' ? '' : REQUEST_KINDS.find((k) => k.kind === kindFilter)?.label.toLowerCase() || ''} requests awaiting a decision.`}
+                  </td></tr>
                 )}
               </tbody>
             </table>

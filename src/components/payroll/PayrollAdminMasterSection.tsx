@@ -4722,7 +4722,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
       {adminSubTab === 'approvals' && (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           {/* Leave Requests Admin CRUD & Approval Card */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
+          <div id="admin-leaves" className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
             <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-2 bg-slate-50/60">
               <h4 className="font-bold text-sm text-slate-900 whitespace-nowrap">
                 Leave Applications — Create, Edit, Approve, Delete ({leaves.length})
@@ -4926,7 +4926,7 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
           </div>
 
           {/* Reimbursement Claims Admin CRUD & Approval Card */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
+          <div id="admin-claims" className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
             <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-2 bg-slate-50/60">
               <h4 className="font-bold text-sm text-slate-900 whitespace-nowrap">
                 Expense Claims — Create, Edit, Verify, Delete ({claims.length})
