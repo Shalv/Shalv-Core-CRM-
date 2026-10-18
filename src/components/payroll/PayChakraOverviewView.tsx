@@ -81,6 +81,8 @@ interface PayChakraOverviewViewProps {
   pendingLeavesCount?: number;
   pendingClaimsCount?: number;
   pendingLoansCount?: number;
+  /** The policy master — statutory percentages and caps the payslip breakdown is built from. */
+  policy?: any;
 }
 
 export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
@@ -97,6 +99,7 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
   pendingLeavesCount = 0,
   pendingClaimsCount = 0,
   pendingLoansCount = 0,
+  policy,
 }) => {
   const { currentUser, formatCurrency } = useCrm();
 
@@ -146,72 +149,9 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
     grossSalary: 60000,
   });
 
-  // Default workforce employees exactly matching the screenshot
-  const defaultEmployees: WorkforceEmployeeItem[] = useMemo(() => {
-    return [
-      {
-        id: 'emp-105',
-        name: 'Shivam Yadav',
-        empCode: 'EMP-105',
-        department: 'Development',
-        designation: 'Software Engineer',
-        email: 'shivam.yadav@coreenact.com',
-        checkInTime: '09:30 AM',
-        status: 'Present',
-        locationAddress: 'Faridabad, Haryana',
-        locationCoords: { lat: 28.4089, lng: 77.3178 },
-        grossSalary: 60000,
-        avatarColor: 'bg-blue-100 text-blue-700 border-blue-200',
-        initials: 'SY',
-      },
-      {
-        id: 'emp-104',
-        name: 'Versha Tanwar',
-        empCode: 'EMP-104',
-        department: 'Designing',
-        designation: 'UI/UX Designer',
-        email: 'versha.tanwar@coreenact.com',
-        checkInTime: '09:30 AM',
-        status: 'Present',
-        locationAddress: 'Faridabad, Haryana',
-        locationCoords: { lat: 28.4112, lng: 77.3195 },
-        grossSalary: 55000,
-        avatarColor: 'bg-purple-100 text-purple-700 border-purple-200',
-        initials: 'VT',
-      },
-      {
-        id: 'emp-106',
-        name: 'Abdul Kalim',
-        empCode: 'EMP-106',
-        department: 'Microsoft',
-        designation: 'Technical Consultant',
-        email: 'abdul.kalim@coreenact.com',
-        checkInTime: '—',
-        status: 'Not punched in',
-        locationAddress: '—',
-        grossSalary: 52000,
-        avatarColor: 'bg-orange-100 text-orange-700 border-orange-200',
-        initials: 'AK',
-      },
-      {
-        id: 'emp-107',
-        name: 'Shalv Sharma',
-        empCode: 'EMP-107',
-        department: 'Executive',
-        designation: 'Managing Director',
-        email: 'admin@coreenact.com',
-        checkInTime: '09:30 AM',
-        status: 'Present',
-        locationAddress: 'Faridabad, Haryana',
-        locationCoords: { lat: 28.4075, lng: 77.3162 },
-        grossSalary: 65000,
-        avatarColor: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-        initials: 'SS',
-      },
-    ];
-  }, []);
-
-  const employeeList = employeesData && employeesData.length > 0 ? employeesData : defaultEmployees;
+  // Only real employees from the master. There is deliberately no fallback list — a dashboard
+  // that invents people is worse than one that shows an empty state.
+  const employeeList: WorkforceEmployeeItem[] = employeesData || [];
 
   // Department list for dropdown
   const allDepartments = useMemo(() => {
@@ -238,7 +178,27 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
   }, [employeeList, selectedDept, effectiveSearch]);
 
   // Key metrics calculation
+  /**
+   * Department-wise attendance, derived from the real workforce — the names, the present count
+   * and the totals all come from the employee master and today's register, never from the screen.
+   */
+  const departmentBreakdown = useMemo(() => {
+    // globalThis.Map — the bare `Map` here is the lucide icon component.
+    const map = new globalThis.Map<string, { dept: string; names: string[]; present: number; total: number }>();
+    for (const e of employeeList) {
+      const dept = e.department || 'Unassigned';
+      const row = map.get(dept) || { dept, names: [], present: 0, total: 0 };
+      row.names.push(e.name);
+      row.total += 1;
+      if (e.status === 'Present') row.present += 1;
+      map.set(dept, row);
+    }
+    return [...map.values()].sort((a, b) => b.total - a.total || a.dept.localeCompare(b.dept));
+  }, [employeeList]);
+
   const totalEmployeesCount = employeeList.length;
+  /** "Reviewed" = the employee has a salary on record, so payroll can actually run for them. */
+  const reviewedCount = employeeList.filter((e) => (e.grossSalary || 0) > 0).length;
   const activeEmployeesCount = employeeList.filter((e) => e.status !== 'On Leave').length;
   const presentTodayCount = employeeList.filter((e) => e.status === 'Present').length;
   const notPunchedInCount = employeeList.filter((e) => e.status === 'Not punched in').length;
@@ -819,7 +779,7 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
                 </div>
                 <div>
                   <div className="text-lg font-extrabold text-slate-900">
-                    {totalEmployeesCount} of {totalEmployeesCount}
+                    {reviewedCount} of {totalEmployeesCount}
                   </div>
                   <div className="font-semibold text-slate-800 text-xs">
                     Employees reviewed
@@ -985,7 +945,7 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
               {/* Action 2: Generate payslips */}
               <div
                 onClick={() => {
-                  setSelectedPayslipEmp(defaultEmployees[0]);
+                  setSelectedPayslipEmp(employeeList[0]);
                   setActiveTilePopup('generate_payslips');
                 }}
                 className="p-3 rounded-xl border border-slate-100 hover:border-slate-200 bg-slate-50/50 hover:bg-slate-50 transition cursor-pointer flex items-center justify-between gap-3 group"
@@ -1219,7 +1179,7 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
                       <span>Employee Breakdown</span>
                       <span>Gross Salary</span>
                     </div>
-                    {defaultEmployees.map((e) => (
+                    {employeeList.map((e) => (
                       <div key={e.id} className="px-4 py-2 flex justify-between items-center text-xs">
                         <div>
                           <span className="font-semibold text-slate-900">{e.name}</span>
@@ -1565,7 +1525,7 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {defaultEmployees
+                        {employeeList
                           .filter(
                             (e) =>
                               !popupFilterSearch ||
@@ -1685,7 +1645,7 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
                             : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
                       >
-                        All Workforce ({defaultEmployees.length})
+                        All Workforce ({employeeList.length})
                       </button>
                       <button
                         type="button"
@@ -1723,7 +1683,7 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
 
                   {/* Detailed Attendance List */}
                   <div className="space-y-2.5">
-                    {defaultEmployees
+                    {employeeList
                       .filter((e) => {
                         if (attendanceModalFilter === 'present') return e.status === 'Present';
                         if (attendanceModalFilter === 'absent') return e.status !== 'Present';
@@ -1876,13 +1836,20 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 font-mono text-[11.5px]">
-                          {defaultEmployees.map((emp) => {
-                            const basic = Math.round(emp.grossSalary * 0.5);
-                            const hra = Math.round(emp.grossSalary * 0.3);
-                            const special = emp.grossSalary - basic - hra;
-                            const pf = Math.round(basic * 0.12);
-                            const pt = 200;
-                            const tds = Math.round(emp.grossSalary * 0.063);
+                          {employeeList.map((emp) => {
+                            // Policy-driven, so the salary register follows the company's own
+                            // percentages rather than numbers written into this screen.
+                            const basicPct2 = Number(policy?.defaultBasicPct ?? 50) || 50;
+                            const hraPct2 = Number(policy?.hraPct ?? 30) || 0;
+                            const pfPct2 = Number(policy?.defaultPfPct ?? 12) || 12;
+                            const pfCap2 = Number(policy?.defaultPfCapBasic ?? 15000) || 0;
+                            const basic = Math.round((emp.grossSalary * basicPct2) / 100);
+                            const hra = Math.round((emp.grossSalary * hraPct2) / 100);
+                            const special = Math.max(0, emp.grossSalary - basic - hra);
+                            const pfRaw2 = Math.round((basic * pfPct2) / 100);
+                            const pf = pfCap2 > 0 ? Math.min(pfRaw2, pfCap2) : pfRaw2;
+                            const pt = Number(policy?.defaultProfTax ?? 0) || 0;
+                            const tds = Math.round((emp.grossSalary * (Number(policy?.defaultTdsPct ?? 0) || 0)) / 100);
                             const totalDed = pf + pt + tds;
                             const netPay = emp.grossSalary - totalDed;
 
@@ -2111,38 +2078,36 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
                       Department-wise Attendance Breakdown
                     </div>
                     <div className="divide-y divide-slate-100 text-xs">
-                      <div className="px-4 py-3 flex items-center justify-between">
-                        <div>
-                          <div className="font-bold text-slate-900">Development</div>
-                          <div className="text-slate-500 text-[11px]">Shivam Yadav, Neha Sen</div>
+                      {departmentBreakdown.map((d) => {
+                        const pct = d.total > 0 ? Math.round((d.present / d.total) * 100) : 0;
+                        return (
+                          <div key={d.dept} className="px-4 py-3 flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="font-bold text-slate-900">{d.dept}</div>
+                              <div className="text-slate-500 text-[11px] truncate">
+                                {d.names.length ? d.names.join(', ') : 'No employees'}
+                              </div>
+                            </div>
+                            <div className="text-right whitespace-nowrap">
+                              <span className="font-bold text-slate-900 font-mono">
+                                {d.present} / {d.total} Present
+                              </span>
+                              <span
+                                className={`font-bold ml-2 ${
+                                  pct >= 100 ? 'text-emerald-600' : pct > 0 ? 'text-amber-600' : 'text-rose-600'
+                                }`}
+                              >
+                                ({pct}%)
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {departmentBreakdown.length === 0 && (
+                        <div className="px-4 py-6 text-center text-slate-400">
+                          No employees enrolled yet.
                         </div>
-                        <div className="text-right">
-                          <span className="font-bold text-slate-900 font-mono">1 / 2 Present</span>
-                          <span className="text-amber-600 font-bold ml-2">(50%)</span>
-                        </div>
-                      </div>
-
-                      <div className="px-4 py-3 flex items-center justify-between">
-                        <div>
-                          <div className="font-bold text-slate-900">Designing</div>
-                          <div className="text-slate-500 text-[11px]">Versha Tanwar</div>
-                        </div>
-                        <div className="text-right">
-                          <span className="font-bold text-slate-900 font-mono">1 / 1 Present</span>
-                          <span className="text-emerald-600 font-bold ml-2">(100%)</span>
-                        </div>
-                      </div>
-
-                      <div className="px-4 py-3 flex items-center justify-between">
-                        <div>
-                          <div className="font-bold text-slate-900">Microsoft</div>
-                          <div className="text-slate-500 text-[11px]">Amit Roy</div>
-                        </div>
-                        <div className="text-right">
-                          <span className="font-bold text-slate-900 font-mono">0 / 1 Present</span>
-                          <span className="text-rose-600 font-bold ml-2">(0%)</span>
-                        </div>
-                      </div>
+                      )}
                     </div>
                   </div>
 
@@ -2280,13 +2245,13 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
                   {/* Select Employee Tabs */}
                   <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200 pb-2">
                     <span className="text-[11px] font-bold text-slate-500 mr-2">Select Employee:</span>
-                    {defaultEmployees.map((e) => (
+                    {employeeList.map((e) => (
                       <button
                         key={e.id}
                         type="button"
                         onClick={() => setSelectedPayslipEmp(e)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition ${
-                          (selectedPayslipEmp?.id || defaultEmployees[0].id) === e.id
+                          (selectedPayslipEmp?.id || employeeList[0]?.id) === e.id
                             ? 'bg-slate-900 text-white font-bold'
                             : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                         }`}
@@ -2298,16 +2263,23 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
 
                   {/* Printable Payslip Preview Document */}
                   {(() => {
-                    const emp = selectedPayslipEmp || defaultEmployees[0];
-                    const basic = Math.round(emp.grossSalary * 0.5);
-                    const hra = Math.round(emp.grossSalary * 0.3);
-                    const conveyance = 1600;
-                    const special = emp.grossSalary - basic - hra - conveyance;
+                    const emp = selectedPayslipEmp || employeeList[0];
+                    // Every figure comes from the policy master, so the breakdown follows the
+                    // company's own percentages rather than numbers written into this screen.
+                    const basicPct = Number(policy?.defaultBasicPct ?? 50) || 50;
+                    const hraPct = Number(policy?.hraPct ?? 30) || 0;
+                    const pfPct = Number(policy?.defaultPfPct ?? 12) || 12;
+                    const pfCap = Number(policy?.defaultPfCapBasic ?? 15000) || 0;
+                    const basic = Math.round((emp.grossSalary * basicPct) / 100);
+                    const hra = Math.round((emp.grossSalary * hraPct) / 100);
+                    const conveyance = Number(policy?.defaultConveyance ?? 0) || 0;
+                    const special = Math.max(0, emp.grossSalary - basic - hra - conveyance);
                     const grossEarnings = emp.grossSalary;
 
-                    const pf = Math.round(basic * 0.12);
-                    const pt = 200;
-                    const tds = Math.round(emp.grossSalary * 0.063);
+                    const pfRaw = Math.round((basic * pfPct) / 100);
+                    const pf = pfCap > 0 ? Math.min(pfRaw, pfCap) : pfRaw;
+                    const pt = Number(policy?.defaultProfTax ?? 0) || 0;
+                    const tds = Math.round((emp.grossSalary * (Number(policy?.defaultTdsPct ?? 0) || 0)) / 100);
                     const totalDeductions = pf + pt + tds;
                     const netSalary = grossEarnings - totalDeductions;
 

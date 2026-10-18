@@ -1,6 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { CalendarPlus, Plus, Trash2, Star, Check } from 'lucide-react';
 import {
+  type LeaveEntitlement,
+  resolveLeaveEntitlements,
+  DEFAULT_LEAVE_ENTITLEMENTS,
   PublicHoliday,
   PublicHolidayKind,
   PUBLIC_HOLIDAY_KINDS,
@@ -14,7 +17,7 @@ import {
 export interface PayrollHolidayMasterProps {
   /** The AdminPolicyMaster that carries `publicHolidays`. */
   policy: any;
-  onChangePolicy: (patch: { publicHolidays: PublicHoliday[] }) => void;
+  onChangePolicy: (patch: { publicHolidays?: PublicHoliday[]; leaveEntitlements?: LeaveEntitlement[] }) => void;
   setStatusBanner?: (message: string) => void;
 }
 
@@ -25,6 +28,53 @@ export function PayrollHolidayMaster({ policy, onChangePolicy, setStatusBanner }
     () => (Array.isArray(policy?.publicHolidays) ? policy.publicHolidays : []),
     [policy]
   );
+
+  // ---- leave entitlements (master data the employee dashboard reads) -------------
+  const entitlements = useMemo<LeaveEntitlement[]>(
+    () => resolveLeaveEntitlements(policy),
+    [policy]
+  );
+  const [newType, setNewType] = useState('');
+  const [newLabel, setNewLabel] = useState('');
+  const [newQuota, setNewQuota] = useState(12);
+
+  const writeEntitlements = (next: LeaveEntitlement[]) => {
+    onChangePolicy({ leaveEntitlements: next });
+  };
+  const updateEntitlement = (index: number, patch: Partial<LeaveEntitlement>) => {
+    writeEntitlements(entitlements.map((e, i) => (i === index ? { ...e, ...patch } : e)));
+  };
+  const removeEntitlement = (index: number) => {
+    const target = entitlements[index];
+    writeEntitlements(entitlements.filter((_, i) => i !== index));
+    setStatusBanner?.(`Leave type "${target?.label || target?.type || index}" removed.`);
+  };
+  const addEntitlement = () => {
+    if (!newType.trim()) {
+      setStatusBanner?.('A leave type is required.');
+      return;
+    }
+    if (entitlements.some((e) => e.type.toLowerCase() === newType.trim().toLowerCase())) {
+      setStatusBanner?.(`A leave type "${newType.trim()}" already exists.`);
+      return;
+    }
+    writeEntitlements([
+      ...entitlements,
+      {
+        type: newType.trim(),
+        label: newLabel.trim() || newType.trim(),
+        quota: Number.isFinite(newQuota) ? Math.max(0, newQuota) : 0,
+        period: 'per year',
+      },
+    ]);
+    setStatusBanner?.(`Leave type "${newType.trim()}" added.`);
+    setNewType('');
+    setNewLabel('');
+  };
+  const restoreEntitlementDefaults = () => {
+    writeEntitlements(DEFAULT_LEAVE_ENTITLEMENTS.map((e) => ({ ...e })));
+    setStatusBanner?.('Leave entitlements restored to the company defaults.');
+  };
 
   const [name, setName] = useState('');
   const [date, setDate] = useState(todayIso());
@@ -161,6 +211,100 @@ export function PayrollHolidayMaster({ policy, onChangePolicy, setStatusBanner }
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* ---- Leave entitlement master -------------------------------------------------
+          The annual / monthly leave granted per type. The employee dashboard reads its
+          balances from here, so changing a number here changes what every employee sees. */}
+      <div className="sh-card">
+        <div className="sh-card-header">
+          <div className="flex items-center gap-2.5">
+            <span className="icon-depth w-9 h-9"><CalendarPlus className="w-4.5 h-4.5" /></span>
+            <div>
+              <h3 className="sh-card-title">Leave entitlement master</h3>
+              <p className="text-[11.5px] text-slate-500">
+                The leave granted per type. Employee dashboards read their balances from here.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="sh-badge sh-badge-neutral">{entitlements.length} type(s)</span>
+            <button type="button" className="sh-btn" onClick={restoreEntitlementDefaults}>
+              <Check className="w-3.5 h-3.5" /> Restore defaults
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="sh-table w-full">
+            <thead>
+              <tr><th>Leave type</th><th>Shown as</th><th>Granted</th><th>Period</th><th className="text-right">Action</th></tr>
+            </thead>
+            <tbody>
+              {entitlements.map((e, i) => (
+                <tr key={e.type}>
+                  <td className="font-semibold text-slate-800">{e.type}</td>
+                  <td>
+                    <input
+                      className="sh-input"
+                      value={e.label}
+                      onChange={(ev) => updateEntitlement(i, { label: ev.target.value })}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      className="sh-input w-24"
+                      value={e.quota}
+                      onChange={(ev) => updateEntitlement(i, { quota: Number(ev.target.value) })}
+                    />
+                  </td>
+                  <td>
+                    <select
+                      className="sh-input"
+                      value={e.period}
+                      onChange={(ev) => updateEntitlement(i, { period: ev.target.value })}
+                    >
+                      {['per year', 'per month', 'per quarter', 'as earned'].map((p) => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="text-right">
+                    <button type="button" className="sh-btn" onClick={() => removeEntitlement(i)} title="Remove this leave type">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {entitlements.length === 0 && (
+                <tr><td colSpan={5} className="text-center py-8 text-slate-400">
+                  No leave types yet. Restore the defaults, or add one below.
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="sh-card-body flex flex-wrap items-end gap-3 border-t border-slate-100">
+          <label className="block">
+            <span className="block text-[10.5px] font-bold uppercase tracking-wider text-slate-500 mb-1">New leave type</span>
+            <input className="sh-input" value={newType} onChange={(e) => setNewType(e.target.value)} placeholder="e.g. Maternity Leave" />
+          </label>
+          <label className="block">
+            <span className="block text-[10.5px] font-bold uppercase tracking-wider text-slate-500 mb-1">Shown as</span>
+            <input className="sh-input" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="e.g. Maternity Leave (ML)" />
+          </label>
+          <label className="block">
+            <span className="block text-[10.5px] font-bold uppercase tracking-wider text-slate-500 mb-1">Granted</span>
+            <input type="number" min="0" step="0.5" className="sh-input w-24" value={newQuota} onChange={(e) => setNewQuota(Number(e.target.value))} />
+          </label>
+          <button type="button" className="sh-btn sh-btn-primary" onClick={addEntitlement}>
+            <Plus className="w-3.5 h-3.5" /> Add leave type
+          </button>
         </div>
       </div>
     </div>

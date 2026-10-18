@@ -420,6 +420,8 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
   // app. Server-persisted and owner-scoped, so an employee can only ever write their own day
   // while the admin dashboard reads the whole workforce.
   const [dailyAttendance, setDailyAttendance] = useState<DailyAttendanceRecord[]>(() => loadDailyAttendance());
+  /** Today's date key, used to pick today's rows out of the attendance register. */
+  const todayIsoKey = new Date().toISOString().slice(0, 10);
   useEffect(() => {
     saveDailyAttendance(dailyAttendance, false);
   }, [dailyAttendance]);
@@ -2595,9 +2597,52 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
             onSwitchToCrm={onSwitchToCrm}
             onSignOut={onClose}
             searchFilter={globalPayrollSearch}
+            /* The REAL workforce for the attendance table: every enrolled employee, with their
+               check-in, status and punch location taken from today's attendance register. No
+               fallback list — an empty roster shows as empty rather than inventing people. */
+            employeesData={enrolledEmployees.map((m) => {
+              const empId = String(m.userId || (m as any).id || '');
+              const rec = dailyAttendance.find((r) => r.date === todayIsoKey && r.employeeId === empId);
+              const onLeave = leaves.some(
+                (l) =>
+                  String(l.status) === 'Approved' &&
+                  String(l.employeeId) === empId &&
+                  String(l.startDate) <= todayIsoKey &&
+                  todayIsoKey <= String(l.endDate || l.startDate)
+              );
+              const status: 'Present' | 'Not punched in' | 'On Leave' = rec?.punchInTime
+                ? 'Present'
+                : onLeave
+                ? 'On Leave'
+                : 'Not punched in';
+              const nm = String(m.name || empId);
+              return {
+                id: empId,
+                name: nm,
+                empCode: m.empCode || '',
+                department: m.department || '—',
+                designation: m.designation,
+                email: m.email,
+                checkInTime: rec?.punchInTime || '—',
+                status,
+                locationAddress: rec?.locationName || '—',
+                grossSalary: Number(m.monthlyGross) || 0,
+                avatarColor: 'bg-slate-100 text-slate-700 border-slate-200',
+                initials: nm.split(/\s+/).filter(Boolean).slice(0, 2).map((w: string) => w[0]).join('').toUpperCase(),
+              };
+            })}
             pendingLeavesCount={leaves.filter((l) => l.status === 'Pending Approval').length}
             pendingClaimsCount={claims.filter((c) => c.status === 'Under Verification').length}
-            pendingLoansCount={0}
+            /* Real loan requests still awaiting a decision — was hardcoded to 0. */
+            policy={adminPolicyMaster}
+            pendingLoansCount={loadAllEmployeeLoans().filter((l) =>
+              [
+                'Submitted - Pending HR Verification',
+                'HR Verified - Pending Manager/HR Approval',
+                'Approved - Pending Finance Disbursement',
+                'Returned for Clarification',
+              ].includes(String(l.status))
+            ).length}
           />
           </div>
         )}

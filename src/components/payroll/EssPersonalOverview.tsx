@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   calculateEmployeePolicyPayroll,
+  resolveLeaveEntitlements,
   proratePayrollToDate,
   workingDaysElapsedInMonth,
   loadAllEmployeeLoans,
@@ -117,14 +118,6 @@ const WORK_MODES: { id: 'Office HQ' | 'Work From Home' | 'Client Site Visit'; la
   { id: 'Client Site Visit', label: 'Client Site', icon: <Briefcase className="w-3.5 h-3.5" /> },
 ];
 
-/** Leave quotas under policy CS-HR-POL-001. */
-const LEAVE_QUOTAS: { type: string; label: string; quota: number; period: string }[] = [
-  { type: 'Monthly Leave (1/Month)', label: 'Paid Monthly Leave', quota: 1, period: 'per month' },
-  { type: 'Casual Leave', label: 'Casual Leave (CL)', quota: 12, period: 'per year' },
-  { type: 'Sick Leave', label: 'Sick Leave (SL)', quota: 12, period: 'per year' },
-  { type: 'Privilege Leave', label: 'Privilege Leave (PL)', quota: 15, period: 'per year' },
-];
-
 const leaveDays = (l: any): number => {
   if (!l) return 0;
   if (typeof l.days === 'number') return l.days;
@@ -189,6 +182,10 @@ export function EssPersonalOverview({
   // Salary privacy: monetary values are masked by default and revealed only on demand.
   const [showSalary, setShowSalary] = React.useState(false);
   const money = (n: number) => (showSalary ? formatCurrency(n) : '••••••');
+
+  // Leave balances come from the MASTER — the policy's leave entitlements — never from numbers
+  // written into this screen.
+  const leaveEntitlements = resolveLeaveEntitlements(policy as any);
 
   const isPunchedIn = Boolean(attendance?.punchedIn);
   const punchTime = attendance?.punchInTime || '—';
@@ -350,7 +347,7 @@ export function EssPersonalOverview({
   );
 
   /** Leave taken by type — drives the composition donut. */
-  const leaveSegments = LEAVE_QUOTAS.map((q, i) => ({
+  const leaveSegments = leaveEntitlements.map((q, i) => ({
     label: q.label,
     value: takenBy(q.type),
     color: ['#4a90e2', '#f5b942', '#f2726f', '#6d4bd1'][i % 4],
@@ -520,7 +517,7 @@ export function EssPersonalOverview({
             title: 'Leave remaining',
             sub: `${totalLeaveTaken} day(s) taken`,
             value: String(
-              LEAVE_QUOTAS.reduce((s, q) => s + Math.max(0, q.quota - takenBy(q.type)), 0)
+              leaveEntitlements.reduce((s, q) => s + Math.max(0, q.quota - takenBy(q.type)), 0)
             ),
             delta: null,
             spark: null,
@@ -758,7 +755,7 @@ export function EssPersonalOverview({
             </div>
           </div>
           <div className="sh-card-body space-y-3">
-            {LEAVE_QUOTAS.map((q) => {
+            {leaveEntitlements.map((q) => {
               const taken = takenBy(q.type);
               const remaining = Math.max(0, q.quota - taken);
               const pct = q.quota > 0 ? Math.min(100, Math.round((taken / q.quota) * 100)) : 0;
