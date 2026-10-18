@@ -1771,6 +1771,8 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
         workMode: attendance.workMode,
         locationId: activeUserMaster?.locationId,
         locationName: googleLoc.formattedAddress,
+        locationLat: googleLoc.lat,
+        locationLng: googleLoc.lng,
         recordedByName: onBehalfOf ? currentUser.name : undefined,
       })
     );
@@ -2284,6 +2286,9 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
       claims={claims}
       formatCurrency={formatCurrency}
       isFetchingLocation={isFetchingLocation}
+      todayAttendanceRecord={dailyAttendance.find(
+        (r) => r.date === todayIsoKey && r.employeeId === String(activeEmployee?.id || currentUser.id)
+      ) || null}
       onPunch={handleTogglePunch}
       policy={adminPolicyMaster}
       shift={resolveEmployeeShift(shifts, shiftAssignments, currentUser.id)}
@@ -2638,6 +2643,10 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
             pendingClaimsCount={claims.filter((c) => c.status === 'Under Verification').length}
             /* Real loan requests still awaiting a decision — was hardcoded to 0. */
             policy={adminPolicyMaster}
+            /* The whole register, so the date selector offers every day that has data and the
+               table shows that day's punches. */
+            attendanceRegister={dailyAttendance}
+            leaves={leaves}
             pendingLoansCount={loadAllEmployeeLoans().filter((l) =>
               [
                 'Submitted - Pending HR Verification',

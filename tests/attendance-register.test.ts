@@ -37,11 +37,18 @@ test('a punch out updates the SAME day and keeps the in time', () => {
   assert.equal(list[0].punchOutTime, '06:05 PM');
 });
 
-test('punching in again does not wipe the out time', () => {
+test('the FIRST punch in of the day is kept, and the out time survives a later punch in', () => {
   let list = upsertDailyAttendance([], punch({ punchInTime: '09:15 AM', punchOutTime: '06:05 PM' }));
   list = upsertDailyAttendance(list, punch({ punchInTime: '09:20 AM' }));
-  assert.equal(list[0].punchInTime, '09:20 AM');
+  assert.equal(list[0].punchInTime, '09:15 AM', 'the day starts at the first punch in, not a later one');
   assert.equal(list[0].punchOutTime, '06:05 PM');
+});
+
+test('the LAST punch out of the day is kept', () => {
+  let list = upsertDailyAttendance([], punch({ punchInTime: '09:15 AM', punchOutTime: '01:00 PM' }));
+  list = upsertDailyAttendance(list, punch({ punchOutTime: '06:05 PM' }));
+  assert.equal(list[0].punchInTime, '09:15 AM', 'the start does not move');
+  assert.equal(list[0].punchOutTime, '06:05 PM', 'the day ends at the last punch out');
 });
 
 test('two employees on the same day are two records', () => {

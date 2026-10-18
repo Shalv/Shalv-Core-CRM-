@@ -5,6 +5,8 @@ import {
   proratePayrollToDate,
   workingDaysElapsedInMonth,
   loadAllEmployeeLoans,
+  workedMinutesFor,
+  formatWorkedHours,
 } from './payrollTypes';
 import type { AdminPolicyMaster, EmployeeLoanRecord } from './payrollTypes';
 import { EssAttendanceCalendar } from './EssAttendanceCalendar';
@@ -66,6 +68,8 @@ export interface EssPersonalOverviewProps {
   formatCurrency?: (n: number) => string;
   /** Attendance punch (self-service) — GPS + office geofence enforced by the caller. */
   isFetchingLocation?: boolean;
+  /** Today's row from the shared attendance register — the authority on the day's hours. */
+  todayAttendanceRecord?: { punchInTime?: string; punchOutTime?: string } | null;
   onPunch?: () => void;
   /** Policy CS-HR-POL-001 master (timings, grace, lunch, statutory defaults). */
   policy?: any;
@@ -143,6 +147,7 @@ export function EssPersonalOverview({
   onNavigate,
   formatCurrency = (n) => String(n),
   isFetchingLocation = false,
+  todayAttendanceRecord,
   onPunch,
   policy,
   shift,
@@ -188,8 +193,10 @@ export function EssPersonalOverview({
   const leaveEntitlements = resolveLeaveEntitlements(policy as any);
 
   const isPunchedIn = Boolean(attendance?.punchedIn);
-  const punchTime = attendance?.punchInTime || '—';
-  const punchOutTime = attendance?.punchOutTime || null;
+  // The register is the authority: the day runs from the FIRST punch in to the LAST punch out.
+  const punchTime = todayAttendanceRecord?.punchInTime || attendance?.punchInTime || '—';
+  const punchOutTime = todayAttendanceRecord?.punchOutTime || attendance?.punchOutTime || null;
+  const workedMinutes = workedMinutesFor({ punchInTime: punchTime, punchOutTime: punchOutTime || undefined });
   const workMode = attendance?.workMode || 'Office HQ';
   const alreadyOut = Boolean(!isPunchedIn && attendance?.punchInTime && attendance?.punchOutTime);
   const nextPunchLabel = isPunchedIn ? 'Punch Out' : 'Punch In';
@@ -440,6 +447,22 @@ export function EssPersonalOverview({
                 ? `Punched in at ${punchTime}`
                 : 'Not punched in yet'}
             </span>
+          </div>
+
+          {/* Today's attendance — the first punch in and the last punch out define the day. */}
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="rounded-xl bg-white/5 border border-white/10 px-3 py-2">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">First punch in</div>
+              <div className="text-sm font-bold text-white font-mono mt-0.5">{punchTime}</div>
+            </div>
+            <div className="rounded-xl bg-white/5 border border-white/10 px-3 py-2">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Last punch out</div>
+              <div className="text-sm font-bold text-white font-mono mt-0.5">{punchOutTime || '—'}</div>
+            </div>
+            <div className="rounded-xl bg-white/5 border border-white/10 px-3 py-2">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Working hours</div>
+              <div className="text-sm font-bold text-emerald-300 font-mono mt-0.5">{formatWorkedHours(workedMinutes)}</div>
+            </div>
           </div>
         </div>
 
