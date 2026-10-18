@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { nextClaimId, nextClaimNumber } from './payrollTypes';
 import { localIsoDate } from '../../shared/geo';
 import { useCrm } from '../../context/CrmContext';
 import {
@@ -278,7 +279,8 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
       department: 'Sales',
       designation: 'Sales Executive',
       location: 'Mumbai HQ',
-      reportingManager: users[0]?.name || 'Vikramaditya Rathore',
+      // No invented manager: falls back to the first real user, or blank if there are none.
+      reportingManager: users[0]?.name || '',
       assignedTerritory: 'West Zone (Maharashtra & Gujarat)',
       status: 'Active' as 'Active' | 'Inactive',
       empCode: getNextAvailableEmpCode(employeeSalaryMasters, collectExistingEmpCodes(users)),
@@ -4935,10 +4937,10 @@ export const PayrollAdminMasterSection: React.FC<PayrollAdminMasterSectionProps>
                 type="button"
                 onClick={() => {
                   const newClm: ExpenseClaimItem = {
-                    id: `EXP-${Math.floor(300 + Math.random() * 600)}`,
+                    id: nextClaimId(claims),
                     employeeId: targetEntry?.id,
                     employeeName: targetEntry?.name,
-                    claimNo: `CLM-2026-${Math.floor(100 + Math.random() * 899)}`,
+                    claimNo: nextClaimNumber(claims),
                     category: 'Client Visit Travel',
                     expenseDate: new Date().toISOString().split('T')[0],
                     amount: 2500,

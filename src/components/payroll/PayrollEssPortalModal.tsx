@@ -92,6 +92,8 @@ import {
   decideShiftSwap,
   loadDailyAttendance,
   saveDailyAttendance,
+  nextClaimId,
+  nextClaimNumber,
   upsertDailyAttendance,
   DAILY_ATTENDANCE_SYNC_EVENT,
   loadRegularizationRequests,
@@ -2040,8 +2042,9 @@ export const PayrollEssPortalModal: React.FC<PayrollEssPortalModalProps> = ({
     if (!confirmSave('expense claim')) return;
 
     const newClaim: ExpenseClaimItem = {
-      id: `EXP-${Date.now().toString().slice(-4)}`,
-      claimNo: `CLM-2026-${Math.floor(100 + Math.random() * 899)}`,
+      // Sequential, so two claims can never share a number.
+      id: nextClaimId(claims),
+      claimNo: nextClaimNumber(claims),
       employeeId: activeEmployee.id,
       employeeName: activeEmployee.name,
       category: claimForm.category,
