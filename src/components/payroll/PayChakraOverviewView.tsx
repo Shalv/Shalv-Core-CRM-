@@ -1,3 +1,4 @@
+import { isOnApprovedLeave, workedMinutesFor, formatWorkedHours } from './payrollTypes';
 import React, { useState, useMemo } from 'react';
 import { APIProvider, Map, AdvancedMarker } from '@vis.gl/react-google-maps';
 import {
@@ -51,6 +52,8 @@ import {
 const GMP_LIBRARIES: string[] = ['marker'];
 const GMP_ATTRIBUTION_IDS: string[] = ['gmp_mcp_codeassist_v1_aistudio'];
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 export interface WorkforceEmployeeItem {
   id: string;
   name: string;
@@ -59,6 +62,10 @@ export interface WorkforceEmployeeItem {
   designation?: string;
   email?: string;
   checkInTime: string;
+  /** The LAST punch out of the day, when there is one. */
+  checkOutTime?: string;
+  /** Minutes from the FIRST punch in to the LAST punch out. */
+  workedMinutes?: number;
   status: 'Present' | 'Not punched in' | 'On Leave';
   locationAddress: string;
   locationCoords?: { lat: number; lng: number };
@@ -83,6 +90,10 @@ interface PayChakraOverviewViewProps {
   pendingLoansCount?: number;
   /** The policy master — statutory percentages and caps the payslip breakdown is built from. */
   policy?: any;
+  /** The shared daily attendance register — one record per employee per day, written on punch. */
+  attendanceRegister?: any[];
+  /** Leave requests, used to show who is on APPROVED leave on the selected day. */
+  leaves?: any[];
 }
 
 export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
@@ -100,13 +111,17 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
   pendingClaimsCount = 0,
   pendingLoansCount = 0,
   policy,
+  attendanceRegister = [],
+  leaves = [],
 }) => {
   const { currentUser, formatCurrency } = useCrm();
 
   // Internal search and department filter state
   const [localSearch, setLocalSearch] = useState('');
   const [selectedDept, setSelectedDept] = useState('ALL');
-  const [selectedDate, setSelectedDate] = useState('15 Oct 2026');
+  // The attendance date is a real ISO date, defaulting to today — not a literal string.
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const [selectedDateIso, setSelectedDateIso] = useState(todayIso);
   const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showDeptDropdown, setShowDeptDropdown] = useState(false);
@@ -162,10 +177,63 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
     return ['ALL', ...Array.from(set)];
   }, [employeeList]);
 
+  /** Every date the register actually holds data for, newest first; today is always offered. */
+  const attendanceDates = useMemo(() => {
+    const set = new Set<string>();
+    set.add(todayIso);
+    for (const r of attendanceRegister) {
+      const d = String(r?.date || '');
+      if (/^\d{4}-\d{2}-\d{2}$/.test(d)) set.add(d);
+    }
+    return [...set].sort((a, b) => (a < b ? 1 : -1));
+  }, [attendanceRegister, todayIso]);
+
+  /** A readable label for a date, e.g. "18 Oct 2026". */
+  const formatDateLabel = (iso: string): string => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+    if (!m) return String(iso || '');
+    return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1] || ''} ${m[1]}`.trim();
+  };
+  const selectedDateLabel = formatDateLabel(selectedDateIso);
+
+  /**
+   * The workforce AS IT STOOD on the selected date — check-in, status and punch location read from
+   * the register for that day. Switching the date changes these rows, which is the whole point of
+   * the date selector.
+   */
+  const attendanceRows = useMemo<WorkforceEmployeeItem[]>(() => {
+    // globalThis.Map — the bare `Map` here is the lucide icon component.
+    const byEmployee = new globalThis.Map<string, any>();
+    for (const r of attendanceRegister) {
+      if (r?.date === selectedDateIso && r?.employeeId) byEmployee.set(String(r.employeeId), r);
+    }
+    return employeeList.map((e) => {
+      const rec = byEmployee.get(String(e.id));
+      const onLeave = isOnApprovedLeave(String(e.id), selectedDateIso, leaves);
+      const status: WorkforceEmployeeItem['status'] = rec?.punchInTime
+        ? 'Present'
+        : onLeave
+        ? 'On Leave'
+        : 'Not punched in';
+      return {
+        ...e,
+        checkInTime: rec?.punchInTime || '—',
+        checkOutTime: rec?.punchOutTime,
+        workedMinutes: workedMinutesFor(rec),
+        status,
+        locationAddress: rec?.locationName || '—',
+        locationCoords:
+          typeof rec?.locationLat === 'number' && typeof rec?.locationLng === 'number'
+            ? { lat: rec.locationLat, lng: rec.locationLng }
+            : undefined,
+      };
+    });
+  }, [employeeList, attendanceRegister, selectedDateIso, leaves]);
+
   // Filtering
   const effectiveSearch = (searchFilter || localSearch).trim().toLowerCase();
   const filteredEmployees = useMemo(() => {
-    return employeeList.filter((emp) => {
+    return attendanceRows.filter((emp) => {
       const matchDept = selectedDept === 'ALL' || emp.department === selectedDept;
       const matchSearch =
         !effectiveSearch ||
@@ -185,7 +253,7 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
   const departmentBreakdown = useMemo(() => {
     // globalThis.Map — the bare `Map` here is the lucide icon component.
     const map = new globalThis.Map<string, { dept: string; names: string[]; present: number; total: number }>();
-    for (const e of employeeList) {
+    for (const e of attendanceRows) {
       const dept = e.department || 'Unassigned';
       const row = map.get(dept) || { dept, names: [], present: 0, total: 0 };
       row.names.push(e.name);
@@ -233,8 +301,10 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
   /** "Reviewed" = the employee has a salary on record, so payroll can actually run for them. */
   const reviewedCount = employeeList.filter((e) => (e.grossSalary || 0) > 0).length;
   const activeEmployeesCount = employeeList.filter((e) => e.status !== 'On Leave').length;
-  const presentTodayCount = employeeList.filter((e) => e.status === 'Present').length;
-  const notPunchedInCount = employeeList.filter((e) => e.status === 'Not punched in').length;
+  // These describe the SELECTED DAY, so changing the date changes the summary.
+  const presentTodayCount = attendanceRows.filter((e) => e.status === 'Present').length;
+  const notPunchedInCount = attendanceRows.filter((e) => e.status === 'Not punched in').length;
+  const onLeaveCount = attendanceRows.filter((e) => e.status === 'On Leave').length;
   const attendancePercentage = totalEmployeesCount > 0 ? Math.round((presentTodayCount / totalEmployeesCount) * 100) : 0;
   const notPunchedPercentage = 100 - attendancePercentage;
 
@@ -246,13 +316,15 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
 
   // Export CSV handler
   const handleExportCsv = () => {
-    const headers = ['Employee Name', 'Emp Code', 'Department', 'Designation', 'Check-in Time', 'Status', 'Location'];
+    const headers = ['Employee Name', 'Emp Code', 'Department', 'Designation', 'First Check-in', 'Last Check-out', 'Working Hours', 'Status', 'Location'];
     const rows = filteredEmployees.map((e) => [
       `"${e.name}"`,
       `"${e.empCode}"`,
       `"${e.department}"`,
       `"${e.designation || ''}"`,
       `"${e.checkInTime}"`,
+      `"${e.checkOutTime || ''}"`,
+      `"${formatWorkedHours(e.workedMinutes || 0)}"`,
       `"${e.status}"`,
       `"${e.locationAddress}"`,
     ]);
@@ -262,7 +334,7 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `PayChakra_Attendance_${selectedDate.replace(/\s+/g, '_')}.csv`);
+    link.setAttribute('download', `PayChakra_Attendance_${selectedDateIso}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -541,25 +613,27 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer transition shadow-2xs"
                   >
                     <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                    <span>{selectedDate}</span>
+                    <span>{selectedDateLabel}</span>
                     <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
                   </button>
 
                   {showDatePicker && (
                     <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-lg border border-slate-200 py-1 z-30">
-                      {['15 Oct 2026', '14 Oct 2026', '13 Oct 2026', '12 Oct 2026'].map((d) => (
+                      {/* Every date the register holds, newest first — plus today. */}
+                      {attendanceDates.map((d) => (
                         <button
                           key={d}
                           type="button"
                           onClick={() => {
-                            setSelectedDate(d);
+                            setSelectedDateIso(d);
                             setShowDatePicker(false);
                           }}
                           className={`w-full px-3 py-1.5 text-left text-xs font-medium cursor-pointer ${
-                            selectedDate === d ? 'bg-teal-50 text-teal-800 font-bold' : 'text-slate-700 hover:bg-slate-50'
+                            selectedDateIso === d ? 'bg-teal-50 text-teal-800 font-bold' : 'text-slate-700 hover:bg-slate-50'
                           }`}
                         >
-                          {d}
+                          {formatDateLabel(d)}
+                          {d === todayIso && <span className="ml-1.5 text-[10px] text-teal-600 font-bold">Today</span>}
                         </button>
                       ))}
                     </div>
@@ -633,6 +707,8 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
                     <th className="py-3 px-5">Employee</th>
                     <th className="py-3 px-4">Department</th>
                     <th className="py-3 px-4">Check-in</th>
+                    <th className="py-3 px-4">Check-out</th>
+                    <th className="py-3 px-4">Working hours</th>
                     <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-5">Location</th>
                   </tr>
@@ -671,9 +747,19 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
                           {emp.department}
                         </td>
 
-                        {/* Check-in */}
+                        {/* Check-in — the FIRST punch in of the day */}
                         <td className="py-3.5 px-4 font-mono text-xs font-semibold text-slate-800">
                           {emp.checkInTime}
+                        </td>
+
+                        {/* Check-out — the LAST punch out of the day */}
+                        <td className="py-3.5 px-4 font-mono text-xs font-semibold text-slate-800">
+                          {emp.checkOutTime || '—'}
+                        </td>
+
+                        {/* Working hours — first in to last out */}
+                        <td className="py-3.5 px-4 font-mono text-xs font-bold text-teal-800">
+                          {formatWorkedHours(emp.workedMinutes || 0)}
                         </td>
 
                         {/* Status Badge */}
@@ -1110,7 +1196,7 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
               </div>
 
               <div className="flex items-center justify-between text-xs text-slate-500 pt-2">
-                <span>Timestamp: 15 Oct 2026, {selectedLocationEmployee.checkInTime}</span>
+                <span>Timestamp: {selectedDateLabel}, {selectedLocationEmployee.checkInTime}</span>
                 <a
                   href={`https://www.google.com/maps?q=${selectedLocationEmployee.locationCoords?.lat || 28.4089},${
                     selectedLocationEmployee.locationCoords?.lng || 77.3178
@@ -1467,7 +1553,7 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
                     {activeTilePopup === 'total_employees' &&
                       'Complete workforce list with departments, contact, and CTC records'}
                     {activeTilePopup === 'present_today' &&
-                      'Real-time punch records with Google Maps coordinates for 15 Oct 2026'}
+                      `Real-time punch records with Google Maps coordinates for ${selectedDateLabel}`}
                     {activeTilePopup === 'monthly_payroll' &&
                       'Itemized salary register with Basic, HRA, PF, PT, TDS & Net Pay'}
                     {(activeTilePopup === 'pending_approvals' || activeTilePopup === 'approval_inbox') &&
@@ -2075,7 +2161,7 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
                   <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-slate-900">Today&apos;s Attendance Distribution</span>
-                      <span className="font-mono font-bold text-slate-700">15 Oct 2026</span>
+                      <span className="font-mono font-bold text-slate-700">{selectedDateLabel}</span>
                     </div>
 
                     <div className="w-full h-4 rounded-full overflow-hidden flex bg-slate-200 shadow-inner">

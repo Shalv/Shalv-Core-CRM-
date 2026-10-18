@@ -828,78 +828,21 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) { /* ignore */ }
   }, [payrollRolePermissions]);
 
-  const [currentUser, setCurrentUser] = useState<User>(() => {
-    let activeUsersList = INITIAL_USERS.map(sanitizeClientUser);
-    const savedUsers = localStorage.getItem(STORAGE_KEYS.USERS);
-    if (savedUsers) {
-      try {
-        const parsed = JSON.parse(savedUsers);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const filtered = parsed.filter((u: any) => !isRemovedPredefinedUser(u)).map(sanitizeClientUser);
-          if (filtered.length > 0) {
-            activeUsersList = filtered;
-          }
-        }
-      } catch (e) { /* ignore */ }
-    }
+  /**
+   * There is NO auto-login. The signed-in user starts blank and is only ever set by an explicit
+   * login, so a reload never restores a session and nobody is silently signed in as the first
+   * user in the list.
+   */
+  const [currentUser, setCurrentUser] = useState<User>(() => ({
+    id: '',
+    name: '',
+    email: '',
+    role: 'Employee',
+    department: 'Executive',
+  }));
 
-    const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
-    if (saved) {
-      try {
-        const parsed = sanitizeClientUser(JSON.parse(saved));
-        if (!isRemovedPredefinedUser(parsed)) {
-          const matched = activeUsersList.find((u) => u.id === parsed.id);
-          if (matched) {
-            return sanitizeClientUser({ ...matched, ...parsed });
-          }
-          if (parsed && parsed.id && parsed.email) {
-            return parsed;
-          }
-        }
-      } catch (e) { /* ignore */ }
-    }
-    return activeUsersList[0] || {
-      id: '',
-      name: '',
-      email: '',
-      role: 'Super Admin',
-      department: 'Executive',
-    };
-  });
-
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    try {
-      const savedUserRaw = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
-      if (savedUserRaw) {
-        const u = JSON.parse(savedUserRaw);
-        if (isRemovedPredefinedUser(u) || !u?.id) {
-          localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
-          localStorage.removeItem(STORAGE_KEYS.IS_AUTHENTICATED);
-          return false;
-        }
-      }
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get('portal') === 'payroll') {
-        const urlEmail = (urlParams.get('email') || '').trim().toLowerCase();
-        const savedUser = savedUserRaw ? JSON.parse(savedUserRaw) : null;
-        const savedEmail = (savedUser?.email || '').trim().toLowerCase();
-        // If opening a Payroll login link for a specific user or switching from CRM into Payroll login portal,
-        // require authentication on the Separate Payroll Login Page unless already authenticated as that exact payroll user
-        if (urlEmail && savedEmail !== urlEmail) {
-          return false;
-        }
-        if (savedUser?.accessScope !== 'payroll_only') {
-          return false;
-        }
-      }
-    } catch (e) { /* ignore */ }
-
-    const saved = localStorage.getItem(STORAGE_KEYS.IS_AUTHENTICATED);
-    if (saved !== null) {
-      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
-    }
-    return false;
-  });
+  /** Nobody is authenticated until they actually log in. */
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
   const [states, setStates] = useState<StateMasterItem[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.STATES);

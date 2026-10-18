@@ -2734,6 +2734,9 @@ export interface DailyAttendanceRecord {
   workMode?: string;
   locationId?: string;
   locationName?: string;
+  /** The punch coordinates, so the map link opens the actual place the punch was made. */
+  locationLat?: number;
+  locationLng?: number;
   /** Set when an admin/HR user punched on this employee's behalf. */
   recordedByName?: string;
   updatedAt: string;
@@ -2783,6 +2786,8 @@ export const upsertDailyAttendance = (
     workMode?: string;
     locationId?: string;
     locationName?: string;
+    locationLat?: number;
+    locationLng?: number;
     recordedByName?: string;
   }
 ): DailyAttendanceRecord[] => {
@@ -2803,6 +2808,8 @@ export const upsertDailyAttendance = (
         workMode: patch.workMode,
         locationId: patch.locationId,
         locationName: patch.locationName,
+        locationLat: patch.locationLat,
+        locationLng: patch.locationLng,
         recordedByName: patch.recordedByName,
         updatedAt: at,
       },
@@ -2814,16 +2821,63 @@ export const upsertDailyAttendance = (
           ...r,
           employeeName: patch.employeeName || r.employeeName,
           empCode: patch.empCode || r.empCode,
-          punchInTime: patch.punchInTime ?? r.punchInTime,
+          // The working day runs from the FIRST punch in to the LAST punch out, so a second
+          // punch in never moves the start and a later punch out always moves the end.
+          punchInTime: r.punchInTime ?? patch.punchInTime,
           punchOutTime: patch.punchOutTime ?? r.punchOutTime,
           workMode: patch.workMode || r.workMode,
           locationId: patch.locationId || r.locationId,
           locationName: patch.locationName || r.locationName,
+          locationLat: patch.locationLat ?? r.locationLat,
+          locationLng: patch.locationLng ?? r.locationLng,
           recordedByName: patch.recordedByName || r.recordedByName,
           updatedAt: at,
         }
       : r
   );
+};
+
+/** True when an APPROVED leave covers this employee on this day. */
+export const isOnApprovedLeave = (employeeId: string, dateIso: string, leaves: any[] = []): boolean =>
+  (leaves || []).some(
+    (l) =>
+      l &&
+      String(l.status || '') === 'Approved' &&
+      String(l.employeeId) === String(employeeId) &&
+      Boolean(l.startDate) &&
+      String(l.startDate) <= dateIso &&
+      dateIso <= String(l.endDate || l.startDate)
+  );
+
+/**
+ * Parse a 12-hour clock time such as "09:15 AM" into minutes past midnight.
+ * Returns null for anything unparseable, including the "—" placeholder.
+ */
+export const parseClockTime = (value?: string): number | null => {
+  const m = /^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/.exec(String(value || '').trim());
+  if (!m) return null;
+  let hours = Number(m[1]) % 12;
+  const minutes = Number(m[2]);
+  if (m[3].toUpperCase() === 'PM') hours += 12;
+  return hours * 60 + minutes;
+};
+
+/**
+ * The minutes actually worked on a day: from the FIRST punch in to the LAST punch out.
+ * Returns 0 when the day is incomplete, so a half-finished day never reports hours.
+ */
+export const workedMinutesFor = (record?: { punchInTime?: string; punchOutTime?: string } | null): number => {
+  const inMins = parseClockTime(record?.punchInTime);
+  const outMins = parseClockTime(record?.punchOutTime);
+  if (inMins === null || outMins === null) return 0;
+  return Math.max(0, outMins - inMins);
+};
+
+/** "8h 45m" from a minute count — the display form of the working hours. */
+export const formatWorkedHours = (minutes: number): string => {
+  const total = Math.max(0, Math.round(Number(minutes) || 0));
+  if (total === 0) return '—';
+  return `${Math.floor(total / 60)}h ${String(total % 60).padStart(2, '0')}m`;
 };
 
 export type AttendanceDayState = 'Present' | 'Completed' | 'On leave' | 'Not punched';
