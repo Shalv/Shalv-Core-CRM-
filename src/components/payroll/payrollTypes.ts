@@ -220,6 +220,8 @@ export interface AdminPolicyMaster {
   slQuota: number;
   compOffQuota: number;
   monthlyLeaveLimit?: number; // 1 leave per month per CS-HR-POL-001
+  /** Leave granted per type — the master the employee dashboard reads its balances from. */
+  leaveEntitlements?: LeaveEntitlement[];
   shiftStartTime: string; // '09:30 AM'
   shiftEndTime: string; // '06:00 PM'
   earlyArrivalCutoff?: string; // '09:00 AM' (Before 9:00 AM recorded as 9:00 AM)
@@ -253,6 +255,8 @@ export interface AdminPolicyMaster {
   defaultSalesCommissionPct: number;
   defaultPfCapBasic: number;
   defaultProfTax: number;
+  /** Standard conveyance shown on a payslip breakdown before the salary structure overrides it. */
+  defaultConveyance?: number;
   defaultTdsPct: number;
   lastPublishedMonth: string;
   loanShortfallPolicy?: LoanShortfallPolicy;
@@ -3012,6 +3016,50 @@ export const proratePayrollToDate = (
   };
 };
 
+/* ------------------------------------------------ leave entitlement master ----
+ * The annual / monthly leave the company grants, per leave type. This is MASTER data: the
+ * employee dashboard reads its balances straight from here rather than from numbers written
+ * into the screen, so an admin changing the entitlement changes what every employee sees.
+ * ---------------------------------------------------------------------------- */
+
+export interface LeaveEntitlement {
+  /** Must match the leaveType used on a leave request. */
+  type: string;
+  label: string;
+  /** How many days are granted in the period. */
+  quota: number;
+  /** 'per year' | 'per month' | 'per quarter' — shown beside the balance. */
+  period: string;
+}
+
+export const DEFAULT_LEAVE_ENTITLEMENTS: LeaveEntitlement[] = [
+  { type: 'Monthly Leave (1/Month)', label: 'Paid Monthly Leave', quota: 1, period: 'per month' },
+  { type: 'Casual Leave', label: 'Casual Leave (CL)', quota: 12, period: 'per year' },
+  { type: 'Sick Leave', label: 'Sick Leave (SL)', quota: 12, period: 'per year' },
+  { type: 'Privilege Leave', label: 'Privilege Leave (PL)', quota: 15, period: 'per year' },
+  { type: 'Comp-Off', label: 'Comp-Off', quota: 0, period: 'as earned' },
+];
+
+/**
+ * The entitlements that apply, taken from the policy master.
+ * Falls back to the company defaults only when the master carries none, so an existing saved
+ * policy keeps working and the screen is never left with invented numbers.
+ */
+export const resolveLeaveEntitlements = (policy?: Partial<AdminPolicyMaster> | null): LeaveEntitlement[] => {
+  const list = (policy as any)?.leaveEntitlements;
+  if (Array.isArray(list) && list.length > 0) {
+    return list
+      .filter((e: any) => e && e.type)
+      .map((e: any) => ({
+        type: String(e.type),
+        label: String(e.label || e.type),
+        quota: Number.isFinite(Number(e.quota)) ? Math.max(0, Number(e.quota)) : 0,
+        period: String(e.period || 'per year'),
+      }));
+  }
+  return DEFAULT_LEAVE_ENTITLEMENTS;
+};
+
 export const DEFAULT_ADMIN_POLICY_MASTER: AdminPolicyMaster = {
   policyCode: 'CS-HR-POL-001',
   policyVersion: '1.0',
@@ -3021,6 +3069,7 @@ export const DEFAULT_ADMIN_POLICY_MASTER: AdminPolicyMaster = {
   slQuota: 0,
   compOffQuota: 4,
   monthlyLeaveLimit: 1,
+  leaveEntitlements: DEFAULT_LEAVE_ENTITLEMENTS,
   shiftStartTime: '09:30 AM',
   shiftEndTime: '06:00 PM',
   geofenceRadiusMeters: OFFICE_GEOFENCE.radiusMeters,
@@ -3057,6 +3106,7 @@ export const DEFAULT_ADMIN_POLICY_MASTER: AdminPolicyMaster = {
   defaultSalesCommissionPct: 1.5,
   defaultPfCapBasic: 15000,
   defaultProfTax: 200,
+  defaultConveyance: 1600,
   defaultTdsPct: 8.5,
   lastPublishedMonth: 'September 2026',
   loanShortfallPolicy: 'cap_at_max_takehome_pct',
