@@ -196,6 +196,39 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
     return [...map.values()].sort((a, b) => b.total - a.total || a.dept.localeCompare(b.dept));
   }, [employeeList]);
 
+  /** Rupee formatter for the figures on this screen. */
+  const inr = (n: number) => `\u20b9${Math.round(Number(n) || 0).toLocaleString('en-IN')}`;
+
+  /**
+   * The payroll totals on this screen, computed from the real workforce and the policy master —
+   * never written into the markup. EPF is 12% of basic capped at the statutory ceiling, professional
+   * tax is per head, and TDS follows the policy percentage.
+   */
+  const payrollTotals = useMemo(() => {
+    const basicPct = Number(policy?.defaultBasicPct ?? 50) || 50;
+    const pfPct = Number(policy?.defaultPfPct ?? 12) || 12;
+    const pfCap = Number(policy?.defaultPfCapBasic ?? 0) || 0;
+    const ptPerHead = Number(policy?.defaultProfTax ?? 0) || 0;
+    const tdsPct = Number(policy?.defaultTdsPct ?? 0) || 0;
+    let gross = 0;
+    let epf = 0;
+    let tds = 0;
+    let count = 0;
+    for (const e of employeeList) {
+      const g = Number(e.grossSalary) || 0;
+      if (g <= 0) continue;
+      gross += g;
+      count += 1;
+      const basic = (g * basicPct) / 100;
+      const rawPf = Math.round((basic * pfPct) / 100);
+      epf += pfCap > 0 ? Math.min(rawPf, pfCap) : rawPf;
+      tds += Math.round((g * tdsPct) / 100);
+    }
+    const professionalTax = ptPerHead * count;
+    const statutory = epf + professionalTax + tds;
+    return { gross, epf, professionalTax, tds, statutory, net: Math.max(0, gross - statutory), count };
+  }, [employeeList, policy]);
+
   const totalEmployeesCount = employeeList.length;
   /** "Reviewed" = the employee has a salary on record, so payroll can actually run for them. */
   const reviewedCount = employeeList.filter((e) => (e.grossSalary || 0) > 0).length;
@@ -1166,11 +1199,11 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
                   <div className="grid grid-cols-2 gap-3">
                     <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                       <span className="text-[11px] text-slate-500 font-medium">Total Employees</span>
-                      <div className="text-xl font-extrabold text-slate-900 mt-0.5">4</div>
+                      <div className="text-xl font-extrabold text-slate-900 mt-0.5">{totalEmployeesCount}</div>
                     </div>
                     <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                       <span className="text-[11px] text-slate-500 font-medium">Total Monthly Gross</span>
-                      <div className="text-xl font-extrabold text-slate-900 font-mono mt-0.5">₹2,32,000</div>
+                      <div className="text-xl font-extrabold text-slate-900 font-mono mt-0.5">{inr(payrollTotals.gross)}</div>
                     </div>
                   </div>
 
@@ -1482,7 +1515,7 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
                     </div>
                     <div className="p-3 bg-blue-50 rounded-xl border border-blue-200">
                       <span className="text-[11px] text-blue-800 font-medium">Total Monthly Gross</span>
-                      <div className="text-xl font-extrabold text-blue-950 font-mono mt-0.5">₹2,32,000</div>
+                      <div className="text-xl font-extrabold text-blue-950 font-mono mt-0.5">{inr(payrollTotals.gross)}</div>
                     </div>
                   </div>
 
@@ -1777,10 +1810,10 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
                         Total Monthly Gross
                       </span>
                       <div className="text-2xl font-extrabold text-blue-950 font-mono mt-1">
-                        ₹2,32,000
+                        {inr(payrollTotals.gross)}
                       </div>
                       <p className="text-[10.5px] text-blue-700 mt-0.5">
-                        October 2026 Salary register (4 employees)
+                        Salary register for {payrollTotals.count} employee(s) with a salary on record
                       </p>
                     </div>
 
@@ -1789,10 +1822,10 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
                         Statutory Deductions
                       </span>
                       <div className="text-2xl font-extrabold text-rose-950 font-mono mt-1">
-                        ₹28,640
+                        {inr(payrollTotals.statutory)}
                       </div>
                       <p className="text-[10.5px] text-rose-700 mt-0.5">
-                        EPF (₹13,920) + PT (₹800) + TDS (₹13,920)
+                        EPF ({inr(payrollTotals.epf)}) + PT ({inr(payrollTotals.professionalTax)}) + TDS ({inr(payrollTotals.tds)})
                       </p>
                     </div>
 
@@ -1801,10 +1834,10 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
                         Net Take-Home Payable
                       </span>
                       <div className="text-2xl font-extrabold text-emerald-950 font-mono mt-1">
-                        ₹2,03,360
+                        {inr(payrollTotals.net)}
                       </div>
                       <p className="text-[10.5px] text-emerald-700 mt-0.5">
-                        Bank disbursal amount for 4 accounts
+                        Bank disbursal amount for {payrollTotals.count} account(s)
                       </p>
                     </div>
                   </div>
@@ -1816,7 +1849,7 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
                         October 2026 Employee Salary Register Breakdown
                       </span>
                       <span className="text-[11px] text-slate-500 font-medium">
-                        Statutory rules: EPF 12% · PT ₹200 · Sec 115BAC
+                        Statutory rules: EPF {Number(policy?.defaultPfPct ?? 12)}% · PT {inr(Number(policy?.defaultProfTax ?? 0))} · Sec 115BAC
                       </span>
                     </div>
 
@@ -1903,13 +1936,13 @@ export const PayChakraOverviewView: React.FC<PayChakraOverviewViewProps> = ({
                               Total Workforce Register
                             </td>
                             <td className="py-2.5 px-2.5 text-right font-mono text-slate-900">
-                              ₹2,32,000
+                              {inr(payrollTotals.gross)}
                             </td>
                             <td className="py-2.5 px-2.5 text-right font-mono text-rose-600">
-                              -₹28,640
+                              -{inr(payrollTotals.statutory)}
                             </td>
                             <td className="py-2.5 px-3 text-right font-mono text-emerald-800 text-sm">
-                              ₹2,03,360
+                              {inr(payrollTotals.net)}
                             </td>
                             <td />
                           </tr>

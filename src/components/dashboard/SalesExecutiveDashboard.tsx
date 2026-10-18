@@ -133,9 +133,13 @@ export const SalesExecutiveDashboard: React.FC<SalesExecutiveDashboardProps> = (
     .filter((o) => o.status !== 'Cancelled' && o.status !== 'Rejected')
     .reduce((sum, o) => sum + o.grandTotal, 0);
 
-  // Individual Monthly Quota Target
-  const monthlyQuotaTarget = 1500000; // ₹15,00,000 monthly target
-  const quotaAchievedPct = Math.min(100, Math.round((wonRevenue / monthlyQuotaTarget) * 100));
+  // Individual monthly quota target. It comes from the user's master record — if no target has
+  // been set we say so rather than inventing one and showing a meaningless percentage.
+  const monthlyQuotaTarget = Number((currentUser as any)?.monthlySalesTarget) || 0;
+  const hasQuotaTarget = monthlyQuotaTarget > 0;
+  const quotaAchievedPct = hasQuotaTarget
+    ? Math.min(100, Math.round((wonRevenue / monthlyQuotaTarget) * 100))
+    : 0;
 
   // Activities filter
   const todayActivities = scopedActivities.filter(
@@ -318,16 +322,18 @@ export const SalesExecutiveDashboard: React.FC<SalesExecutiveDashboardProps> = (
             <div className="text-2xl font-extrabold font-mono text-emerald-700">
               {formatCurrency(wonRevenue)}
             </div>
-            {/* Monthly Quota Target Bar */}
+            {/* Monthly Quota Target Bar — only shown when a target actually exists in the master. */}
             <div className="mt-1.5">
               <div className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-1">
-                <span>Quota Progress:</span>
-                <span className="font-bold text-emerald-700">{quotaAchievedPct}%</span>
+                <span>{hasQuotaTarget ? 'Quota Progress:' : 'Monthly target:'}</span>
+                <span className="font-bold text-emerald-700">
+                  {hasQuotaTarget ? `${quotaAchievedPct}% of ${formatCurrency(monthlyQuotaTarget)}` : 'not set'}
+                </span>
               </div>
               <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                  style={{ width: `${quotaAchievedPct}%` }}
+                  style={{ width: `${hasQuotaTarget ? quotaAchievedPct : 0}%` }}
                 />
               </div>
             </div>

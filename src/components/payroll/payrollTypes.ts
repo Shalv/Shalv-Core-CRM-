@@ -2682,6 +2682,39 @@ export const prorateForLop = (
   return { payableDays, net: Math.round((gross * payableDays) / wd) };
 };
 
+/* ------------------------------------------------------ document numbering ----
+ * Claim numbers and ids are SEQUENTIAL, derived from what already exists. They used to be
+ * generated with Math.random(), which can hand two different claims the same number.
+ * ---------------------------------------------------------------------------- */
+
+const highestNumericSuffix = (values: string[], pattern: RegExp): number => {
+  let max = 0;
+  for (const v of values) {
+    const m = pattern.exec(String(v || ''));
+    if (m) max = Math.max(max, Number(m[m.length - 1]) || 0);
+  }
+  return max;
+};
+
+/**
+ * The next claim number, e.g. CLM-2026-007 — never a duplicate of an existing one.
+ * The sequence restarts each year, so last year's numbers never push this year's up.
+ */
+export const nextClaimNumber = (existing: { claimNo?: string }[]): string => {
+  const year = new Date().getFullYear();
+  const max = highestNumericSuffix(
+    (existing || []).map((c) => String(c?.claimNo || '')),
+    new RegExp(`CLM-${year}-(\\d+)`)
+  );
+  return `CLM-${year}-${String(max + 1).padStart(3, '0')}`;
+};
+
+/** The next claim id, e.g. EXP-0007 — sequential rather than a random four digits. */
+export const nextClaimId = (existing: { id?: string }[]): string =>
+  `EXP-${String(
+    highestNumericSuffix((existing || []).map((c) => String(c?.id || '')), /EXP-(\d+)/) + 1
+  ).padStart(4, '0')}`;
+
 /* ------------------------------------------------ daily attendance register ----
  * One record per employee per DAY, written the moment they punch in or out from the web app.
  * This is the shared, server-persisted source the admin dashboard reads to answer "who is in

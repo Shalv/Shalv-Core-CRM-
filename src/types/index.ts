@@ -67,6 +67,8 @@ export interface PayrollModulePermission {
 export type PayrollPermissionsMap = Record<PayrollModuleKey, PayrollModulePermission>;
 
 export interface User {
+  /** Individual monthly sales target, set on the user master. Zero or absent = no target set. */
+  monthlySalesTarget?: number;
   id: string;
   name: string;
   username?: string;
