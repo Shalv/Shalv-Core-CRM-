@@ -657,12 +657,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             currentUser.accessType !== 'payroll_only' && (
               <button
                 onClick={() => {
-                  if (confirm('Reset all CRM data to pristine initial demo state?')) {
+                  if (confirm('Reset all CRM transactional data? Master data (users, customers, products, tax rates) will be kept.')) {
                     resetAllToSampleData();
                   }
                 }}
                 className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                title="Reset to Sample Data"
+                title="Reset CRM data (keeps masters)"
               >
                 <RotateCcw className="w-4 h-4" />
               </button>
