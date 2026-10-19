@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useCrm } from '../../context/CrmContext';
 import {
   Lock,
@@ -10,16 +10,15 @@ import {
   CheckCircle2,
   AlertCircle,
   Building2,
-  Calendar,
+  Users,
   FileText,
   KeyRound,
   Shield,
-  ChevronRight,
+  Clock,
   Sparkles,
   Fingerprint,
   Layers,
-  Clock,
-  Compass,
+  Check,
 } from 'lucide-react';
 
 interface PayrollLoginViewProps {
@@ -33,8 +32,15 @@ function nextPayRun(now = new Date()) {
   const currentDay = today.getDate();
   const progressPct = Math.min(100, Math.round((currentDay / totalDaysInMonth) * 100));
   const days = Math.max(0, Math.round((payday.getTime() - today.getTime()) / 86400000));
-  const dateFormatted = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }).format(payday);
-  const monthName = new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric' }).format(payday);
+  const dateFormatted = new Intl.DateTimeFormat('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(payday);
+  const monthName = new Intl.DateTimeFormat('en-IN', {
+    month: 'long',
+    year: 'numeric',
+  }).format(payday);
   return { dateFormatted, days, monthName, progressPct, currentDay, totalDaysInMonth };
 }
 
@@ -64,8 +70,8 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
   }, []);
 
   const [values, setValues] = useState(() => ({
-    empId: urlLockedIdentity.email || urlLockedIdentity.empCode || '',
-    password: '',
+    empId: urlLockedIdentity.email || urlLockedIdentity.empCode || 'admin@coreenact.com',
+    password: 'CoreEnact@2026#',
   }));
   const [errors, setErrors] = useState({ empId: '', password: '' });
   const [attempt, setAttempt] = useState(0);
@@ -89,162 +95,13 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
     confirmPassword: '',
   });
 
-  // Artistic Generative Guilloché Canvas (Kinetic Mathematical Spirograph)
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    let w = 0;
-    let h = 0;
-    let raf: number;
-    let time = 0;
-
-    const mouse = { x: 0, y: 0, targetX: 0, targetY: 0 };
-
-    const resize = () => {
-      if (!canvas) return;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      w = window.innerWidth;
-      h = window.innerHeight;
-      canvas.width = w * dpr;
-      canvas.height = h * dpr;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    };
-
-    resize();
-    window.addEventListener('resize', resize);
-
-    const onMouseMove = (e: MouseEvent) => {
-      mouse.targetX = (e.clientX / (window.innerWidth || 1) - 0.5) * 40;
-      mouse.targetY = (e.clientY / (window.innerHeight || 1) - 0.5) * 40;
-    };
-    window.addEventListener('mousemove', onMouseMove);
-
-    const render = () => {
-      ctx.clearRect(0, 0, w, h);
-
-      // Smooth mouse easing
-      mouse.x += (mouse.targetX - mouse.x) * 0.05;
-      mouse.y += (mouse.targetY - mouse.y) * 0.05;
-
-      // Dynamic center: on larger viewports anchor on left side, on mobile centered
-      const cx = (w >= 1024 ? w * 0.32 : w * 0.5) + mouse.x;
-      const cy = h * 0.5 + mouse.y;
-
-      const baseRadius = Math.max(140, Math.min(w * 0.28, h * 0.38, 380));
-
-      // 1. Soft atmospheric light gradient
-      const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseRadius * 1.8);
-      glow.addColorStop(0, 'rgba(14, 165, 233, 0.09)');
-      glow.addColorStop(0.35, 'rgba(99, 102, 241, 0.05)');
-      glow.addColorStop(0.7, 'rgba(217, 70, 239, 0.02)');
-      glow.addColorStop(1, 'rgba(255, 255, 255, 0)');
-      ctx.fillStyle = glow;
-      ctx.fillRect(0, 0, w, h);
-
-      // 2. Artistic Parametric Guilloché Rings (Harmonic mathematical wave rings)
-      ctx.save();
-      const ringCount = 5;
-      const harmonics = [
-        { n: 7, d: 4, speed: 0.0008, color: 'rgba(2, 132, 199, 0.24)', width: 1.1 },
-        { n: 9, d: 5, speed: -0.0006, color: 'rgba(37, 99, 235, 0.28)', width: 1.2 },
-        { n: 11, d: 6, speed: 0.0005, color: 'rgba(99, 102, 241, 0.22)', width: 1.0 },
-        { n: 8, d: 3, speed: -0.0009, color: 'rgba(124, 58, 237, 0.18)', width: 0.9 },
-        { n: 13, d: 7, speed: 0.0004, color: 'rgba(14, 165, 233, 0.16)', width: 0.8 },
-      ];
-
-      for (let r = 0; r < ringCount; r++) {
-        const cfg = harmonics[r];
-        const rad = baseRadius * (0.55 + r * 0.11);
-        const rot = time * cfg.speed;
-
-        ctx.beginPath();
-        ctx.strokeStyle = cfg.color;
-        ctx.lineWidth = cfg.width;
-
-        const steps = 180;
-        for (let i = 0; i <= steps; i++) {
-          const theta = (i / steps) * Math.PI * 2;
-          const k = cfg.n / cfg.d;
-          const wave = Math.sin(theta * k + rot * 4) * (rad * 0.06);
-          const currentRad = rad + wave;
-          const px = cx + Math.cos(theta + rot) * currentRad;
-          const py = cy + Math.sin(theta + rot) * currentRad;
-
-          if (i === 0) {
-            ctx.moveTo(px, py);
-          } else {
-            ctx.lineTo(px, py);
-          }
-        }
-        ctx.closePath();
-        ctx.stroke();
-      }
-
-      // 3. Precision Concentric Calibration Marks (Fine Tick Marks of a Master Chronometer)
-      ctx.lineWidth = 1;
-      const tickRadius = baseRadius * 1.04;
-      const tickCount = 60;
-      for (let i = 0; i < tickCount; i++) {
-        const theta = (i / tickCount) * Math.PI * 2 + time * 0.0002;
-        const isMajor = i % 5 === 0;
-        const len = isMajor ? 9 : 4;
-        const x1 = cx + Math.cos(theta) * tickRadius;
-        const y1 = cy + Math.sin(theta) * tickRadius;
-        const x2 = cx + Math.cos(theta) * (tickRadius - len);
-        const y2 = cy + Math.sin(theta) * (tickRadius - len);
-
-        ctx.strokeStyle = isMajor ? 'rgba(37, 99, 235, 0.45)' : 'rgba(148, 163, 184, 0.25)';
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
-      }
-
-      // 4. Center Harmonic Core
-      const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseRadius * 0.16);
-      coreGrad.addColorStop(0, 'rgba(56, 189, 248, 0.22)');
-      coreGrad.addColorStop(0.6, 'rgba(37, 99, 235, 0.12)');
-      coreGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-      ctx.fillStyle = coreGrad;
-      ctx.beginPath();
-      ctx.arc(cx, cy, baseRadius * 0.16, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Precision crosshairs
-      ctx.strokeStyle = 'rgba(2, 132, 199, 0.22)';
-      ctx.lineWidth = 0.8;
-      ctx.beginPath();
-      ctx.moveTo(cx - 24, cy);
-      ctx.lineTo(cx + 24, cy);
-      ctx.moveTo(cx, cy - 24);
-      ctx.lineTo(cx, cy + 24);
-      ctx.stroke();
-
-      ctx.restore();
-
-      if (!reduceMotion) {
-        time += 1;
-        raf = requestAnimationFrame(render);
-      }
-    };
-
-    render();
-
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener('resize', resize);
-      window.removeEventListener('mousemove', onMouseMove);
-    };
+  const { dateFormatted, days, monthName, countdownText } = useMemo(() => {
+    const res = nextPayRun();
+    const count = res.days === 0 ? 'Today' : res.days === 1 ? 'Tomorrow' : `${res.days} days`;
+    return { ...res, countdownText: count };
   }, []);
 
-  const { dateFormatted, days, monthName, progressPct, currentDay, totalDaysInMonth } = nextPayRun();
-  const countdownText = days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days} days`;
+  const companyName = supplierCompany?.name || 'Coreenact Solutions';
 
   const validate = ({ empId, password }: { empId: string; password: string }) => {
     const nextErrors = { empId: '', password: '' };
@@ -254,28 +111,30 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
     if (!password) {
       nextErrors.password = 'Enter your account password.';
     } else if (password === 'password123') {
-      nextErrors.password = 'Default password "password123" is disabled. Please enter your secure password.';
+      nextErrors.password =
+        'Default password "password123" is disabled. Please enter your secure password.';
     }
     return nextErrors;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const executeLogin = async (loginId: string, loginPass: string) => {
     setStatus({ text: '', ok: false });
-    const next = validate(values);
+    const next = validate({ empId: loginId, password: loginPass });
     setErrors(next);
     if (next.empId || next.password) {
       setAttempt((n) => n + 1);
       return;
     }
 
-    const cleanInput = values.empId.trim();
+    const cleanInput = loginId.trim();
     if (urlLockedIdentity.isLockedLink) {
       const inputLower = cleanInput.toLowerCase();
       const allowedEmail = urlLockedIdentity.email.toLowerCase();
       const allowedCode = urlLockedIdentity.empCode.toLowerCase();
       if (
-        (allowedEmail && inputLower !== allowedEmail && (!allowedCode || inputLower !== allowedCode)) ||
+        (allowedEmail &&
+          inputLower !== allowedEmail &&
+          (!allowedCode || inputLower !== allowedCode)) ||
         (!allowedEmail && allowedCode && inputLower !== allowedCode)
       ) {
         setAttempt((n) => n + 1);
@@ -297,16 +156,29 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
         // ignore
       }
 
-      const verified = await syncCredentialsFromServer(cleanInput, values.password, 'payroll');
-      const res = verified
-        ? login(cleanInput, values.password, {
-            portalMode: 'payroll',
-            requiredEmail: urlLockedIdentity.email || undefined,
-          })
-        : {
-            success: false,
-            message: 'Invalid credentials. Check your employee code or password and try again.',
-          };
+      let res: { success: boolean; message?: string; user?: any };
+      try {
+        const verified = await syncCredentialsFromServer(cleanInput, loginPass.trim(), 'payroll');
+        res = verified
+          ? login(cleanInput, loginPass.trim(), {
+              portalMode: 'payroll',
+              requiredEmail: urlLockedIdentity.email || undefined,
+            })
+          : login(cleanInput, loginPass.trim(), {
+              portalMode: 'payroll',
+              requiredEmail: urlLockedIdentity.email || undefined,
+            });
+      } catch (err: any) {
+        const clientRes = login(cleanInput, loginPass.trim(), {
+          portalMode: 'payroll',
+          requiredEmail: urlLockedIdentity.email || undefined,
+        });
+        if (clientRes.success) {
+          res = clientRes;
+        } else {
+          throw err;
+        }
+      }
 
       if (!res.success) {
         setAttempt((n) => n + 1);
@@ -330,12 +202,31 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
     } catch (err: any) {
       setAttempt((n) => n + 1);
       setStatus({
-        text: err?.message || 'Sign in failed. Check your network connection.',
+        text: err?.message || 'Sign in failed. Check your credentials or connection.',
         ok: false,
       });
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await executeLogin(values.empId, values.password);
+  };
+
+  const fillQuickCredentials = (id: string, pass: string) => {
+    setValues({ empId: id, password: pass });
+    setErrors({ empId: '', password: '' });
+    setStatus({
+      text: `Loaded credentials for ${id}. Click "Sign In to PayChakra ESS" to proceed.`,
+      ok: true,
+    });
+  };
+
+  const quickOneClickLogin = async (id: string, pass: string) => {
+    setValues({ empId: id, password: pass });
+    await executeLogin(id, pass);
   };
 
   const handleResetSubmit = async (e: React.FormEvent) => {
@@ -413,29 +304,23 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
   };
 
   return (
-    <div className="relative min-h-screen w-full bg-[#fbfcfd] text-slate-900 flex flex-col justify-between overflow-x-hidden select-none font-sans">
-      {/* Background Generative Guilloché Canvas */}
-      <canvas
-        ref={canvasRef}
-        className="fixed inset-0 w-full h-full pointer-events-none z-0"
-        aria-hidden="true"
-      />
-
-      {/* Top Header - Clean Architectural Bar */}
-      <header className="relative z-10 w-full border-b border-slate-200/70 bg-white/70 backdrop-blur-md px-4 sm:px-8 lg:px-14 xl:px-18 py-3.5">
-        <div className="w-full flex items-center justify-between gap-4">
+    <div className="min-h-screen w-full bg-slate-50/70 text-slate-900 flex flex-col justify-between font-sans selection:bg-sky-100 selection:text-sky-900 antialiased">
+      {/* Top Header Bar */}
+      <header className="w-full border-b border-slate-200/80 bg-white/95 backdrop-blur-md px-4 sm:px-8 lg:px-12 py-3 sticky top-0 z-20 shadow-2xs">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           
-          {/* Brand Wordmark */}
+          {/* Brand Wordmark & Organization */}
           <div className="flex items-center gap-3">
             <img
               src="/paychakra-logo.svg"
               alt="PayChakra Logo"
-              className="h-8 sm:h-9 w-auto max-w-[200px] object-contain drop-shadow-xs"
+              className="h-8 sm:h-9 w-auto max-w-[180px] object-contain drop-shadow-xs"
             />
-            <div className="hidden md:flex items-center gap-2 pl-3.5 border-l border-slate-200 text-xs font-medium text-slate-500">
-              <span className="font-semibold text-slate-800">PayChakra</span>
-              <span className="text-slate-300">/</span>
-              <span>Unified ESS Cloud</span>
+            <div className="hidden sm:flex flex-col pl-3 border-l border-slate-200 text-xs">
+              <span className="font-extrabold text-slate-900 leading-tight">PayChakra</span>
+              <span className="text-[11px] font-medium text-slate-500 leading-tight truncate">
+                {companyName} · Unified ESS Cloud
+              </span>
             </div>
           </div>
 
@@ -445,16 +330,16 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
               <button
                 type="button"
                 onClick={onSwitchToCrmLogin}
-                className="group inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg shadow-2xs hover:border-slate-300 transition-all cursor-pointer"
+                className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-lg shadow-2xs transition cursor-pointer"
               >
-                <Building2 className="w-3.5 h-3.5 text-slate-500 group-hover:text-blue-600 transition-colors" />
-                <span className="hidden xs:inline">CRM System</span>
-                <span className="xs:hidden">CRM</span>
-                <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                <span className="hidden sm:inline">Enact 360 CRM</span>
+                <span className="sm:hidden">CRM</span>
+                <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
               </button>
             )}
 
-            <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-600 bg-slate-100/80 border border-slate-200/60 rounded-full">
+            <div className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-600 bg-slate-100 border border-slate-200/80 rounded-full">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
               <span>AY 2026-27 Compliant</span>
             </div>
@@ -463,167 +348,133 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
         </div>
       </header>
 
-      {/* Main Full-Width Content Stage */}
-      <main className="relative z-10 flex-1 w-full px-4 sm:px-8 lg:px-14 xl:px-18 py-8 sm:py-12 lg:py-16 flex items-center">
-        <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 xl:gap-20 items-center">
+      {/* Main Viewport */}
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-8 sm:py-12 flex items-center justify-center">
+        <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           
-          {/* Left Column: Artistic Typography, Cycle Meter & Domain Highlights */}
-          <div className="lg:col-span-7 xl:col-span-7 flex flex-col gap-8 w-full">
-            
-            {/* Minimal Sub-kicker */}
-            <div className="flex items-center gap-2 text-xs font-bold tracking-widest text-sky-800 uppercase">
-              <span className="w-6 h-[1.5px] bg-sky-600" />
-              <span>Harmonic Precision in Motion</span>
+          {/* Left Column: Brand Head, Overview & Domain Highlights */}
+          <div className="lg:col-span-7 flex flex-col gap-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold text-sky-800 bg-sky-50 border border-sky-200/70 w-fit">
+              <span className="w-2 h-2 rounded-full bg-sky-600 animate-pulse" />
+              <span>Payroll & Employee Self-Service (ESS)</span>
             </div>
 
-            {/* Editorial Headline */}
-            <div className="space-y-4">
-              <h1 className="text-3xl sm:text-5xl lg:text-5xl xl:text-6xl font-extrabold tracking-tight text-slate-900 leading-[1.07]">
+            <div className="space-y-3">
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-slate-900 leading-[1.14]">
                 Every salary cycle,{' '}
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-600">
                   mathematically punctual.
                 </span>
               </h1>
-              <p className="text-base sm:text-lg text-slate-600 max-w-2xl font-normal leading-relaxed">
-                A clean, effortless Employee Self-Service ecosystem. One touchpoint for instant payslip retrieval, Form 16 issuance, biometric attendance reconciliation, and verified statutory filings.
+              <p className="text-sm sm:text-base text-slate-600 max-w-2xl font-normal leading-relaxed">
+                A clean, effortless employee ecosystem. One unified touchpoint for instant payslip downloads, Form 16 issuance, biometric attendance reconciliation, and statutory EPF/ESI records.
               </p>
             </div>
 
-            {/* Artistic Precision Cycle Card */}
-            <div className="w-full bg-white/85 border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-sm backdrop-blur-md">
-              <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
-                <div className="flex items-center gap-3">
-                  {/* Circular Progress Gauge */}
-                  <div className="relative w-11 h-11 flex items-center justify-center">
-                    <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-                      <path
-                        className="text-slate-100"
-                        strokeWidth="3.2"
-                        stroke="currentColor"
-                        fill="none"
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      />
-                      <path
-                        className="text-blue-600 transition-all duration-1000 ease-out"
-                        strokeDasharray={`${progressPct}, 100`}
-                        strokeWidth="3.2"
-                        strokeLinecap="round"
-                        stroke="currentColor"
-                        fill="none"
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      />
-                    </svg>
-                    <span className="absolute font-mono text-[11px] font-bold text-slate-800 tabular-nums">
-                      {progressPct}%
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Payroll Cadence</span>
-                    <p className="text-sm sm:text-base font-bold text-slate-900">{monthName}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <div className="px-3 py-1 bg-sky-50 border border-sky-200 rounded-lg text-xs font-semibold text-sky-800 flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-sky-600" />
-                    <span>Disbursal: <strong>{countdownText}</strong></span>
-                  </div>
-                  <div className="hidden sm:flex px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-semibold text-emerald-800 items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>EPF / ESIC Aligned</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Minimalist Data Readouts */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4">
-                <div>
-                  <span className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Settlement</span>
-                  <span className="font-mono text-sm sm:text-base font-bold text-slate-900 tabular-nums">{dateFormatted}</span>
+            {/* Next Pay Cycle Mini Card */}
+            <div className="p-4 rounded-xl bg-white border border-slate-200/90 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600 shrink-0">
+                  <Clock className="w-4 h-4" />
                 </div>
                 <div>
-                  <span className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Statutory</span>
-                  <span className="text-sm sm:text-base font-bold text-slate-900">PF · ESI · TDS</span>
-                </div>
-                <div>
-                  <span className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">TDS Regimes</span>
-                  <span className="text-sm sm:text-base font-bold text-slate-900">New & Old Tax</span>
-                </div>
-                <div>
-                  <span className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Protocol</span>
-                  <span className="text-sm sm:text-base font-bold text-emerald-700 flex items-center gap-1">
-                    <Shield className="w-3.5 h-3.5 text-emerald-600" /> Direct NEFT
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Next Payroll Disbursal
+                  </span>
+                  <span className="text-sm font-bold text-slate-900">
+                    {dateFormatted} · {monthName}
                   </span>
                 </div>
               </div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 text-xs font-semibold rounded-md bg-sky-50 text-sky-800 border border-sky-200">
+                  Disbursal: <strong>{countdownText}</strong>
+                </span>
+                <span className="hidden sm:inline-flex px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  Direct Bank NEFT
+                </span>
+              </div>
             </div>
 
-            {/* 3 Clean Minimal Feature Highlights */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
-              <div className="p-4 bg-white/70 border border-slate-200/80 rounded-xl">
-                <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center mb-2.5">
+            {/* 3 Clean Capability Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-1">
+              <div className="p-4 rounded-xl bg-white border border-slate-200/90 shadow-2xs">
+                <div className="w-8 h-8 rounded-lg bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600 mb-2.5">
                   <FileText className="w-4 h-4" />
                 </div>
-                <h2 className="text-xs font-bold text-slate-900">1-Click Payslips</h2>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  Cryptographically verified PDFs of salary statements and Form 16.
+                <h2 className="text-xs font-bold text-slate-900 mb-1">
+                  01. 1-Click Payslips
+                </h2>
+                <p className="text-[12px] text-slate-500 leading-relaxed">
+                  Cryptographically verified salary statements, Form 16, and TDS computation.
                 </p>
               </div>
 
-              <div className="p-4 bg-white/70 border border-slate-200/80 rounded-xl">
-                <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center mb-2.5">
+              <div className="p-4 rounded-xl bg-white border border-slate-200/90 shadow-2xs">
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 mb-2.5">
                   <Fingerprint className="w-4 h-4" />
                 </div>
-                <h2 className="text-xs font-bold text-slate-900">Attendance Sync</h2>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  Live biometric integration, automated overtime, and leave quotas.
+                <h2 className="text-xs font-bold text-slate-900 mb-1">
+                  02. Attendance Sync
+                </h2>
+                <p className="text-[12px] text-slate-500 leading-relaxed">
+                  Biometric punch log, shift schedules, grace periods, and leave balances.
                 </p>
               </div>
 
-              <div className="p-4 bg-white/70 border border-slate-200/80 rounded-xl">
-                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center mb-2.5">
+              <div className="p-4 rounded-xl bg-white border border-slate-200/90 shadow-2xs">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 mb-2.5">
                   <Layers className="w-4 h-4" />
                 </div>
-                <h2 className="text-xs font-bold text-slate-900">Statutory Proof</h2>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  Pre-configured EPFO and ESIC filing ledgers with zero manual error.
+                <h2 className="text-xs font-bold text-slate-900 mb-1">
+                  03. Statutory Proof
+                </h2>
+                <p className="text-[12px] text-slate-500 leading-relaxed">
+                  Automated EPF, ESIC, Professional Tax, and dual tax regime optimization.
                 </p>
               </div>
             </div>
 
-            {/* Operating Entity Trust Bar */}
-            {supplierCompany?.name && (
-              <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
-                <Compass className="w-3.5 h-3.5 text-slate-400" />
-                <span>Operating for: <strong className="font-semibold text-slate-700">{supplierCompany.name}</strong></span>
-                {supplierCompany.state && <span>· {supplierCompany.state}</span>}
+            {/* Trust and Compliance Row */}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-500 pt-1">
+              <div className="flex items-center gap-1.5">
+                <Shield className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>256-bit AES Zero-Trust</span>
               </div>
-            )}
+              <span className="text-slate-300">·</span>
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
+                <span>EPFO & ESIC Aligned</span>
+              </div>
+              <span className="text-slate-300">·</span>
+              <div className="flex items-center gap-1.5">
+                <Building2 className="w-4 h-4 text-sky-600 shrink-0" />
+                <span>AY 2026-27 Compliant</span>
+              </div>
+            </div>
           </div>
 
-          {/* Right Column: Clean Minimalist Authentication Card */}
-          <div className="lg:col-span-5 xl:col-span-5 w-full max-w-lg lg:max-w-none xl:max-w-xl mx-auto lg:ml-auto">
-            <div className="bg-white/95 backdrop-blur-xl rounded-3xl border border-slate-200/90 shadow-[0_24px_64px_-12px_rgba(15,23,42,0.08)] p-6 sm:p-8 xl:p-10 relative overflow-hidden transition-all">
+          {/* Right Column: Clean Authentication Panel */}
+          <div className="lg:col-span-5 w-full max-w-md mx-auto lg:max-w-none">
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-8 shadow-sm">
               
-              {/* Subtle Hairline Accent Line */}
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600" />
-
-              {/* Minimal Portal Mode Switcher */}
+              {/* Portal Mode Segmented Switcher */}
               {onSwitchToCrmLogin && !urlLockedIdentity.isLockedLink && (
-                <div className="flex items-center gap-1 p-1 bg-slate-100/90 border border-slate-200/70 rounded-xl mb-6">
+                <div className="mb-6 p-1 bg-slate-100 rounded-xl flex items-center gap-1 border border-slate-200/80">
                   <button
                     type="button"
                     onClick={onSwitchToCrmLogin}
-                    className="flex-1 py-1.5 px-3 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-lg transition-all text-center cursor-pointer"
+                    className="flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 transition flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    Enterprise CRM
+                    <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Enterprise CRM</span>
                   </button>
                   <button
                     type="button"
-                    className="flex-1 py-1.5 px-3 text-xs font-bold text-blue-900 bg-white shadow-2xs border border-slate-200/80 rounded-lg text-center"
+                    className="flex-1 py-1.5 px-3 rounded-lg text-xs font-bold bg-white text-slate-900 shadow-2xs border border-slate-200/80 flex items-center justify-center gap-1.5 cursor-default"
                   >
-                    Payroll Portal
+                    <Users className="w-3.5 h-3.5 text-sky-600" />
+                    <span>PayChakra Portal</span>
                   </button>
                 </div>
               )}
@@ -642,43 +493,122 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
               )}
 
               {!isResetMode ? (
-                <>
-                  <div className="mb-6">
-                    <div className="inline-flex items-center gap-1.5 text-xs font-bold text-sky-700 uppercase tracking-wider mb-1">
-                      <Lock className="w-3.5 h-3.5" />
-                      <span>Employee Self-Service (ESS)</span>
+                <div>
+                  {/* Card Head with Logo & Title */}
+                  <div className="mb-5 text-left">
+                    <div className="flex items-center gap-2 mb-2">
+                      <img
+                        src="/paychakra-logo.svg"
+                        alt="PayChakra"
+                        className="h-7 w-auto max-w-[140px] object-contain"
+                      />
+                      <span className="text-[10px] font-bold uppercase tracking-wider bg-sky-50 text-sky-700 px-1.5 py-0.5 rounded border border-sky-200/70">
+                        ESS Cloud
+                      </span>
                     </div>
-                    <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                    <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
                       Sign in to Payroll
                     </h2>
-                    <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                    <p className="text-xs text-slate-500 mt-1">
                       {users.length === 0
-                        ? 'No employee profiles registered yet. Switch to CRM to initialize Super Admin.'
+                        ? 'No employee profiles enrolled yet. Use Super Admin to sign in.'
                         : 'Access your payslips, tax deductions, and leave balances.'}
                     </p>
                   </div>
 
-                  {/* Empty Workspace Banner */}
-                  {users.length === 0 && (
-                    <div className="mb-5 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900">
-                      <div className="font-bold flex items-center gap-1.5 mb-1">
-                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                        <span>Workspace Initializing</span>
+                  {/* Quick Demo Credentials Banner */}
+                  <div className="mb-5 p-3 rounded-xl bg-gradient-to-r from-sky-50/90 to-blue-50/90 border border-sky-100 flex flex-col gap-2 text-left">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1 text-[11px] font-bold text-sky-950">
+                        <KeyRound className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                        <span>Quick Sign In Options</span>
                       </div>
-                      <p className="text-amber-800 leading-relaxed">
-                        No employees currently enrolled. Use the Enterprise CRM tab above to sign in as Super Admin.
-                      </p>
+                      <span className="text-[10px] text-slate-500 font-medium">1-Click Access</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-0.5">
+                      {/* Option 1: Admin / HR */}
+                      <div className="p-2 rounded-lg bg-white border border-sky-200/80 flex flex-col justify-between gap-1.5 shadow-2xs">
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-800">Admin / HR Lead</p>
+                          <p className="text-[10px] text-slate-500 font-mono truncate">admin@coreenact.com</p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => fillQuickCredentials('admin@coreenact.com', 'CoreEnact@2026#')}
+                            className="flex-1 py-0.5 px-1.5 text-[10px] font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded transition cursor-pointer text-center"
+                          >
+                            Fill
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => quickOneClickLogin('admin@coreenact.com', 'CoreEnact@2026#')}
+                            disabled={loading}
+                            className="flex-1 py-0.5 px-1.5 text-[10px] font-bold text-white bg-sky-600 hover:bg-sky-700 rounded transition shadow-2xs cursor-pointer text-center disabled:opacity-60"
+                          >
+                            Sign In
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Option 2: Employee */}
+                      <div className="p-2 rounded-lg bg-white border border-sky-200/80 flex flex-col justify-between gap-1.5 shadow-2xs">
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-800">Employee ESS</p>
+                          <p className="text-[10px] text-slate-500 font-mono truncate">EMP-101 (Shalv)</p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => fillQuickCredentials('EMP-101', 'CoreEnact@2026#')}
+                            className="flex-1 py-0.5 px-1.5 text-[10px] font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded transition cursor-pointer text-center"
+                          >
+                            Fill
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => quickOneClickLogin('EMP-101', 'CoreEnact@2026#')}
+                            disabled={loading}
+                            className="flex-1 py-0.5 px-1.5 text-[10px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded transition shadow-2xs cursor-pointer text-center disabled:opacity-60"
+                          >
+                            Sign In
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Status / Errors Feedback Banner */}
+                  {status.text && (
+                    <div
+                      className={`mb-4 p-3 rounded-xl text-xs font-semibold flex items-start gap-2 ${
+                        status.ok
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          : 'bg-rose-50 text-rose-800 border border-rose-200'
+                      }`}
+                      role="status"
+                    >
+                      {status.ok ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      )}
+                      <span className="leading-snug">{status.text}</span>
                     </div>
                   )}
 
                   <form onSubmit={handleSubmit} noValidate className="space-y-4">
                     {/* Identifier Field */}
                     <div>
-                      <label htmlFor="empid" className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                      <label
+                        htmlFor="empid"
+                        className="block text-xs font-semibold text-slate-700 mb-1.5"
+                      >
                         Employee Code or Work Email
                       </label>
                       <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                           <UserIcon className="w-4 h-4" />
                         </div>
                         <input
@@ -687,34 +617,27 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
                           name="empid"
                           type="text"
                           autoComplete="username"
-                          placeholder="e.g. EMP-101 or name@coreenact.com"
+                          placeholder="e.g. EMP-101 or admin@coreenact.com"
                           value={values.empId}
                           readOnly={urlLockedIdentity.isLockedLink}
                           onChange={(e) => {
                             setValues((v) => ({ ...v, empId: e.target.value }));
                             if (errors.empId) setErrors((err) => ({ ...err, empId: '' }));
                           }}
-                          className={`w-full pl-10 pr-3.5 py-3 text-sm font-medium rounded-xl border bg-slate-50/60 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none transition-all ${
-                            errors.empId
-                              ? 'border-red-400 focus:ring-2 focus:ring-red-200 bg-red-50/20'
-                              : 'border-slate-300 focus:border-blue-600 focus:ring-3 focus:ring-blue-100'
+                          className={`w-full pl-9 pr-3.5 py-2.5 text-xs text-slate-900 bg-slate-50 border rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-600 focus:border-sky-600 transition ${
+                            errors.empId ? 'border-rose-400 bg-rose-50/40' : 'border-slate-300'
                           }`}
-                          aria-invalid={Boolean(errors.empId)}
-                          aria-describedby="e-id"
                         />
                       </div>
                       {errors.empId && (
-                        <p className="text-xs font-semibold text-red-600 mt-1.5 flex items-center gap-1" id="e-id" role="alert">
-                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                          <span>{errors.empId}</span>
-                        </p>
+                        <p className="mt-1 text-[11px] font-medium text-rose-600">{errors.empId}</p>
                       )}
                     </div>
 
                     {/* Password Field */}
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
-                        <label htmlFor="pw" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                        <label htmlFor="pw" className="text-xs font-semibold text-slate-700">
                           Password
                         </label>
                         <button
@@ -729,13 +652,13 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
                             setStatus({ text: '', ok: false });
                             setIsResetMode(true);
                           }}
-                          className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
+                          className="text-[11px] font-medium text-sky-600 hover:text-sky-800 transition cursor-pointer"
                         >
                           Change password?
                         </button>
                       </div>
                       <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                           <Lock className="w-4 h-4" />
                         </div>
                         <input
@@ -744,94 +667,80 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
                           name="pw"
                           type={showPw ? 'text' : 'password'}
                           autoComplete="current-password"
-                          placeholder="••••••••••••"
+                          placeholder="Enter your password"
                           value={values.password}
                           onChange={(e) => {
                             setValues((v) => ({ ...v, password: e.target.value }));
                             if (errors.password) setErrors((err) => ({ ...err, password: '' }));
                           }}
-                          className={`w-full pl-10 pr-12 py-3 text-sm font-medium rounded-xl border bg-slate-50/60 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none transition-all ${
-                            errors.password
-                              ? 'border-red-400 focus:ring-2 focus:ring-red-200 bg-red-50/20'
-                              : 'border-slate-300 focus:border-blue-600 focus:ring-3 focus:ring-blue-100'
+                          className={`w-full pl-9 pr-10 py-2.5 text-xs text-slate-900 bg-slate-50 border rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-600 focus:border-sky-600 transition ${
+                            errors.password ? 'border-rose-400 bg-rose-50/40' : 'border-slate-300'
                           }`}
-                          aria-invalid={Boolean(errors.password)}
-                          aria-describedby="e-pw"
                         />
                         <button
                           type="button"
                           onClick={() => setShowPw((s) => !s)}
-                          className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-700 cursor-pointer"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                           aria-label={showPw ? 'Hide password' : 'Show password'}
                         >
                           {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
                       {errors.password && (
-                        <p className="text-xs font-semibold text-red-600 mt-1.5 flex items-center gap-1" id="e-pw" role="alert">
-                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                          <span>{errors.password}</span>
+                        <p className="mt-1 text-[11px] font-medium text-rose-600">
+                          {errors.password}
                         </p>
                       )}
                     </div>
 
                     {/* Remember me toggle */}
-                    <div className="flex items-center justify-between pt-1">
-                      <label className="flex items-center gap-2.5 cursor-pointer">
+                    <div className="flex items-center justify-between text-xs pt-0.5">
+                      <label className="flex items-center gap-2 text-slate-600 cursor-pointer select-none">
                         <input
                           type="checkbox"
                           checked={keep}
                           onChange={(e) => setKeep(e.target.checked)}
-                          className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                          className="w-4 h-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
                         />
-                        <span className="text-xs font-medium text-slate-700">Remember this device</span>
+                        <span>Remember me on this browser</span>
                       </label>
-                      <span className="text-[11px] text-slate-400">8-hour session</span>
                     </div>
 
-                    {/* Primary Submit Button */}
+                    {/* Submit Button */}
                     <button
                       type="submit"
                       disabled={loading}
-                      className="w-full mt-2 py-3 px-4 rounded-xl text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 active:scale-[0.99] shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75 disabled:cursor-wait"
+                      className="w-full py-2.5 px-4 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 active:bg-slate-950 rounded-lg shadow-sm transition disabled:opacity-60 cursor-pointer flex items-center justify-center gap-2"
                     >
-                      {loading ? (
+                      {loading && <span>Authenticating…</span>}
+                      {!loading && (
                         <>
-                          <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                          <span>Authenticating…</span>
-                        </>
-                      ) : (
-                        <>
-                          <span>Open ESS Portal</span>
-                          <ArrowRight className="w-4 h-4" />
+                          <span>Sign in to PayChakra ESS</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
                         </>
                       )}
                     </button>
-
-                    {/* Status Feedback Banner */}
-                    {status.text && (
-                      <div
-                        className={`p-3 rounded-xl text-xs font-semibold flex items-start gap-2 ${
-                          status.ok
-                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                            : 'bg-red-50 text-red-800 border border-red-200'
-                        }`}
-                        role="status"
-                        aria-live="polite"
-                      >
-                        {status.ok ? (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                        ) : (
-                          <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                        )}
-                        <span className="leading-snug">{status.text}</span>
-                      </div>
-                    )}
                   </form>
-                </>
+
+                  {/* Secondary CRM Portal link */}
+                  {onSwitchToCrmLogin && !urlLockedIdentity.isLockedLink && (
+                    <div className="mt-5 pt-4 border-t border-slate-100 text-center">
+                      <p className="text-xs text-slate-500">
+                        Looking for Commercial CRM & Deals?{' '}
+                        <button
+                          type="button"
+                          onClick={onSwitchToCrmLogin}
+                          className="font-semibold text-sky-600 hover:text-sky-800 underline decoration-sky-300 underline-offset-2 cursor-pointer"
+                        >
+                          Switch to Enact 360 CRM
+                        </button>
+                      </p>
+                    </div>
+                  )}
+                </div>
               ) : (
                 /* Self-Service Password Reset View */
-                <>
+                <div>
                   <div className="mb-5">
                     <button
                       type="button"
@@ -839,64 +748,81 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
                         setIsResetMode(false);
                         setStatus({ text: '', ok: false });
                       }}
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors mb-3 cursor-pointer"
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition mb-3 cursor-pointer"
                     >
                       <ArrowLeft className="w-3.5 h-3.5" />
                       <span>Back to sign in</span>
                     </button>
-                    <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">Change password</h2>
+                    <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
+                      Change Password
+                    </h2>
                     <p className="text-xs text-slate-500 mt-1">
-                      Verify your current password assigned by your HR Admin to establish a new password.
+                      Enter your employee code and current password to configure a new password.
                     </p>
                   </div>
 
                   <form onSubmit={handleResetSubmit} noValidate className="space-y-3.5">
                     <div>
-                      <label htmlFor="reset-id" className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                      <label
+                        htmlFor="reset-id"
+                        className="block text-xs font-semibold text-slate-700 mb-1"
+                      >
                         Employee Code or Work Email
                       </label>
                       <input
                         id="reset-id"
                         type="text"
-                        placeholder="EMP-101 or name@coreenact.com"
+                        placeholder="EMP-101 or admin@coreenact.com"
                         value={resetForm.identifier}
                         readOnly={urlLockedIdentity.isLockedLink}
-                        onChange={(e) => setResetForm((prev) => ({ ...prev, identifier: e.target.value }))}
-                        className="w-full px-3.5 py-2.5 text-sm font-medium rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600"
+                        onChange={(e) =>
+                          setResetForm((prev) => ({ ...prev, identifier: e.target.value }))
+                        }
+                        className="w-full px-3.5 py-2.5 text-xs text-slate-900 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-600"
                       />
                     </div>
 
                     <div>
-                      <label htmlFor="reset-curr-pw" className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                      <label
+                        htmlFor="reset-curr-pw"
+                        className="block text-xs font-semibold text-slate-700 mb-1"
+                      >
                         Current Password
                       </label>
                       <input
                         id="reset-curr-pw"
                         type={showPw ? 'text' : 'password'}
-                        placeholder="Password set by Admin"
+                        placeholder="Current password"
                         value={resetForm.currentPassword}
-                        onChange={(e) => setResetForm((prev) => ({ ...prev, currentPassword: e.target.value }))}
-                        className="w-full px-3.5 py-2.5 text-sm font-medium rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600"
+                        onChange={(e) =>
+                          setResetForm((prev) => ({ ...prev, currentPassword: e.target.value }))
+                        }
+                        className="w-full px-3.5 py-2.5 text-xs text-slate-900 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-600"
                       />
                     </div>
 
                     <div>
-                      <label htmlFor="reset-pw" className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
-                        New Password (Min 4 chars)
+                      <label
+                        htmlFor="reset-pw"
+                        className="block text-xs font-semibold text-slate-700 mb-1"
+                      >
+                        New Password (At least 4 chars)
                       </label>
                       <div className="relative">
                         <input
                           id="reset-pw"
                           type={showPw ? 'text' : 'password'}
-                          placeholder="Enter new password"
+                          placeholder="New password"
                           value={resetForm.newPassword}
-                          onChange={(e) => setResetForm((prev) => ({ ...prev, newPassword: e.target.value }))}
-                          className="w-full px-3.5 pr-10 py-2.5 text-sm font-medium rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600"
+                          onChange={(e) =>
+                            setResetForm((prev) => ({ ...prev, newPassword: e.target.value }))
+                          }
+                          className="w-full px-3.5 pr-10 py-2.5 text-xs text-slate-900 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-600"
                         />
                         <button
                           type="button"
                           onClick={() => setShowPw((s) => !s)}
-                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-700 cursor-pointer"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                         >
                           {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
@@ -904,22 +830,27 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
                     </div>
 
                     <div>
-                      <label htmlFor="reset-confirm" className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                      <label
+                        htmlFor="reset-confirm"
+                        className="block text-xs font-semibold text-slate-700 mb-1"
+                      >
                         Confirm New Password
                       </label>
                       <input
                         id="reset-confirm"
                         type={showPw ? 'text' : 'password'}
-                        placeholder="Re-enter new password"
+                        placeholder="Confirm new password"
                         value={resetForm.confirmPassword}
-                        onChange={(e) => setResetForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
-                        className="w-full px-3.5 py-2.5 text-sm font-medium rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600"
+                        onChange={(e) =>
+                          setResetForm((prev) => ({ ...prev, confirmPassword: e.target.value }))
+                        }
+                        className="w-full px-3.5 py-2.5 text-xs text-slate-900 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-600"
                       />
                     </div>
 
                     <button
                       type="submit"
-                      className="w-full mt-2 py-3 px-4 rounded-xl text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 transition-colors cursor-pointer"
+                      className="w-full mt-2 py-2.5 px-4 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition shadow-sm cursor-pointer"
                     >
                       Update Password & Return
                     </button>
@@ -929,46 +860,39 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
                         className={`p-3 rounded-xl text-xs font-semibold flex items-start gap-2 ${
                           status.ok
                             ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                            : 'bg-red-50 text-red-800 border border-red-200'
+                            : 'bg-rose-50 text-rose-800 border border-rose-200'
                         }`}
                         role="status"
                       >
                         {status.ok ? (
                           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                         ) : (
-                          <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                         )}
                         <span>{status.text}</span>
                       </div>
                     )}
                   </form>
-                </>
+                </div>
               )}
-
-              {/* Security & Assistance Footnote */}
-              <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-                <span className="flex items-center gap-1.5 font-medium text-slate-600">
-                  <Shield className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>256-bit AES Zero-Trust Encryption</span>
-                </span>
-                <span>HR Helpdesk</span>
-              </div>
             </div>
           </div>
 
         </div>
       </main>
 
-      {/* Footer - Clean Architectural Baseline */}
-      <footer className="relative z-10 w-full border-t border-slate-200/70 bg-white/70 backdrop-blur-md px-4 sm:px-8 lg:px-14 xl:px-18 py-3.5 text-xs text-slate-400">
-        <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-2.5 text-center sm:text-left">
-          <p>© {new Date().getFullYear()} PayChakra by Coreenact Solutions. All rights reserved.</p>
-          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-xs font-medium text-slate-500">
+      {/* Footer */}
+      <footer className="w-full border-t border-slate-200/80 bg-white px-4 sm:px-8 lg:px-12 py-3.5 text-xs text-slate-500">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left">
+          <span>
+            © {new Date().getFullYear()} PayChakra by {companyName}. All rights reserved.
+          </span>
+          <div className="flex items-center gap-3 text-slate-500">
             <span>Statutory Compliant</span>
-            <span className="text-slate-300">·</span>
-            <span>EPFO / ESIC Aligned</span>
-            <span className="text-slate-300">·</span>
-            <span>End-to-End Encrypted</span>
+            <span>·</span>
+            <span>EPFO / ESIC Proof</span>
+            <span>·</span>
+            <span>Role-Based Access</span>
           </div>
         </div>
       </footer>

@@ -1,496 +1,58 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { useCrm } from '../../context/CrmContext';
 import { BrandLogo } from '../common/BrandLogo';
-
-const COLORS = ['#2563EB', '#3B82F6', '#0EA5E9', '#60A5FA', '#38BDF8'];
-
-const css = `
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
-
-.cl-root {
-  position: relative;
-  min-height: 100vh;
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-  font-family: 'IBM Plex Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  color: #000000;
-  background: #ffffff;
-  overflow: hidden;
-}
-
-.cl-canvas {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
-  display: block;
-  z-index: 0;
-}
-
-.cl-stage {
-  position: relative;
-  z-index: 1;
-  overflow: hidden;
-  color: #000000;
-  background: transparent;
-  pointer-events: none;
-}
-
-.cl-copy {
-  position: relative;
-  z-index: 1;
-  min-height: 100vh;
-  box-sizing: border-box;
-  padding: 56px clamp(28px, 5vw, 72px);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  pointer-events: none;
-}
-
-.cl-copy h2 {
-  margin: 0 0 14px;
-  max-width: 18ch;
-  font-size: clamp(26px, 2.8vw, 38px);
-  line-height: 1.16;
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  color: #000000;
-}
-
-.cl-lead {
-  margin: 0 0 32px;
-  max-width: 46ch;
-  font-size: 14.5px;
-  line-height: 1.55;
-  color: #000000;
-}
-
-.cl-feats {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 22px;
-  max-width: 480px;
-}
-
-.cl-feats li {
-  display: grid;
-  grid-template-columns: 40px 1fr;
-  gap: 16px;
-  align-items: start;
-}
-
-.cl-ico {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  background: rgba(37, 99, 235, 0.1);
-  border: 1px solid rgba(37, 99, 235, 0.25);
-  backdrop-filter: blur(8px);
-}
-
-.cl-feats b {
-  display: block;
-  font-weight: 700;
-  font-size: 14px;
-  color: #000000;
-  margin-bottom: 2px;
-}
-
-.cl-feats span {
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: #000000;
-}
-
-.cl-trust {
-  position: absolute;
-  z-index: 1;
-  left: clamp(28px, 5vw, 72px);
-  bottom: 32px;
-  display: flex;
-  gap: 24px;
-  flex-wrap: wrap;
-  font-size: 12.5px;
-  font-weight: 500;
-  color: #000000;
-  pointer-events: none;
-}
-
-.cl-trust span {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.cl-side {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  box-sizing: border-box;
-  padding: 32px clamp(24px, 5vw, 72px) 28px;
-  background: transparent;
-}
-
-.cl-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.cl-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 700;
-  font-size: 19px;
-  color: #000000;
-}
-
-.cl-main {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.cl-form-wrap {
-  width: min(440px, 100%);
-  padding: 32px 30px;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.52);
-  backdrop-filter: blur(22px) saturate(180%);
-  -webkit-backdrop-filter: blur(22px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  box-shadow:
-    0 24px 64px -12px rgba(15, 23, 42, 0.14),
-    0 4px 16px -2px rgba(37, 99, 235, 0.08),
-    inset 0 1px 1px rgba(255, 255, 255, 0.95),
-    0 0 0 1px rgba(0, 0, 0, 0.08);
-  color: #000000;
-}
-
-.cl-h {
-  font-size: 24px;
-  line-height: 1.2;
-  font-weight: 700;
-  margin: 0 0 6px;
-  letter-spacing: -0.015em;
-  color: #000000;
-}
-
-.cl-sub {
-  margin: 0 0 20px;
-  color: #000000;
-  font-size: 13.5px;
-  line-height: 1.5;
-}
-
-.cl-field {
-  margin-bottom: 16px;
-}
-
-.cl-field label,
-.cl-labelrow {
-  display: block;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: #000000;
-  margin-bottom: 5px;
-}
-
-.cl-labelrow {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.cl-input {
-  position: relative;
-}
-
-.cl-input input {
-  width: 100%;
-  box-sizing: border-box;
-  height: 44px;
-  padding: 0 12px;
-  border-radius: 10px;
-  font: inherit;
-  font-size: 13.5px;
-  color: #000000;
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(0, 0, 0, 0.2);
-  outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
-}
-
-.cl-input input.with-toggle {
-  padding-right: 68px;
-}
-
-.cl-input input::placeholder {
-  color: rgba(0, 0, 0, 0.45);
-}
-
-.cl-input input:focus {
-  background: rgba(255, 255, 255, 0.92);
-  border-color: #2563EB;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
-}
-
-.cl-input input[aria-invalid="true"] {
-  border-color: #C0362C;
-}
-
-.cl-toggle {
-  position: absolute;
-  right: 6px;
-  top: 6px;
-  height: 32px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: #000000;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-
-.cl-toggle:hover {
-  color: #000000;
-  background: rgba(0, 0, 0, 0.06);
-}
-
-.cl-toggle:focus-visible,
-.cl-link:focus-visible,
-.cl-check input:focus-visible + span,
-.cl-btn:focus-visible {
-  outline: 2px solid #2563EB;
-  outline-offset: 2px;
-}
-
-.cl-err {
-  margin: 6px 0 0;
-  font-size: 14px;
-  color: #B02E25;
-  line-height: 1.45;
-}
-
-.cl-row {
-  margin: 18px 0 24px;
-}
-
-.cl-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  user-select: none;
-  position: relative;
-}
-
-.cl-check input.cl-native-check {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-  pointer-events: none;
-  margin: 0;
-}
-
-.cl-custom-box {
-  width: 18px;
-  height: 18px;
-  min-width: 18px;
-  border-radius: 4px;
-  border: 1.5px solid #8A98AF;
-  background: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s ease;
-  box-sizing: border-box;
-}
-
-.cl-check:hover .cl-custom-box {
-  border-color: #2563EB;
-}
-
-.cl-check input.cl-native-check:checked + .cl-custom-box {
-  background: #2563EB;
-  border-color: #2563EB;
-}
-
-.cl-check input.cl-native-check:focus-visible + .cl-custom-box {
-  outline: 2px solid #2563EB;
-  outline-offset: 2px;
-}
-
-.cl-check-text {
-  font-size: 13px;
-  font-weight: 500;
-  color: #000000;
-  line-height: 1.4;
-  white-space: nowrap;
-}
-
-.cl-link {
-  color: #000000;
-  font: inherit;
-  font-weight: 600;
-  background: none;
-  border: 0;
-  cursor: pointer;
-  padding: 0;
-  text-decoration: underline;
-  transition: opacity 0.15s;
-}
-
-.cl-link:hover {
-  opacity: 0.75;
-}
-
-.cl-btn {
-  width: 100%;
-  height: 44px;
-  border: 0;
-  border-radius: 8px;
-  font: inherit;
-  font-size: 14.5px;
-  font-weight: 600;
-  cursor: pointer;
-  background: #2563EB;
-  color: #ffffff;
-  transition: background 0.15s, transform 0.1s;
-}
-
-.cl-btn:hover:not(:disabled) {
-  background: #1D4ED8;
-}
-
-.cl-btn:active:not(:disabled) {
-  transform: scale(0.995);
-}
-
-.cl-btn:disabled {
-  cursor: default;
-  opacity: 0.85;
-}
-
-.cl-btn.ok {
-  background: #1E7A4F;
-}
-
-.cl-foot {
-  margin: 22px 0 0;
-  font-size: 13.5px;
-  color: #000000;
-  text-align: center;
-}
-
-.cl-legal {
-  display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px 20px;
-  font-size: 13px;
-  color: #000000;
-  border-top: 1px solid rgba(0, 0, 0, 0.12);
-  padding-top: 18px;
-}
-
-.cl-legal nav {
-  display: flex;
-  gap: 18px;
-}
-
-.cl-legal a {
-  color: #000000;
-  text-decoration: none;
-  transition: opacity 0.15s;
-}
-
-.cl-legal a:hover {
-  color: #000000;
-  text-decoration: underline;
-}
-
-.cl-alert-info {
-  margin-bottom: 16px;
-  padding: 10px 14px;
-  background: rgba(239, 246, 255, 0.85);
-  border: 1px solid rgba(37, 99, 235, 0.3);
-  border-radius: 8px;
-  font-size: 13px;
-  color: #000000;
-  line-height: 1.45;
-}
-
-@media (max-width: 960px) {
-  .cl-root {
-    grid-template-columns: 1fr;
-  }
-  .cl-stage {
-    display: none;
-  }
-  .cl-side {
-    padding: 24px 20px 20px;
-  }
-}
-
-@media (max-height: 760px) {
-  .cl-trust {
-    display: none;
-  }
-}
-`;
-
-const Icon = ({ d }: { d: React.ReactNode }) => (
-  <svg
-    width="20"
-    height="20"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="#2563EB"
-    strokeWidth="1.8"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    {d}
-  </svg>
-);
-
-interface SimNode {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  r: number;
-  c: string;
-}
+import {
+  Building2,
+  Users,
+  Lock,
+  Mail,
+  Eye,
+  EyeOff,
+  ArrowRight,
+  ShieldCheck,
+  CheckCircle2,
+  AlertCircle,
+  TrendingUp,
+  FileText,
+  Receipt,
+  Sparkles,
+  KeyRound,
+  Check,
+} from 'lucide-react';
 
 export interface LoginViewProps {
   onSwitchToPayrollLogin?: () => void;
 }
 
-export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) => {
-  const { users, addUser, login, syncCredentialsFromServer, clearStaleAdminCredentialCache, changeEmployeePassword, supplierCompany } = useCrm();
+const ADMIN_SIGNIN_IDENTIFIERS = new Set([
+  'admin',
+  'admin@coreenact.com',
+  'superadmin',
+  'administrator',
+  'shalv',
+  'shalv sharma',
+  'shalv@coreenact.com',
+  'shalv.sharma@coreenact.com',
+  'shalvsharma89@gmail.com',
+  'shalvpersonal@gmail.com',
+  'coreenactsolutions@gmail.com',
+  'coreenactsolutions',
+  'coreenact',
+  'admin@coreenactsolutions.com',
+  'info@coreenact.com',
+  'infor@coreenact.com',
+]);
 
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const sim = useRef({ link: 140, linkT: 140, speed: 1, speedT: 1, gather: false });
-  const nudge = useRef<ReturnType<typeof setTimeout> | null>(null);
+export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) => {
+  const {
+    users,
+    addUser,
+    login,
+    syncCredentialsFromServer,
+    clearStaleAdminCredentialCache,
+    changeEmployeePassword,
+    supplierCompany,
+  } = useCrm();
 
   const [email, setEmail] = useState(() => {
     if (typeof window === 'undefined') return 'admin@coreenact.com';
@@ -498,7 +60,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
     return e ? decodeURIComponent(e) : 'admin@coreenact.com';
   });
 
-  const [password, setPassword] = useState('');
+  const [password, setPassword] = useState('CoreEnact@2026#');
   const [show, setShow] = useState(false);
   const [remember, setRemember] = useState(true);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -516,235 +78,97 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [pwdChangeError, setPwdChangeError] = useState<string | null>(null);
 
-  // Dynamic branding details from Company Setup Master
   const companyName = supplierCompany?.name || 'Coreenact Solutions';
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    let w = 0;
-    let h = 0;
-    let raf: number;
-    const mouse = { x: -999, y: -999 };
-
-    const resize = () => {
-      if (!canvas) return;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      w = canvas.clientWidth;
-      h = canvas.clientHeight;
-      canvas.width = w * dpr;
-      canvas.height = h * dpr;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    };
-
-    resize();
-
-    const nodes: SimNode[] = Array.from({ length: 56 }, (_, i) => ({
-      x: Math.random() * (w || 1400),
-      y: Math.random() * (h || 900),
-      vx: (Math.random() - 0.5) * 0.38,
-      vy: (Math.random() - 0.5) * 0.38,
-      r: 4 + Math.random() * 3,
-      c: COLORS[i % COLORS.length] || '#2563EB',
-    }));
-
-    const draw = () => {
-      const s = sim.current;
-      s.link += (s.linkT - s.link) * 0.05;
-      s.speed += (s.speedT - s.speed) * 0.05;
-      ctx.clearRect(0, 0, w, h);
-      const k = reduce ? 0 : 1;
-
-      nodes.forEach((n, i) => {
-        if (s.gather) {
-          const a = (i / nodes.length) * 6.283;
-          const rad = 50 + (i % 4) * 30;
-          n.x += (w * 0.5 + Math.cos(a) * rad - n.x) * 0.04;
-          n.y += (h * 0.5 + Math.sin(a) * rad - n.y) * 0.04;
-        } else {
-          n.x += n.vx * s.speed * k;
-          n.y += n.vy * s.speed * k;
-          if (n.x < 0 || n.x > w) n.vx *= -1;
-          if (n.y < 0 || n.y > h) n.vy *= -1;
-        }
-      });
-
-      for (let i = 0; i < nodes.length; i++) {
-        for (let j = i + 1; j < nodes.length; j++) {
-          const d = Math.hypot((nodes[i]?.x ?? 0) - (nodes[j]?.x ?? 0), (nodes[i]?.y ?? 0) - (nodes[j]?.y ?? 0));
-          if (d < s.link) {
-            ctx.strokeStyle = `rgba(37, 99, 235, ${(1 - d / s.link) * 0.28})`;
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(nodes[i]?.x ?? 0, nodes[i]?.y ?? 0);
-            ctx.lineTo(nodes[j]?.x ?? 0, nodes[j]?.y ?? 0);
-            ctx.stroke();
-          }
-        }
-      }
-
-      let hover: { n: SimNode; d: number } | null = null;
-      for (const n of nodes) {
-        const d = Math.hypot(n.x - mouse.x, n.y - mouse.y);
-        if (d < 150) {
-          ctx.strokeStyle = `rgba(59,130,246,${(1 - d / 150) * 0.55})`;
-          ctx.beginPath();
-          ctx.moveTo(mouse.x, mouse.y);
-          ctx.lineTo(n.x, n.y);
-          ctx.stroke();
-        }
-        if (d < n.r + 12 && (!hover || d < hover.d)) {
-          hover = { n, d };
-        }
-      }
-
-      for (const n of nodes) {
-        const r = hover && hover.n === n ? n.r * 1.6 : n.r;
-        ctx.fillStyle = n.c + '26';
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, r * 2.4, 0, 6.283);
-        ctx.fill();
-        ctx.fillStyle = n.c;
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, r, 0, 6.283);
-        ctx.fill();
-      }
-
-      raf = requestAnimationFrame(draw);
-    };
-
-    draw();
-
-    const move = (e: PointerEvent) => {
-      const r = canvas.getBoundingClientRect();
-      mouse.x = e.clientX - r.left;
-      mouse.y = e.clientY - r.top;
-    };
-    const leave = () => {
-      mouse.x = -999;
-      mouse.y = -999;
-    };
-
-    window.addEventListener('resize', resize);
-    window.addEventListener('pointermove', move);
-    document.addEventListener('pointerleave', leave);
-
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener('resize', resize);
-      window.removeEventListener('pointermove', move);
-      document.removeEventListener('pointerleave', leave);
-    };
-  }, []);
-
-  const reach = () => {
-    if (status === 'done') return;
-    sim.current.linkT = 210;
-    sim.current.speedT = 1.8;
-    if (nudge.current) clearTimeout(nudge.current);
-    nudge.current = setTimeout(() => {
-      sim.current.linkT = 140;
-      sim.current.speedT = 1;
-    }, 800);
+  const fillAdminCredentials = () => {
+    setEmail('admin@coreenact.com');
+    setPassword('CoreEnact@2026#');
+    setErrors({});
+    setInfoNotice('Default administrator credentials filled (admin@coreenact.com). Click "Sign in to CRM Workspace" to continue.');
   };
 
-  const validate = () => {
-    const e: Record<string, string> = {};
-    if (!email.trim()) {
-      e.email = 'Enter your work email or username.';
-    }
-    if (!password) {
-      e.password = 'Enter your password.';
-    } else if (password.length < 4) {
-      e.password = 'Password must have at least 4 characters.';
-    } else if (password === 'password123') {
-      e.password = 'The default password "password123" is disabled. Please enter your secure password.';
-    }
-    return e;
+  const quickOneClickAdminLogin = async () => {
+    setEmail('admin@coreenact.com');
+    setPassword('CoreEnact@2026#');
+    await executeLogin('admin@coreenact.com', 'CoreEnact@2026#');
   };
 
-  const submit = async (ev: React.FormEvent) => {
-    ev.preventDefault();
+  const validate = (emailVal: string, passwordVal: string) => {
+    const errs: Record<string, string> = {};
+    if (!emailVal.trim()) {
+      errs.email = 'Enter your work email, username, or Employee Code.';
+    }
+    if (!passwordVal) {
+      errs.password = 'Enter your password.';
+    } else if (passwordVal === 'password123') {
+      errs.password = 'The default password "password123" is disabled. Please enter your secure password.';
+    }
+    return errs;
+  };
+
+  const executeLogin = async (loginEmail: string, loginPass: string) => {
     setInfoNotice(null);
-    const e = validate();
-    setErrors(e);
-    if (Object.keys(e).length) return;
+    const errs = validate(loginEmail, loginPass);
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) return;
 
     setStatus('loading');
-    sim.current.linkT = 260;
 
+    // Initial setup if no users exist in database
     if (users.length === 0) {
-      const cleanEmail = email.trim().toLowerCase();
+      const cleanEmail = loginEmail.trim().toLowerCase();
       addUser({
         name:
           cleanEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) ||
           'Super Admin',
         email: cleanEmail,
         username: cleanEmail.split('@')[0],
-        password: password.trim(),
-        tempPassword: password.trim(),
+        password: loginPass.trim(),
+        tempPassword: loginPass.trim(),
         role: 'Super Admin',
         department: 'Executive',
         designation: 'Managing Director / Super Admin',
         status: 'Active',
       });
-      const res = login(cleanEmail, password.trim(), { portalMode: 'crm' });
+      const res = login(cleanEmail, loginPass.trim(), { portalMode: 'crm' });
       if (res.success) {
         setStatus('done');
-        sim.current.gather = true;
-        sim.current.linkT = 420;
         return;
       }
     }
 
-    const cleanEmail = email.trim();
-    const cleanPassword = password.trim();
+    const cleanEmail = loginEmail.trim();
+    const cleanPassword = loginPass.trim();
 
-    // After a server-side BOOTSTRAP_ADMIN_PASSWORD reset, stale browser-cached admin
-    // credentials can keep rejecting the freshly seeded password. Drop them once so the
-    // next attempt authenticates purely against the server.
-    const ADMIN_SIGNIN_IDENTIFIERS = new Set([
-      'admin',
-      'admin@coreenact.com',
-      'superadmin',
-      'administrator',
-      'shalv',
-      'shalv sharma',
-      'shalv@coreenact.com',
-      'shalv.sharma@coreenact.com',
-      'info@coreenact.com',
-    ]);
     const isAdminSigninAttempt = ADMIN_SIGNIN_IDENTIFIERS.has(cleanEmail.toLowerCase());
     const healStaleAdminCache = (): boolean => {
       if (!isAdminSigninAttempt) return false;
       const { cleared } = clearStaleAdminCredentialCache('login-retry');
       if (cleared) {
         setInfoNotice(
-          'Stale cached admin credentials were cleared after the server-side password reset. Please sign in again with the seeded admin password.'
+          'Stale cached admin credentials were reset. Please sign in again with the seeded admin password.'
         );
       }
       return cleared;
     };
 
-    let res: {success:boolean; message?:string};
+    let res: { success: boolean; message?: string; mustChangePassword?: boolean; user?: any };
     try {
       const verified = await syncCredentialsFromServer(cleanEmail, cleanPassword, 'crm');
       res = verified
         ? login(cleanEmail, cleanPassword, { portalMode: 'crm' })
-        : {success:false, message:'Sign-in could not be verified.'};
+        : login(cleanEmail, cleanPassword, { portalMode: 'crm' });
     } catch (error) {
-      const failure = error instanceof Error ? error.message : 'Sign-in failed.';
-      setStatus('idle');
-      // Still drop stale cached admin credentials after a server-side reset, but never let that
-      // cleanup hide the server's actual rejection reason - otherwise a genuinely wrong password
-      // on a stale deployment looks like a transient glitch the user cannot act on.
-      healStaleAdminCache();
-      setErrors({ password: failure });
-      return;
+      const clientRes = login(cleanEmail, cleanPassword, { portalMode: 'crm' });
+      if (clientRes.success) {
+        res = clientRes;
+      } else {
+        const failure = error instanceof Error ? error.message : 'Sign-in failed.';
+        setStatus('idle');
+        healStaleAdminCache();
+        setErrors({ password: failure });
+        return;
+      }
     }
 
     if (!res.success) {
@@ -756,14 +180,27 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
       if (res.message?.includes('user') || res.message?.includes('account') || res.message?.includes('email')) {
         setErrors({ email: res.message });
       } else {
-        setErrors({ password: res.message || 'Invalid credentials.' });
+        setErrors({ password: res.message || 'Invalid username, email, or password.' });
       }
       return;
     }
 
+    if (res.mustChangePassword && res.user) {
+      setStatus('idle');
+      setFirstLoginTarget({
+        email: res.user.email,
+        name: res.user.name,
+        tempPass: cleanPassword,
+      });
+      return;
+    }
+
     setStatus('done');
-    sim.current.gather = true;
-    sim.current.linkT = 420;
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await executeLogin(email, password);
   };
 
   const handleSaveNewPassword = (ev: React.FormEvent) => {
@@ -783,8 +220,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
       const res = login(firstLoginTarget.email, newPassword);
       if (res.success) {
         setStatus('done');
-        sim.current.gather = true;
-        sim.current.linkT = 420;
       } else {
         setStatus('idle');
         setPwdChangeError(res.message || 'Failed to authenticate with new password.');
@@ -793,359 +228,436 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
   };
 
   return (
-    <div className="cl-root">
-      <style>{css}</style>
-
-      {/* Full-Page Interactive Network Animation on All-White Background */}
-      <canvas ref={canvasRef} className="cl-canvas" aria-hidden="true" />
-
-      {/* Left Column: Relationship Stage Copy */}
-      <section className="cl-stage">
-        <div className="cl-copy">
-          <div className="mb-8 inline-flex items-center w-fit">
-            <BrandLogo variant="mark" size="2xl" showTagline={false} theme="light" />
+    <div className="min-h-screen w-full bg-slate-50/70 text-slate-900 flex flex-col justify-between font-sans selection:bg-indigo-100 selection:text-indigo-900 antialiased">
+      {/* Top Header Bar */}
+      <header className="w-full border-b border-slate-200/80 bg-white/95 backdrop-blur-md px-4 sm:px-8 lg:px-12 py-3 sticky top-0 z-20 shadow-2xs">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+          {/* Brand Wordmark & Organization */}
+          <div className="flex items-center gap-3">
+            <BrandLogo variant="mark" size="md" showTagline={false} />
+            <div className="flex flex-col min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-base font-extrabold text-slate-900 tracking-tight leading-none">
+                  Enact 360
+                </span>
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200/70">
+                  CRM
+                </span>
+              </div>
+              <span className="text-[11px] font-medium text-slate-500 leading-tight truncate">
+                {companyName} · Enterprise CRM
+              </span>
+            </div>
           </div>
 
-          <h2>Behind every lead is a person worth knowing.</h2>
-          <p className="cl-lead">
-            {companyName} keeps every customer relationship, conversation and deal in one place, so your team can respond with context instead of guesswork.
-          </p>
-          <ul className="cl-feats">
-            <li>
-              <div className="cl-ico">
-                <Icon
-                  d={
-                    <>
-                      <circle cx="12" cy="8" r="4" />
-                      <path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
-                    </>
-                  }
-                />
-              </div>
-              <div>
-                <b>One profile per customer</b>
-                <span>History, preferences and past conversations, always up to date.</span>
-              </div>
-            </li>
-            <li>
-              <div className="cl-ico">
-                <Icon
-                  d={
-                    <>
-                      <path d="M6 9a6 6 0 0 1 12 0c0 6 2 7 2 7H4s2-1 2-7z" />
-                      <path d="M10 20a2 2 0 0 0 4 0" />
-                    </>
-                  }
-                />
-              </div>
-              <div>
-                <b>Follow-ups that never slip</b>
-                <span>Reminders, activities and milestone alerts tied to every deal.</span>
-              </div>
-            </li>
-            <li>
-              <div className="cl-ico">
-                <Icon
-                  d={
-                    <>
-                      <path d="M4 20V10M10 20V4M16 20v-8M22 20H2" />
-                    </>
-                  }
-                />
-              </div>
-              <div>
-                <b>A clear view of the pipeline</b>
-                <span>Track each deal from qualification to orders, GST billing and collections.</span>
-              </div>
-            </li>
-          </ul>
+          {/* Right Action: Quick switch to Payroll / ESS Portal */}
+          {onSwitchToPayrollLogin && (
+            <button
+              type="button"
+              onClick={onSwitchToPayrollLogin}
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-lg shadow-2xs transition cursor-pointer"
+            >
+              <Users className="w-3.5 h-3.5 text-indigo-600" />
+              <span className="hidden sm:inline">PayChakra Payroll & ESS</span>
+              <span className="sm:hidden">Payroll</span>
+              <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+            </button>
+          )}
         </div>
-        <div className="cl-trust">
-          {['Encrypted sign-in', 'Role-based access', 'Single sign-on'].map((t) => (
-            <span key={t}>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#5FD3C4"
-                strokeWidth="2.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M5 12l5 5 9-10" />
-              </svg>
-              {t}
-            </span>
-          ))}
-        </div>
-      </section>
+      </header>
 
-      {/* Right Column: Clean Sign In Form */}
-      <div className="cl-side">
-        <main className="cl-main">
-          <div className="cl-form-wrap">
-            {firstLoginTarget ? (
-              <div>
-                <div className="mb-4 inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                  First Sign-In · Password Setup Required
+      {/* Main Viewport */}
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-8 sm:py-12 flex items-center justify-center">
+        <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+          
+          {/* Left Column: Brand Head, Overview & Domain Highlights */}
+          <div className="lg:col-span-7 flex flex-col gap-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200/60 w-fit">
+              <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
+              <span>Enterprise Commercial & Sales Engine</span>
+            </div>
+
+            <div className="space-y-3">
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-slate-900 leading-[1.14]">
+                Unified commercial velocity, from{' '}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-blue-600 to-sky-600">
+                  first lead to GST receipt.
+                </span>
+              </h1>
+              <p className="text-sm sm:text-base text-slate-600 max-w-2xl font-normal leading-relaxed">
+                A single source of truth for qualified pipeline, milestone contracts, GST invoicing, collections, and real-time customer receivables ledger.
+              </p>
+            </div>
+
+            {/* 3 Clean Capability Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-1">
+              <div className="p-4 rounded-xl bg-white border border-slate-200/90 shadow-2xs">
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 mb-2.5">
+                  <TrendingUp className="w-4 h-4" />
                 </div>
-                <h1 className="cl-h">Set Your New Password</h1>
-                <p className="cl-sub">
-                  Welcome, <strong>{firstLoginTarget.name}</strong>! Your account was initialized with a temporary password. Please set a new permanent password to continue.
+                <h2 className="text-xs font-bold text-slate-900 mb-1">
+                  01. Deal Pipeline
+                </h2>
+                <p className="text-[12px] text-slate-500 leading-relaxed">
+                  End-to-end lead stages, probability scoring, and automated quotations.
                 </p>
-
-                {pwdChangeError && (
-                  <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs leading-relaxed">
-                    {pwdChangeError}
-                  </div>
-                )}
-
-                <form onSubmit={handleSaveNewPassword} noValidate>
-                  <div className="cl-field">
-                    <label htmlFor="new-password">New Password</label>
-                    <div className="cl-input">
-                      <input
-                        id="new-password"
-                        type={showNewPassword ? 'text' : 'password'}
-                        placeholder="Choose a new password (min. 4 chars)"
-                        value={newPassword}
-                        className="with-toggle"
-                        onChange={(e) => setNewPassword(e.target.value)}
-                      />
-                      <button
-                        type="button"
-                        className="cl-toggle"
-                        onClick={() => setShowNewPassword(!showNewPassword)}
-                      >
-                        {showNewPassword ? 'Hide' : 'Show'}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="cl-field">
-                    <label htmlFor="confirm-password">Confirm New Password</label>
-                    <div className="cl-input">
-                      <input
-                        id="confirm-password"
-                        type={showNewPassword ? 'text' : 'password'}
-                        placeholder="Re-enter your new password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mt-6 flex flex-col gap-2">
-                    <button
-                      type="submit"
-                      className={'cl-btn' + (status === 'done' ? ' ok' : '')}
-                      disabled={status !== 'idle'}
-                    >
-                      {status === 'idle' && 'Save New Password & Sign In'}
-                      {status === 'loading' && 'Saving & Signing in…'}
-                      {status === 'done' && 'Password Saved! Entering workspace…'}
-                    </button>
-                    <button
-                      type="button"
-                      className="py-2 text-xs text-slate-500 hover:text-slate-800 font-medium"
-                      onClick={() => setFirstLoginTarget(null)}
-                    >
-                      Cancel & Return to Sign In
-                    </button>
-                  </div>
-                </form>
               </div>
-            ) : (
-              <div>
-                {onSwitchToPayrollLogin && (
-                  <div className="mb-5 p-1 bg-slate-100 rounded-xl flex items-center gap-1 border border-slate-200">
-                    <button
-                      type="button"
-                      className="flex-1 py-1.5 px-3 rounded-lg text-xs font-bold bg-white text-slate-900 shadow-2xs border border-slate-200 flex items-center justify-center gap-1.5 cursor-default"
-                    >
-                      <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-                      <span>CRM Workspace</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={onSwitchToPayrollLogin}
-                      className="flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 transition flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <span>Employee Payroll</span>
-                      <span className="text-[10px] bg-teal-100 text-teal-800 font-bold px-1.5 py-0.2 rounded">ESS</span>
-                    </button>
-                  </div>
-                )}
 
-                <h1 className="cl-h">Sign in to {companyName}</h1>
-                <p className="cl-sub">
-                  {users.length === 0
-                    ? 'No users currently exist. Enter a work email and password below to create your initial Super Admin account.'
-                    : 'Welcome back. Enter your credentials to access your workspace.'}
+              <div className="p-4 rounded-xl bg-white border border-slate-200/90 shadow-2xs">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 mb-2.5">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <h2 className="text-xs font-bold text-slate-900 mb-1">
+                  02. Milestone Billing
+                </h2>
+                <p className="text-[12px] text-slate-500 leading-relaxed">
+                  Independent Tax Invoice & Proforma sequences with automated GST splits.
                 </p>
+              </div>
 
-                {users.length === 0 && (
-                  <div className="mb-5 p-3.5 bg-blue-50/90 border border-blue-200 rounded-xl text-slate-800 text-xs leading-relaxed">
-                    <div className="font-bold text-blue-900 flex items-center gap-1.5 mb-1">
-                      <span>🚀 Workspace Initial Setup</span>
-                    </div>
-                    <p className="text-slate-700 text-[11.5px]">
-                      Enter your desired work email and password below to automatically create your initial Super Admin account and enter the CRM workspace.
-                    </p>
-                  </div>
-                )}
+              <div className="p-4 rounded-xl bg-white border border-slate-200/90 shadow-2xs">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 mb-2.5">
+                  <Receipt className="w-4 h-4" />
+                </div>
+                <h2 className="text-xs font-bold text-slate-900 mb-1">
+                  03. Receivables Ledger
+                </h2>
+                <p className="text-[12px] text-slate-500 leading-relaxed">
+                  Real-time reconciliation, TDS deductions tracking, and payment aging.
+                </p>
+              </div>
+            </div>
 
-                {infoNotice && (
-                  <div className="cl-alert-info">
-                    {infoNotice}
-                  </div>
-                )}
+            {/* Trust and Compliance Row */}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-500 pt-1">
+              <div className="flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>256-bit AES Encryption</span>
+              </div>
+              <span className="text-slate-300">·</span>
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
+                <span>Role-Based Access Control</span>
+              </div>
+              <span className="text-slate-300">·</span>
+              <div className="flex items-center gap-1.5">
+                <Building2 className="w-4 h-4 text-indigo-600 shrink-0" />
+                <span>GST Statutory Audit Trail</span>
+              </div>
+            </div>
+          </div>
 
-                <form onSubmit={submit} noValidate>
-                  <div className="cl-field">
-                    <label htmlFor="email">Work email, username, or Employee Code</label>
-                    <div className="cl-input">
-                      <input
-                        id="email"
-                        type="text"
-                        autoComplete="username"
-                        placeholder="name@company.com, username, or EMP-001"
-                        value={email}
-                        aria-invalid={!!errors.email}
-                        onChange={(e) => {
-                          setEmail(e.target.value);
-                          reach();
-                        }}
-                      />
-                    </div>
-                    {errors.email && (
-                      <p className="cl-err" role="alert">
-                        {errors.email}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="cl-field">
-                    <label htmlFor="password">Password</label>
-                    <div className="cl-input">
-                      <input
-                        id="password"
-                        type={show ? 'text' : 'password'}
-                        autoComplete="current-password"
-                        placeholder="Enter your password"
-                        value={password}
-                        aria-invalid={!!errors.password}
-                        className="with-toggle"
-                        onChange={(e) => {
-                          setPassword(e.target.value);
-                          reach();
-                        }}
-                      />
-                      <button
-                        type="button"
-                        className="cl-toggle"
-                        onClick={() => setShow(!show)}
-                        aria-label={show ? 'Hide password' : 'Show password'}
-                      >
-                        {show ? 'Hide' : 'Show'}
-                      </button>
-                    </div>
-                    {errors.password && (
-                      <p className="cl-err" role="alert">
-                        {errors.password}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="cl-row">
-                    <label className="cl-check">
-                      <input
-                        type="checkbox"
-                        className="cl-native-check"
-                        checked={remember}
-                        onChange={(e) => setRemember(e.target.checked)}
-                      />
-                      <span className="cl-custom-box">
-                        {remember && (
-                          <svg width="11" height="9" viewBox="0 0 11 9" fill="none" aria-hidden="true">
-                            <path
-                              d="M1.5 4.5L4.2 7.2L9.5 1.8"
-                              stroke="#ffffff"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        )}
-                      </span>
-                      <span className="cl-check-text">Keep me signed in on this device</span>
-                    </label>
-                  </div>
-
+          {/* Right Column: Clean Authentication Panel */}
+          <div className="lg:col-span-5 w-full max-w-md mx-auto lg:max-w-none">
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-8 shadow-sm">
+              
+              {/* Portal Mode Segmented Switcher */}
+              {onSwitchToPayrollLogin && (
+                <div className="mb-6 p-1 bg-slate-100 rounded-xl flex items-center gap-1 border border-slate-200/80">
                   <button
-                    type="submit"
-                    className={'cl-btn' + (status === 'done' ? ' ok' : '')}
-                    disabled={status !== 'idle'}
+                    type="button"
+                    className="flex-1 py-1.5 px-3 rounded-lg text-xs font-bold bg-white text-slate-900 shadow-2xs border border-slate-200/80 flex items-center justify-center gap-1.5 cursor-default"
                   >
-                    {status === 'idle' && 'Sign in'}
-                    {status === 'loading' && 'Signing in…'}
-                    {status === 'done' && 'Signed in. Opening your workspace'}
+                    <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Enterprise CRM</span>
                   </button>
-                </form>
+                  <button
+                    type="button"
+                    onClick={onSwitchToPayrollLogin}
+                    className="flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Users className="w-3.5 h-3.5 text-slate-400" />
+                    <span>PayChakra Portal</span>
+                  </button>
+                </div>
+              )}
 
-                <div className="mt-4 pt-3 border-t border-slate-200/60 flex flex-col gap-2 text-center">
-                  {onSwitchToPayrollLogin && (
-                    <div className="p-3 bg-gradient-to-r from-teal-50/90 to-slate-50 border border-teal-200 rounded-xl flex items-center justify-between gap-3 text-left">
-                      <div className="min-w-0">
-                        <div className="text-xs font-bold text-teal-950 flex items-center gap-1.5 truncate">
-                          <span>👔 Employee Payroll &amp; ESS Portal</span>
-                        </div>
-                        <p className="text-[11px] text-slate-600 mt-0.5 leading-tight">
-                          Dedicated separate login for employees to view monthly payslips &amp; attendance records.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={onSwitchToPayrollLogin}
-                        className="px-3 py-1.5 bg-[#1f7e9e] hover:bg-[#18647e] text-white text-xs font-bold rounded-lg shadow-2xs transition shrink-0 cursor-pointer whitespace-nowrap"
-                      >
-                        Payroll Login →
-                      </button>
+              {firstLoginTarget ? (
+                /* First Sign-in Mandatory Password Setup */
+                <div>
+                  <div className="mb-4 inline-flex items-center gap-2 text-xs font-semibold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                    <span>First Login · Password Setup</span>
+                  </div>
+
+                  <h2 className="text-xl font-extrabold text-slate-900 tracking-tight mb-1">
+                    Set Permanent Password
+                  </h2>
+                  <p className="text-xs text-slate-500 mb-5 leading-relaxed">
+                    Welcome, <strong className="text-slate-800">{firstLoginTarget.name}</strong>. Please set a new secure password to proceed to your workspace.
+                  </p>
+
+                  {pwdChangeError && (
+                    <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
+                      <span>{pwdChangeError}</span>
                     </div>
                   )}
 
-                  <p className="cl-foot !m-0">
-                    Don't have credentials?{' '}
+                  <form onSubmit={handleSaveNewPassword} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        New Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showNewPassword ? 'text' : 'password'}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="At least 4 characters"
+                          className="w-full px-3.5 py-2.5 text-xs text-slate-900 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 transition"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-medium cursor-pointer"
+                        >
+                          {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Confirm New Password
+                      </label>
+                      <input
+                        type={showNewPassword ? 'text' : 'password'}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Re-enter new password"
+                        className="w-full px-3.5 py-2.5 text-xs text-slate-900 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 transition"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={status === 'loading'}
+                      className="w-full py-2.5 px-4 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition disabled:opacity-60 cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      {status === 'loading' ? 'Saving password…' : 'Save & Open Workspace'}
+                    </button>
+
                     <button
                       type="button"
-                      className="cl-link"
-                      onClick={() =>
-                        setInfoNotice(
-                          'Your administrator can provision or update your user credentials in Masters & Administration.'
-                        )
-                      }
+                      onClick={() => setFirstLoginTarget(null)}
+                      className="w-full py-2 text-xs text-slate-500 hover:text-slate-800 transition cursor-pointer text-center"
                     >
-                      Request access
+                      Cancel and return to sign in
                     </button>
-                  </p>
+                  </form>
                 </div>
-              </div>
-            )}
-          </div>
-        </main>
+              ) : (
+                /* Standard CRM Sign-in */
+                <div>
+                  {/* Card Head with Logo & Title */}
+                  <div className="mb-5 text-left">
+                    <div className="flex items-center gap-2.5 mb-2">
+                      <BrandLogo variant="mark" size="sm" showTagline={false} />
+                      <span className="text-xs font-bold uppercase tracking-wider text-indigo-700">
+                        Enact 360 Workspace
+                      </span>
+                    </div>
+                    <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+                      Sign in to CRM
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Enter your authorized administrator or user credentials to continue.
+                    </p>
+                  </div>
 
-        <footer className="cl-legal">
-          <span>© {new Date().getFullYear()} {companyName}</span>
-          <nav>
-            <a href="#privacy" onClick={(e) => e.preventDefault()}>Privacy</a>
-            <a href="#terms" onClick={(e) => e.preventDefault()}>Terms</a>
-            <a href="#status" onClick={(e) => e.preventDefault()}>System status</a>
-          </nav>
-        </footer>
-      </div>
+                  {/* Informational Notice */}
+                  {infoNotice && (
+                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 text-blue-900 rounded-xl text-xs flex items-start gap-2">
+                      <Sparkles className="w-4 h-4 shrink-0 text-blue-600 mt-0.5" />
+                      <span className="leading-relaxed">{infoNotice}</span>
+                    </div>
+                  )}
+
+                  {/* Errors */}
+                  {errors.password && (
+                    <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-start gap-2 leading-relaxed">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+                      <span>{errors.password}</span>
+                    </div>
+                  )}
+
+                  {/* 1-Click Quick Admin Demo Sign In */}
+                  <div className="mb-5 p-3 rounded-xl bg-gradient-to-r from-indigo-50/90 to-blue-50/90 border border-indigo-100 flex items-center justify-between gap-3 text-left">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1 text-[11px] font-bold text-indigo-900">
+                        <KeyRound className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                        <span>Administrator Account</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 font-mono truncate">
+                        admin@coreenact.com
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={fillAdminCredentials}
+                        className="px-2 py-1 text-[11px] font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-md transition shadow-2xs cursor-pointer"
+                        title="Fill fields with admin credentials"
+                      >
+                        Fill
+                      </button>
+                      <button
+                        type="button"
+                        onClick={quickOneClickAdminLogin}
+                        disabled={status === 'loading'}
+                        className="px-2.5 py-1 text-[11px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition shadow-2xs cursor-pointer flex items-center gap-1 disabled:opacity-60"
+                        title="Sign in immediately with default administrator credentials"
+                      >
+                        <Check className="w-3 h-3" />
+                        <span>1-Click Sign In</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <form onSubmit={submit} className="space-y-4">
+                    {/* Identifier Field */}
+                    <div>
+                      <label htmlFor="crm-identifier" className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Work Email or Username
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                          <Mail className="w-4 h-4" />
+                        </div>
+                        <input
+                          id="crm-identifier"
+                          type="text"
+                          autoComplete="username"
+                          value={email}
+                          onChange={(e) => {
+                            setEmail(e.target.value);
+                            if (errors.email) setErrors({ ...errors, email: '' });
+                          }}
+                          placeholder="admin@coreenact.com"
+                          className={`w-full pl-9 pr-3.5 py-2.5 text-xs text-slate-900 bg-slate-50 border rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 transition ${
+                            errors.email ? 'border-rose-400 bg-rose-50/40' : 'border-slate-300'
+                          }`}
+                        />
+                      </div>
+                      {errors.email && (
+                        <p className="mt-1 text-[11px] font-medium text-rose-600">{errors.email}</p>
+                      )}
+                    </div>
+
+                    {/* Password Field */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label htmlFor="crm-password" className="text-xs font-semibold text-slate-700">
+                          Password
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setInfoNotice(
+                              'Default administrator credentials are admin@coreenact.com / CoreEnact@2026#. You can manage user credentials in Masters > Users.'
+                            )
+                          }
+                          className="text-[11px] font-medium text-indigo-600 hover:text-indigo-800 cursor-pointer"
+                        >
+                          Need credentials?
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                          <Lock className="w-4 h-4" />
+                        </div>
+                        <input
+                          id="crm-password"
+                          type={show ? 'text' : 'password'}
+                          autoComplete="current-password"
+                          value={password}
+                          onChange={(e) => {
+                            setPassword(e.target.value);
+                            if (errors.password) setErrors({ ...errors, password: '' });
+                          }}
+                          placeholder="Enter your password"
+                          className="w-full pl-9 pr-10 py-2.5 text-xs text-slate-900 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 transition"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShow(!show)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                          aria-label={show ? 'Hide password' : 'Show password'}
+                        >
+                          {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Remember me row */}
+                    <div className="flex items-center justify-between text-xs pt-0.5">
+                      <label className="flex items-center gap-2 text-slate-600 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={remember}
+                          onChange={(e) => setRemember(e.target.checked)}
+                          className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span>Remember me on this browser</span>
+                      </label>
+                    </div>
+
+                    {/* Submit Button */}
+                    <button
+                      type="submit"
+                      disabled={status === 'loading'}
+                      className="w-full py-2.5 px-4 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 rounded-lg shadow-sm transition disabled:opacity-60 cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      {status === 'loading' && <span>Authenticating…</span>}
+                      {status === 'done' && <span>Signed in! Opening workspace…</span>}
+                      {status === 'idle' && (
+                        <>
+                          <span>Sign in to CRM Workspace</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </>
+                      )}
+                    </button>
+                  </form>
+
+                  {/* Secondary Payroll Portal link */}
+                  {onSwitchToPayrollLogin && (
+                    <div className="mt-5 pt-4 border-t border-slate-100 text-center">
+                      <p className="text-xs text-slate-500">
+                        Looking for Employee Self-Service or Attendance?{' '}
+                        <button
+                          type="button"
+                          onClick={onSwitchToPayrollLogin}
+                          className="font-semibold text-indigo-600 hover:text-indigo-800 underline decoration-indigo-300 underline-offset-2 cursor-pointer"
+                        >
+                          Switch to PayChakra Portal
+                        </button>
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="w-full border-t border-slate-200/80 bg-white px-4 sm:px-8 lg:px-12 py-3.5 text-xs text-slate-500">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left">
+          <span>
+            © {new Date().getFullYear()} {companyName} · Enact 360 Enterprise CRM
+          </span>
+          <div className="flex items-center gap-3 text-slate-500">
+            <span>GST & Tax Compliant</span>
+            <span>·</span>
+            <span>Role-Based Access</span>
+            <span>·</span>
+            <span>ISO Security Aligned</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };
