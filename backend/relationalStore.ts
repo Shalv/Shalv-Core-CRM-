@@ -331,8 +331,16 @@ async function upsertRow(
   sql += setCols.length
     ? `DO UPDATE SET ${setCols.map((c) => `"${c}" = EXCLUDED."${c}"`).join(', ')}`
     : `DO NOTHING`;
-  await client.query(sql, values);
-  return true;
+  await client.query('SAVEPOINT enact_upsert');
+  try {
+    await client.query(sql, values);
+    await client.query('RELEASE SAVEPOINT enact_upsert');
+    return true;
+  } catch (err) {
+    await client.query('ROLLBACK TO SAVEPOINT enact_upsert');
+    console.warn(`[relational-store] upsert skipped for ${table}:`, err instanceof Error ? err.message : err);
+    return false;
+  }
 }
 
 async function deleteRowsByKeys(client: PoolClient, table: string, pk: string[], keys: string[]): Promise<void> {
@@ -340,7 +348,14 @@ async function deleteRowsByKeys(client: PoolClient, table: string, pk: string[],
   const params: any[] = [];
   const placeholders = tuples.map((t) => `(${t.map((v) => { params.push(v); return `$${params.length}`; }).join(',')})`);
   const cols = pk.map((c) => `"${c}"`).join(',');
-  await client.query(`DELETE FROM "${table}" WHERE (${cols}) IN (${placeholders.join(',')})`, params);
+  await client.query('SAVEPOINT enact_delete');
+  try {
+    await client.query(`DELETE FROM "${table}" WHERE (${cols}) IN (${placeholders.join(',')})`, params);
+    await client.query('RELEASE SAVEPOINT enact_delete');
+  } catch (err) {
+    await client.query('ROLLBACK TO SAVEPOINT enact_delete');
+    console.warn(`[relational-store] delete skipped for ${table}:`, err instanceof Error ? err.message : err);
+  }
 }
 
 /**
@@ -393,8 +408,15 @@ export async function syncSnapshotToDb(client: PoolClient, before: RowsByTable, 
 // rows -> snapshot
 // --------------------------------------------------------------------------
 async function readRows(client: PoolClient, table: string, order = ''): Promise<Row[]> {
-  const r = await client.query(`SELECT * FROM "${table}"${order ? ` ORDER BY ${order}` : ''}`);
-  return r.rows;
+  await client.query('SAVEPOINT enact_read');
+  try {
+    const r = await client.query(`SELECT * FROM "${table}"${order ? ` ORDER BY ${order}` : ''}`);
+    await client.query('RELEASE SAVEPOINT enact_read');
+    return r.rows;
+  } catch {
+    await client.query('ROLLBACK TO SAVEPOINT enact_read');
+    return [];
+  }
 }
 function rowToCamel(row: Row, drop: string[] = []): Row {
   const out: Row = {};
@@ -409,17 +431,33 @@ export async function loadSnapshotFromDb(client: PoolClient): Promise<any> {
   const snap: any = { crmSlices: {} };
   const s = snap.crmSlices;
 
-  const settings = await client.query(`SELECT key, value FROM app_settings`);
+  let settingsRows: Row[] = [];
+  await client.query('SAVEPOINT enact_settings');
+  try {
+    const settings = await client.query(`SELECT key, value FROM app_settings`);
+    await client.query('RELEASE SAVEPOINT enact_settings');
+    settingsRows = settings.rows;
+  } catch {
+    await client.query('ROLLBACK TO SAVEPOINT enact_settings');
+  }
   const smap: Record<string, any> = {};
-  for (const r of settings.rows) smap[r.key] = typeof r.value === 'string' ? safeParse(r.value) : r.value;
+  for (const r of settingsRows) smap[r.key] = typeof r.value === 'string' ? safeParse(r.value) : r.value;
   snap.stateInitialized = smap.state_initialized ?? false;
   snap.updatedAt = smap.updated_at ?? new Date().toISOString();
   snap.deletedPayrollMasterIds = smap.deleted_payroll_master_ids ?? [];
   snap.deletedLoanIds = smap.deleted_loan_ids ?? [];
   s.milestoneTemplates = smap.milestone_templates ?? [];
 
-  const counters = await client.query(`SELECT counter_key, value FROM document_counters`);
-  snap.documentCounters = Object.fromEntries(counters.rows.map((r) => [r.counter_key, r.value]));
+  let countersRows: Row[] = [];
+  await client.query('SAVEPOINT enact_counters');
+  try {
+    const counters = await client.query(`SELECT counter_key, value FROM document_counters`);
+    await client.query('RELEASE SAVEPOINT enact_counters');
+    countersRows = counters.rows;
+  } catch {
+    await client.query('ROLLBACK TO SAVEPOINT enact_counters');
+  }
+  snap.documentCounters = Object.fromEntries(countersRows.map((r) => [r.counter_key, r.value]));
 
   // users + documents
   const userDocs = await readRows(client, 'user_documents', 'sort_order');

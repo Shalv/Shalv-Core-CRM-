@@ -1341,5 +1341,12 @@ CREATE TABLE IF NOT EXISTS payroll_daily_attendance (
   PRIMARY KEY (id)
 );
 
+-- Legacy single-row state fallback table.
+CREATE TABLE IF NOT EXISTS crm_state_store (
+  id INTEGER PRIMARY KEY,
+  payload JSONB NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 COMMIT;
 `;

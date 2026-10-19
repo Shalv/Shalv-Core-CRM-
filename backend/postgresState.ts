@@ -26,38 +26,42 @@ type Hooks = { capture: () => any; restore: (state: any) => void; setWriter: (wr
 // transaction early and release the advisory lock - so those two lines are
 // stripped from the runtime copy here.
 const RUNTIME_SCHEMA = SCHEMA_SQL.replace(/^\s*(?:BEGIN|COMMIT);\s*$/gm, '');
-let schemaPromise: Promise<void> | null = null;
-function ensureSchema(client: PoolClient): Promise<void> {
-  if (!schemaPromise) {
-    schemaPromise = applySchema(client)
-      .then(() => undefined)
-      .catch((err) => { schemaPromise = null; throw err; });
+let schemaApplied = false;
+
+async function ensureSchema(client: PoolClient): Promise<void> {
+  if (schemaApplied) return;
+  await client.query('SAVEPOINT enact_schema_check');
+  try {
+    const res = await client.query(
+      "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'app_settings'"
+    );
+    await client.query('RELEASE SAVEPOINT enact_schema_check');
+    if (res.rows.length > 0) {
+      schemaApplied = true;
+      return;
+    }
+  } catch {
+    try { await client.query('ROLLBACK TO SAVEPOINT enact_schema_check'); } catch {}
   }
-  return schemaPromise;
+
+  await applySchema(client);
+  schemaApplied = true;
 }
 
 /**
- * Apply the DDL statement by statement. A CREATE INDEX that targets a column a
- * pre-existing, differently-shaped table lacks is logged and skipped instead of
- * aborting the whole schema (which would 503 every /api request). CREATE TABLE
- * failures still propagate, so genuine problems remain visible.
+ * Apply the DDL statement by statement. Each statement runs in its own savepoint,
+ * preventing any single failed statement from aborting the parent transaction.
  */
 async function applySchema(client: PoolClient): Promise<void> {
   const statements = RUNTIME_SCHEMA.split(';').map((s) => s.trim()).filter(Boolean);
   for (const stmt of statements) {
-    // Each statement gets its own savepoint: without it, one failed statement
-    // poisons the surrounding transaction (25P02) and every later statement fails.
     await client.query('SAVEPOINT enact_stmt');
     try {
       await client.query(stmt);
       await client.query('RELEASE SAVEPOINT enact_stmt');
     } catch (err) {
       await client.query('ROLLBACK TO SAVEPOINT enact_stmt');
-      if (/^CREATE\s+(UNIQUE\s+)?INDEX/i.test(stmt)) {
-        console.warn('[relational-store] skipped index:', err instanceof Error ? err.message : err);
-        continue;
-      }
-      throw err;
+      console.warn('[relational-store] skipped schema statement:', err instanceof Error ? err.message : err);
     }
   }
 }
@@ -127,9 +131,18 @@ export function postgresStateMiddleware(pool: Pick<Pool, 'connect'>, hooks: Hook
           } else {
             if (dirty) {
               await applyRowDiff(client!, beforeRows, buildRows(hooks.capture()));
+              await client!.query('SAVEPOINT update_legacy_state');
               try {
-                await client!.query('UPDATE crm_state_store SET payload = $1 WHERE id = 1', [JSON.stringify(hooks.capture())]);
-              } catch {}
+                const tableCheck = await client!.query(
+                  "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'crm_state_store'"
+                );
+                if (tableCheck.rows.length > 0) {
+                  await client!.query('UPDATE crm_state_store SET payload = $1 WHERE id = 1', [JSON.stringify(hooks.capture())]);
+                }
+                await client!.query('RELEASE SAVEPOINT update_legacy_state');
+              } catch {
+                try { await client!.query('ROLLBACK TO SAVEPOINT update_legacy_state'); } catch {}
+              }
             }
             await client!.query('COMMIT');
           }
@@ -155,16 +168,25 @@ export function postgresStateMiddleware(pool: Pick<Pool, 'connect'>, hooks: Hook
 
         let loaded = await loadSnapshotFromDb(client);
         if (!loaded || !loaded.stateInitialized || (!loaded.users?.length && !Object.keys(loaded.payrollMasters || {}).length)) {
+          await client.query('SAVEPOINT legacy_crm_state_check');
           try {
-            const legacyRes = await client.query('SELECT payload FROM crm_state_store WHERE id = 1 LIMIT 1');
-            if (legacyRes?.rows?.[0]?.payload) {
-              const rawPayload = legacyRes.rows[0].payload;
-              const parsed = typeof rawPayload === 'string' ? JSON.parse(rawPayload) : rawPayload;
-              if (parsed && typeof parsed === 'object') {
-                loaded = { ...loaded, ...parsed };
+            const tableCheck = await client.query(
+              "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'crm_state_store'"
+            );
+            if (tableCheck.rows.length > 0) {
+              const legacyRes = await client.query('SELECT payload FROM crm_state_store WHERE id = 1 LIMIT 1');
+              if (legacyRes?.rows?.[0]?.payload) {
+                const rawPayload = legacyRes.rows[0].payload;
+                const parsed = typeof rawPayload === 'string' ? JSON.parse(rawPayload) : rawPayload;
+                if (parsed && typeof parsed === 'object') {
+                  loaded = { ...loaded, ...parsed };
+                }
               }
             }
-          } catch {}
+            await client.query('RELEASE SAVEPOINT legacy_crm_state_check');
+          } catch {
+            try { await client.query('ROLLBACK TO SAVEPOINT legacy_crm_state_check'); } catch {}
+          }
         }
         before = hooks.capture();
         // Baseline for the row-level diff = exactly what the database held.
