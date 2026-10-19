@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import pg from 'pg';
-import { saveSnapshotToDb, loadSnapshotFromDb } from './relationalStore.ts';
+import { saveSnapshotToDb, loadSnapshotFromDb } from '../../backend/relationalStore.ts';
 
 const original = JSON.parse(fs.readFileSync(process.argv[2] || 'snapshot.json', 'utf8'));
 
@@ -46,11 +46,11 @@ await client.connect();
 await client.query(fs.readFileSync('schema.sql', 'utf8'));
 
 await client.query('BEGIN');
-const written = await saveSnapshotToDb(client, original);
+const written = await saveSnapshotToDb(client as any, original);
 await client.query('COMMIT');
 console.log(`Wrote ${written} rows.`);
 
-const loaded = await loadSnapshotFromDb(client);
+const loaded = await loadSnapshotFromDb(client as any);
 
 const d = diff(original, loaded);
 console.log(`\nRound-trip differences: ${d.length}`);

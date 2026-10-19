@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import pg from 'pg';
-import { postgresStateMiddleware } from './postgresState.ts';
-import { applyRowDiff } from './relationalStore.ts';
+import { postgresStateMiddleware } from '../../backend/postgresState.ts';
+import { applyRowDiff } from '../../backend/relationalStore.ts';
 
 const seed = JSON.parse(fs.readFileSync('snapshot.json', 'utf8'));
 let STATE: any = seed;
@@ -21,7 +21,7 @@ function fakeRes() {
 }
 async function call(mutator: ((s: any) => void) | null, status = 200) {
   const res = fakeRes();
-  await new Promise<void>((resolve) => { mw({}, res, () => { if (mutator) mutator(STATE); res.statusCode = status; resolve(); }); });
+  await new Promise<void>((resolve) => { mw({} as any, res, () => { if (mutator) mutator(STATE); res.statusCode = status; resolve(); }); });
   res.end('ok');
   await res._p;
 }

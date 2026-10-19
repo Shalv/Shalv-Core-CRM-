@@ -628,19 +628,21 @@ export const clearStaleAdminCredentialCache = (
       }
     }
 
-    const usersRaw = localStorage.getItem(STORAGE_KEYS.USERS);
-    if (usersRaw) {
-      const parsed = JSON.parse(usersRaw);
-      if (Array.isArray(parsed)) {
-        const next = parsed.map((u: any) => {
-          if (!isAdminCacheRecord(u)) return u;
-          if (u.password || u.tempPassword || u.temp_password || u.passwordHash || u.password_hash) {
-            cleared = true;
-            return sanitizeClientUser(u);
-          }
-          return u;
-        });
-        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(next));
+    for (const usersKey of [STORAGE_KEYS.USERS, 'corecrm_v2_users']) {
+      const usersRaw = localStorage.getItem(usersKey);
+      if (usersRaw) {
+        const parsed = JSON.parse(usersRaw);
+        if (Array.isArray(parsed)) {
+          const next = parsed.map((u: any) => {
+            if (!isAdminCacheRecord(u)) return u;
+            if (u.password || u.tempPassword || u.temp_password || u.passwordHash || u.password_hash) {
+              cleared = true;
+              return sanitizeClientUser(u);
+            }
+            return u;
+          });
+          localStorage.setItem(usersKey, JSON.stringify(next));
+        }
       }
     }
 

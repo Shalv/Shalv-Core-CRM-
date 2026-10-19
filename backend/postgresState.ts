@@ -125,8 +125,12 @@ export function postgresStateMiddleware(pool: Pick<Pool, 'connect'>, hooks: Hook
             await client!.query('ROLLBACK');
             hooks.restore(before);
           } else {
-            // Fine-grained: write only the rows that changed during this request.
-            if (dirty) await applyRowDiff(client!, beforeRows, buildRows(hooks.capture()));
+            if (dirty) {
+              await applyRowDiff(client!, beforeRows, buildRows(hooks.capture()));
+              try {
+                await client!.query('UPDATE crm_state_store SET payload = $1 WHERE id = 1', [JSON.stringify(hooks.capture())]);
+              } catch {}
+            }
             await client!.query('COMMIT');
           }
           if (!aborted) (originalEnd as any)(...args);
@@ -149,11 +153,23 @@ export function postgresStateMiddleware(pool: Pick<Pool, 'connect'>, hooks: Hook
         await client.query('SELECT pg_advisory_xact_lock(360026)');
         await ensureSchema(client);
 
-        const loaded = await loadSnapshotFromDb(client);
+        let loaded = await loadSnapshotFromDb(client);
+        if (!loaded || !loaded.stateInitialized || (!loaded.users?.length && !Object.keys(loaded.payrollMasters || {}).length)) {
+          try {
+            const legacyRes = await client.query('SELECT payload FROM crm_state_store WHERE id = 1 LIMIT 1');
+            if (legacyRes?.rows?.[0]?.payload) {
+              const rawPayload = legacyRes.rows[0].payload;
+              const parsed = typeof rawPayload === 'string' ? JSON.parse(rawPayload) : rawPayload;
+              if (parsed && typeof parsed === 'object') {
+                loaded = { ...loaded, ...parsed };
+              }
+            }
+          } catch {}
+        }
         before = hooks.capture();
         // Baseline for the row-level diff = exactly what the database held.
         beforeRows = buildRows(loaded && loaded.stateInitialized ? loaded : {});
-        if (loaded && Array.isArray(loaded.users) && typeof loaded.stateInitialized === 'boolean' && loaded.stateInitialized) {
+        if (loaded && (Array.isArray(loaded.users) || loaded.payrollMasters) && typeof loaded.stateInitialized === 'boolean' && loaded.stateInitialized) {
           hooks.restore(loaded);
         } else {
           // Fresh relational store: the in-memory state was seeded from
