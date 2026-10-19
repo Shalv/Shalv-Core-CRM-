@@ -198,6 +198,7 @@ gen_schema.py                  regenerates schema.sql + backend/schema.ts
 migrate.mjs                    one-way JSON snapshot -> PostgreSQL
 extract-store.mjs              finds and exports the current state
 purge-demo-data.mjs            clears demo rows from a live database
+ensure-admin.mjs               guarantees a known admin login (upserts the admin)
 backend/relationalStore.ts     snapshot <-> tables (read, write, row-diff)
 backend/schema.ts              bundled DDL string
 backend/postgresState.ts       runtime middleware (replaces the existing file)
@@ -205,7 +206,37 @@ remove-demo-data/              files + patch to strip demo data from the app
 tests/                         the tests used to verify all of the above
 ```
 
-## 8. Security note (from the repo's own START_HERE.md)
+## 8. Admin sign-in
+
+The seed ships an administrator — **`admin` / `admin@coreenact.com`**, role Super
+Admin, status Active — whose stored bcrypt hash is the built-in default password
+`CoreEnact@2026#`. On a fresh install you can sign in with those credentials
+immediately (the email is also a recognised admin identifier in the login screen).
+
+Two things can change that on a live database: the admin password was changed in
+the app, or `ADMIN_PASSWORD` is set to a different value. To guarantee a known
+admin login, either:
+
+- set `ADMIN_PASSWORD=CoreEnact@2026#` in the environment (Vercel → Settings →
+  Environment Variables, and `.env`). The server accepts the configured
+  `ADMIN_PASSWORD` for the admin account and re-writes the stored hash; or
+- run the reset script, which upserts the admin into the `users` table **and** the
+  legacy blob (and keeps the linked payroll master in step):
+
+```bash
+DATABASE_URL=postgres://... node ensure-admin.mjs                  # admin@coreenact.com / CoreEnact@2026#
+DATABASE_URL=postgres://... node ensure-admin.mjs --dry-run        # preview
+DATABASE_URL=postgres://... node ensure-admin.mjs --email you@x.com --password 'YourPass'
+```
+
+This deliberately does **not** reintroduce a hardcoded password fallback — that
+was removed for security (it let anyone reading the repo authenticate as Super
+Admin). The script writes a real bcrypt hash, exactly as changing the password in
+the UI would.
+
+---
+
+## 9. Security note (from the repo's own START_HERE.md)
 
 Earlier revisions of this project committed database dumps that contained real
 customer PII and password hashes. If that has not already been actioned,
