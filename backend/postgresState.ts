@@ -20,11 +20,17 @@ type Hooks = { capture: () => any; restore: (state: any) => void; setWriter: (wr
 
 // The DDL is idempotent (CREATE TABLE/INDEX IF NOT EXISTS). Apply it once per
 // process; every later request skips straight to the data.
+//
+// schema.sql wraps the DDL in BEGIN;/COMMIT; for standalone use. The runtime runs
+// it INSIDE the request's transaction, where that inner COMMIT would end the
+// transaction early and release the advisory lock - so those two lines are
+// stripped from the runtime copy here.
+const RUNTIME_SCHEMA = SCHEMA_SQL.replace(/^\s*(?:BEGIN|COMMIT);\s*$/gm, '');
 let schemaPromise: Promise<void> | null = null;
 function ensureSchema(client: PoolClient): Promise<void> {
   if (!schemaPromise) {
     schemaPromise = client
-      .query(SCHEMA_SQL)
+      .query(RUNTIME_SCHEMA)
       .then(() => undefined)
       .catch((err) => { schemaPromise = null; throw err; });
   }
@@ -69,7 +75,8 @@ export function postgresStateMiddleware(pool: Pick<Pool, 'connect'>, hooks: Hook
             await client!.query('COMMIT');
           }
           if (!aborted) (originalEnd as any)(...args);
-        } catch {
+        } catch (err) {
+          console.error('[relational-store] state commit failed:', err instanceof Error ? err.stack || err.message : err);
           try { await client?.query('ROLLBACK'); } catch {}
           if (before) hooks.restore(before);
           if (!aborted && !res.headersSent) fail();
@@ -103,7 +110,9 @@ export function postgresStateMiddleware(pool: Pick<Pool, 'connect'>, hooks: Hook
         res.end = ((...args: any[]) => { void finish(args); return res; }) as any;
         res.once('close', () => { if (!res.writableFinished) void finish([], true); });
         next();
-      } catch {
+      } catch (err) {
+        // Surface the real cause (DB unreachable, schema/permission error, ...) in the runtime logs.
+        console.error('[relational-store] request store failed:', err instanceof Error ? err.stack || err.message : err);
         try { await client?.query('ROLLBACK'); } catch {}
         if (before) hooks.restore(before);
         hooks.setWriter(null);
