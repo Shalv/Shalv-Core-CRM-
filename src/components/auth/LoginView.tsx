@@ -41,6 +41,10 @@ const ADMIN_SIGNIN_IDENTIFIERS = new Set([
   'admin@coreenactsolutions.com',
   'info@coreenact.com',
   'infor@coreenact.com',
+  'emp-101',
+  'emp101',
+  'emp-001',
+  'emp001',
 ]);
 
 export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) => {
@@ -159,16 +163,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
         ? login(cleanEmail, cleanPassword, { portalMode: 'crm' })
         : login(cleanEmail, cleanPassword, { portalMode: 'crm' });
     } catch (error) {
-      const clientRes = login(cleanEmail, cleanPassword, { portalMode: 'crm' });
-      if (clientRes.success) {
-        res = clientRes;
+      const failure = error instanceof Error ? error.message : 'Sign-in failed.';
+      setStatus('idle');
+      healStaleAdminCache();
+      if (failure.toLowerCase().includes('user') || failure.toLowerCase().includes('identifier') || failure.toLowerCase().includes('account') || failure.toLowerCase().includes('email')) {
+        setErrors({ email: failure });
       } else {
-        const failure = error instanceof Error ? error.message : 'Sign-in failed.';
-        setStatus('idle');
-        healStaleAdminCache();
         setErrors({ password: failure });
-        return;
       }
+      return;
     }
 
     if (!res.success) {

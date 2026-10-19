@@ -169,15 +169,7 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
               requiredEmail: urlLockedIdentity.email || undefined,
             });
       } catch (err: any) {
-        const clientRes = login(cleanInput, loginPass.trim(), {
-          portalMode: 'payroll',
-          requiredEmail: urlLockedIdentity.email || undefined,
-        });
-        if (clientRes.success) {
-          res = clientRes;
-        } else {
-          throw err;
-        }
+        throw err;
       }
 
       if (!res.success) {
