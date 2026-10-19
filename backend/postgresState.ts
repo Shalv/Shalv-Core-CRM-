@@ -29,12 +29,37 @@ const RUNTIME_SCHEMA = SCHEMA_SQL.replace(/^\s*(?:BEGIN|COMMIT);\s*$/gm, '');
 let schemaPromise: Promise<void> | null = null;
 function ensureSchema(client: PoolClient): Promise<void> {
   if (!schemaPromise) {
-    schemaPromise = client
-      .query(RUNTIME_SCHEMA)
+    schemaPromise = applySchema(client)
       .then(() => undefined)
       .catch((err) => { schemaPromise = null; throw err; });
   }
   return schemaPromise;
+}
+
+/**
+ * Apply the DDL statement by statement. A CREATE INDEX that targets a column a
+ * pre-existing, differently-shaped table lacks is logged and skipped instead of
+ * aborting the whole schema (which would 503 every /api request). CREATE TABLE
+ * failures still propagate, so genuine problems remain visible.
+ */
+async function applySchema(client: PoolClient): Promise<void> {
+  const statements = RUNTIME_SCHEMA.split(';').map((s) => s.trim()).filter(Boolean);
+  for (const stmt of statements) {
+    // Each statement gets its own savepoint: without it, one failed statement
+    // poisons the surrounding transaction (25P02) and every later statement fails.
+    await client.query('SAVEPOINT enact_stmt');
+    try {
+      await client.query(stmt);
+      await client.query('RELEASE SAVEPOINT enact_stmt');
+    } catch (err) {
+      await client.query('ROLLBACK TO SAVEPOINT enact_stmt');
+      if (/^CREATE\s+(UNIQUE\s+)?INDEX/i.test(stmt)) {
+        console.warn('[relational-store] skipped index:', err instanceof Error ? err.message : err);
+        continue;
+      }
+      throw err;
+    }
+  }
 }
 
 /** Turn a raw database error into a short, non-sensitive hint the operator can act on. */
