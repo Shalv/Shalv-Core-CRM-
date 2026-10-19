@@ -16,8 +16,6 @@ import {
   FileText,
   Receipt,
   Sparkles,
-  KeyRound,
-  Check,
 } from 'lucide-react';
 
 export interface LoginViewProps {
@@ -59,12 +57,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
   } = useCrm();
 
   const [email, setEmail] = useState(() => {
-    if (typeof window === 'undefined') return 'admin@coreenact.com';
+    if (typeof window === 'undefined') return '';
     const e = new URLSearchParams(window.location.search).get('email');
-    return e ? decodeURIComponent(e) : 'admin@coreenact.com';
+    return e ? decodeURIComponent(e) : '';
   });
 
-  const [password, setPassword] = useState('CoreEnact@2026#');
+  const [password, setPassword] = useState('');
   const [show, setShow] = useState(false);
   const [remember, setRemember] = useState(true);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -83,19 +81,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
   const [pwdChangeError, setPwdChangeError] = useState<string | null>(null);
 
   const companyName = supplierCompany?.name || 'Coreenact Solutions';
-
-  const fillAdminCredentials = () => {
-    setEmail('admin@coreenact.com');
-    setPassword('CoreEnact@2026#');
-    setErrors({});
-    setInfoNotice('Default administrator credentials filled (admin@coreenact.com). Click "Sign in to CRM Workspace" to continue.');
-  };
-
-  const quickOneClickAdminLogin = async () => {
-    setEmail('admin@coreenact.com');
-    setPassword('CoreEnact@2026#');
-    await executeLogin('admin@coreenact.com', 'CoreEnact@2026#');
-  };
 
   const validate = (emailVal: string, passwordVal: string) => {
     const errs: Record<string, string> = {};
@@ -485,39 +470,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
                     </div>
                   )}
 
-                  {/* 1-Click Quick Admin Demo Sign In */}
-                  <div className="mb-5 p-3 rounded-xl bg-gradient-to-r from-indigo-50/90 to-blue-50/90 border border-indigo-100 flex items-center justify-between gap-3 text-left">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1 text-[11px] font-bold text-indigo-900">
-                        <KeyRound className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                        <span>Administrator Account</span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 font-mono truncate">
-                        admin@coreenact.com
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        type="button"
-                        onClick={fillAdminCredentials}
-                        className="px-2 py-1 text-[11px] font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-md transition shadow-2xs cursor-pointer"
-                        title="Fill fields with admin credentials"
-                      >
-                        Fill
-                      </button>
-                      <button
-                        type="button"
-                        onClick={quickOneClickAdminLogin}
-                        disabled={status === 'loading'}
-                        className="px-2.5 py-1 text-[11px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition shadow-2xs cursor-pointer flex items-center gap-1 disabled:opacity-60"
-                        title="Sign in immediately with default administrator credentials"
-                      >
-                        <Check className="w-3 h-3" />
-                        <span>1-Click Sign In</span>
-                      </button>
-                    </div>
-                  </div>
-
                   <form onSubmit={submit} className="space-y-4">
                     {/* Identifier Field */}
                     <div>
@@ -537,7 +489,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
                             setEmail(e.target.value);
                             if (errors.email) setErrors({ ...errors, email: '' });
                           }}
-                          placeholder="admin@coreenact.com"
+                          placeholder="Enter your work email or username"
                           className={`w-full pl-9 pr-3.5 py-2.5 text-xs text-slate-900 bg-slate-50 border rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 transition ${
                             errors.email ? 'border-rose-400 bg-rose-50/40' : 'border-slate-300'
                           }`}
@@ -554,17 +506,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
                         <label htmlFor="crm-password" className="text-xs font-semibold text-slate-700">
                           Password
                         </label>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setInfoNotice(
-                              'Default administrator credentials are admin@coreenact.com / CoreEnact@2026#. You can manage user credentials in Masters > Users.'
-                            )
-                          }
-                          className="text-[11px] font-medium text-indigo-600 hover:text-indigo-800 cursor-pointer"
-                        >
-                          Need credentials?
-                        </button>
                       </div>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">

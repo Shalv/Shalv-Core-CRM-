@@ -1494,6 +1494,30 @@ function getCurrentSnapshot(): Snapshot {
   return reconcileSnapshot(rawSnapshot);
 }
 
+const superAdminAliases = new Set([
+  'shalv@coreenact.com',
+  'shalv.sharma@coreenact.com',
+  'shalvsharma89@gmail.com',
+  'shalvpersonal@gmail.com',
+  'info@coreenact.com',
+  'infor@coreenact.com',
+  'admin@coreenact.com',
+  'coreenactsolutions@gmail.com',
+  'coreenactsolutions',
+  'coreenact',
+  'admin@coreenactsolutions.com',
+  'shalv',
+  'shalv sharma',
+  'admin',
+  'superadmin',
+  'administrator',
+  'emp-101',
+  'emp101',
+  'emp-001',
+  'emp001',
+  '101',
+]);
+
 function findAccountByIdentifier(rawIdentifier: string): { user: any | null; master: any | null } {
   const identifier = String(rawIdentifier || '').trim().toLowerCase();
   if (!identifier) return { user: null, master: null };
@@ -1511,30 +1535,6 @@ function findAccountByIdentifier(rawIdentifier: string): { user: any | null; mas
     ...Object.values(PERSISTED_CRM_STATE.payrollMasters || {}),
     ...(MOCK_TABLES.payroll_masters || []),
   ].filter(Boolean);
-
-  const superAdminAliases = new Set([
-    'shalv@coreenact.com',
-    'shalv.sharma@coreenact.com',
-    'shalvsharma89@gmail.com',
-    'shalvpersonal@gmail.com',
-    'info@coreenact.com',
-    'infor@coreenact.com',
-    'admin@coreenact.com',
-    'coreenactsolutions@gmail.com',
-    'coreenactsolutions',
-    'coreenact',
-    'admin@coreenactsolutions.com',
-    'shalv',
-    'shalv sharma',
-    'admin',
-    'superadmin',
-    'administrator',
-    'emp-101',
-    'emp101',
-    'emp-001',
-    'emp001',
-    '101',
-  ]);
 
   let user: any = null;
   let master: any = null;

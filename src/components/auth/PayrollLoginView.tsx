@@ -12,13 +12,10 @@ import {
   Building2,
   Users,
   FileText,
-  KeyRound,
   Shield,
   Clock,
-  Sparkles,
   Fingerprint,
   Layers,
-  Check,
 } from 'lucide-react';
 
 interface PayrollLoginViewProps {
@@ -70,8 +67,8 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
   }, []);
 
   const [values, setValues] = useState(() => ({
-    empId: urlLockedIdentity.email || urlLockedIdentity.empCode || 'admin@coreenact.com',
-    password: 'CoreEnact@2026#',
+    empId: urlLockedIdentity.email || urlLockedIdentity.empCode || '',
+    password: '',
   }));
   const [errors, setErrors] = useState({ empId: '', password: '' });
   const [attempt, setAttempt] = useState(0);
@@ -205,20 +202,6 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await executeLogin(values.empId, values.password);
-  };
-
-  const fillQuickCredentials = (id: string, pass: string) => {
-    setValues({ empId: id, password: pass });
-    setErrors({ empId: '', password: '' });
-    setStatus({
-      text: `Loaded credentials for ${id}. Click "Sign In to PayChakra ESS" to proceed.`,
-      ok: true,
-    });
-  };
-
-  const quickOneClickLogin = async (id: string, pass: string) => {
-    setValues({ empId: id, password: pass });
-    await executeLogin(id, pass);
   };
 
   const handleResetSubmit = async (e: React.FormEvent) => {
@@ -508,68 +491,6 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
                     </p>
                   </div>
 
-                  {/* Quick Demo Credentials Banner */}
-                  <div className="mb-5 p-3 rounded-xl bg-gradient-to-r from-sky-50/90 to-blue-50/90 border border-sky-100 flex flex-col gap-2 text-left">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1 text-[11px] font-bold text-sky-950">
-                        <KeyRound className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                        <span>Quick Sign In Options</span>
-                      </div>
-                      <span className="text-[10px] text-slate-500 font-medium">1-Click Access</span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 pt-0.5">
-                      {/* Option 1: Admin / HR */}
-                      <div className="p-2 rounded-lg bg-white border border-sky-200/80 flex flex-col justify-between gap-1.5 shadow-2xs">
-                        <div>
-                          <p className="text-[10px] font-bold text-slate-800">Admin / HR Lead</p>
-                          <p className="text-[10px] text-slate-500 font-mono truncate">admin@coreenact.com</p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => fillQuickCredentials('admin@coreenact.com', 'CoreEnact@2026#')}
-                            className="flex-1 py-0.5 px-1.5 text-[10px] font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded transition cursor-pointer text-center"
-                          >
-                            Fill
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => quickOneClickLogin('admin@coreenact.com', 'CoreEnact@2026#')}
-                            disabled={loading}
-                            className="flex-1 py-0.5 px-1.5 text-[10px] font-bold text-white bg-sky-600 hover:bg-sky-700 rounded transition shadow-2xs cursor-pointer text-center disabled:opacity-60"
-                          >
-                            Sign In
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Option 2: Employee */}
-                      <div className="p-2 rounded-lg bg-white border border-sky-200/80 flex flex-col justify-between gap-1.5 shadow-2xs">
-                        <div>
-                          <p className="text-[10px] font-bold text-slate-800">Employee ESS</p>
-                          <p className="text-[10px] text-slate-500 font-mono truncate">EMP-101 (Shalv)</p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => fillQuickCredentials('EMP-101', 'CoreEnact@2026#')}
-                            className="flex-1 py-0.5 px-1.5 text-[10px] font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded transition cursor-pointer text-center"
-                          >
-                            Fill
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => quickOneClickLogin('EMP-101', 'CoreEnact@2026#')}
-                            disabled={loading}
-                            className="flex-1 py-0.5 px-1.5 text-[10px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded transition shadow-2xs cursor-pointer text-center disabled:opacity-60"
-                          >
-                            Sign In
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
 
                   {/* Status / Errors Feedback Banner */}
                   {status.text && (
