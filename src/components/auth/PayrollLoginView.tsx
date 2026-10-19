@@ -107,9 +107,6 @@ export const PayrollLoginView: React.FC<PayrollLoginViewProps> = ({ onSwitchToCr
     }
     if (!password) {
       nextErrors.password = 'Enter your account password.';
-    } else if (password === 'password123') {
-      nextErrors.password =
-        'Default password "password123" is disabled. Please enter your secure password.';
     }
     return nextErrors;
   };

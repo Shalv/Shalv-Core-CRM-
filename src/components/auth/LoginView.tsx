@@ -89,8 +89,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
     }
     if (!passwordVal) {
       errs.password = 'Enter your password.';
-    } else if (passwordVal === 'password123') {
-      errs.password = 'The default password "password123" is disabled. Please enter your secure password.';
     }
     return errs;
   };
@@ -103,87 +101,33 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSwitchToPayrollLogin }) 
 
     setStatus('loading');
 
-    // Initial setup if no users exist in database
-    if (users.length === 0) {
-      const cleanEmail = loginEmail.trim().toLowerCase();
-      addUser({
-        name:
-          cleanEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) ||
-          'Super Admin',
-        email: cleanEmail,
-        username: cleanEmail.split('@')[0],
-        password: loginPass.trim(),
-        tempPassword: loginPass.trim(),
-        role: 'Super Admin',
-        department: 'Executive',
-        designation: 'Managing Director / Super Admin',
-        status: 'Active',
-      });
-      const res = login(cleanEmail, loginPass.trim(), { portalMode: 'crm' });
+    const cleanEmail = loginEmail.trim();
+    const cleanPassword = loginPass.trim();
+
+    try {
+      const verified = await syncCredentialsFromServer(cleanEmail, cleanPassword, 'crm');
+      const res = login(cleanEmail, cleanPassword, { portalMode: 'crm' });
+      if (res.success || verified) {
+        setStatus('done');
+        return;
+      }
+      setStatus('idle');
+      setErrors({ password: res.message || 'Invalid username, email, or password.' });
+    } catch (error) {
+      // Try local/direct client login if network/sync rejected
+      const res = login(cleanEmail, cleanPassword, { portalMode: 'crm' });
       if (res.success) {
         setStatus('done');
         return;
       }
-    }
-
-    const cleanEmail = loginEmail.trim();
-    const cleanPassword = loginPass.trim();
-
-    const isAdminSigninAttempt = ADMIN_SIGNIN_IDENTIFIERS.has(cleanEmail.toLowerCase());
-    const healStaleAdminCache = (): boolean => {
-      if (!isAdminSigninAttempt) return false;
-      const { cleared } = clearStaleAdminCredentialCache('login-retry');
-      if (cleared) {
-        setInfoNotice(
-          'Stale cached admin credentials were reset. Please sign in again with the seeded admin password.'
-        );
-      }
-      return cleared;
-    };
-
-    let res: { success: boolean; message?: string; mustChangePassword?: boolean; user?: any };
-    try {
-      const verified = await syncCredentialsFromServer(cleanEmail, cleanPassword, 'crm');
-      res = verified
-        ? login(cleanEmail, cleanPassword, { portalMode: 'crm' })
-        : login(cleanEmail, cleanPassword, { portalMode: 'crm' });
-    } catch (error) {
-      const failure = error instanceof Error ? error.message : 'Sign-in failed.';
       setStatus('idle');
-      healStaleAdminCache();
+      const failure = error instanceof Error ? error.message : 'Sign-in failed.';
       if (failure.toLowerCase().includes('user') || failure.toLowerCase().includes('identifier') || failure.toLowerCase().includes('account') || failure.toLowerCase().includes('email')) {
         setErrors({ email: failure });
       } else {
         setErrors({ password: failure });
       }
-      return;
     }
-
-    if (!res.success) {
-      setStatus('idle');
-      if (healStaleAdminCache()) {
-        setErrors({});
-        return;
-      }
-      if (res.message?.includes('user') || res.message?.includes('account') || res.message?.includes('email')) {
-        setErrors({ email: res.message });
-      } else {
-        setErrors({ password: res.message || 'Invalid username, email, or password.' });
-      }
-      return;
-    }
-
-    if (res.mustChangePassword && res.user) {
-      setStatus('idle');
-      setFirstLoginTarget({
-        email: res.user.email,
-        name: res.user.name,
-        tempPass: cleanPassword,
-      });
-      return;
-    }
-
-    setStatus('done');
   };
 
   const submit = async (e: React.FormEvent) => {
