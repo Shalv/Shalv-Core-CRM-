@@ -2251,6 +2251,22 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
         throw new Error(String(data.message || 'Invalid work email or password.'));
       }
 
+      // A reachable-but-unhealthy server (5xx) or a non-JSON body is NOT a wrong password. Capture
+      // the real reason so the sign-in screen reports it instead of a misleading "Invalid password".
+      let serverFailure = '';
+      if (!verifyOk) {
+        const status = response.status;
+        if (status >= 500) {
+          serverFailure =
+            `The application server is unavailable (HTTP ${status}). ` +
+            (typeof data?.message === 'string' && data.message
+              ? data.message
+              : 'Check the backend and that DATABASE_URL / AUTH_SECRET are set, then try again.');
+        } else if (!data) {
+          serverFailure = `The application server did not return a valid response (HTTP ${status}). Check that the backend is running.`;
+        }
+      }
+
       if (!verifyOk) {
         // Fallback: check if employee was enrolled or created in local storage / pending records
         const cleanId = String(identifier || '').trim().toLowerCase();
@@ -2413,7 +2429,10 @@ const SUPER_ADMIN_LOGIN_ALIASES = new Set([
               throw new Error('Could not reach the server to verify your credentials. Please try again when you are online.');
             }
           } else {
-            throw new Error('Invalid password. Please check your credentials or contact your administrator.');
+            throw new Error(
+              serverFailure ||
+                'Invalid password. Please check your credentials or contact your administrator.'
+            );
           }
         } else {
           throw new Error(data?.message || `No account found with identifier "${identifier}". Check your Employee Code (e.g. EMP-101) or work email.`);
